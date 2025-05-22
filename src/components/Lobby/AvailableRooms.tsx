@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useState, useEffect } from "react";
 
 interface AvailableRoomsProps {
   rooms: GameRoom[];
@@ -18,10 +19,37 @@ interface AvailableRoomsProps {
 }
 
 export default function AvailableRooms({ rooms, handleJoinRoom, playerExists }: AvailableRoomsProps) {
+  // Add stabilization state to prevent flickering during room updates
+  const [stableRooms, setStableRooms] = useState<GameRoom[]>(rooms);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Use effect to stabilize room updates
+  useEffect(() => {
+    // Only update the stable rooms after a small delay to prevent flickering
+    const timer = setTimeout(() => {
+      setStableRooms(rooms);
+      setIsLoading(false);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [rooms]);
+
+  // Show loading state if rooms are empty and still loading
+  if (isLoading && stableRooms.length === 0) {
+    return (
+      <div className="mb-4">
+        <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
+        <div className="text-center py-8 border rounded-md bg-gray-50">
+          <p className="text-gray-500">Chargement des salles...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-4">
       <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
-      {rooms.length > 0 ? (
+      {stableRooms.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
@@ -33,7 +61,7 @@ export default function AvailableRooms({ rooms, handleJoinRoom, playerExists }: 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rooms.map((room) => (
+              {stableRooms.map((room) => (
                 <TableRow key={room.id}>
                   <TableCell className="font-medium">{room.name}</TableCell>
                   <TableCell>

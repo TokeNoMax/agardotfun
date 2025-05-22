@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import CreateRoomDialog from "./CreateRoomDialog";
 import CurrentRoom from "./CurrentRoom";
 import AvailableRooms from "./AvailableRooms";
+import { GameRoom } from "@/types/game";
 
 export default function RoomList() {
   const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
@@ -17,17 +18,24 @@ export default function RoomList() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [gameStarting, setGameStarting] = useState(false);
+  const [stableWaitingRooms, setStableWaitingRooms] = useState<GameRoom[]>([]);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Enhanced room filtering
-  const waitingRooms = rooms ? rooms.filter(room => 
-    room.status === 'waiting' && 
-    (!currentRoom || room.id !== currentRoom.id) && 
-    room.maxPlayers > 1 && // Filter out solo rooms
-    !room.name.toLowerCase().includes('test_max_') // Filter out test rooms
-  ) : [];
+  // Enhanced room filtering with stabilization
+  useEffect(() => {
+    if (rooms) {
+      const filteredRooms = rooms.filter(room => 
+        room.status === 'waiting' && 
+        (!currentRoom || room.id !== currentRoom.id) && 
+        room.maxPlayers > 1 && // Filter out solo rooms
+        !room.name.toLowerCase().includes('test_max_') // Filter out test rooms
+      );
+      
+      setStableWaitingRooms(filteredRooms);
+    }
+  }, [rooms, currentRoom]);
 
   // Check if all players are ready with proper null checks
   useEffect(() => {
@@ -236,7 +244,7 @@ export default function RoomList() {
       ) : null}
       
       <AvailableRooms 
-        rooms={waitingRooms}
+        rooms={stableWaitingRooms}
         handleJoinRoom={handleJoinRoom}
         playerExists={!!player}
       />
