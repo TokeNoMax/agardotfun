@@ -7,7 +7,7 @@ interface GameContextType {
   rooms: GameRoom[];
   currentRoom: GameRoom | null;
   player: Player | null;
-  createRoom: (name: string, maxPlayers: number) => void;
+  createRoom: (name: string, maxPlayers: number) => string;
   joinRoom: (roomId: string) => void;
   leaveRoom: () => void;
   setPlayerDetails: (name: string, color: PlayerColor) => void;
