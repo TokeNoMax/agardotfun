@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
@@ -14,15 +15,24 @@ export default function Lobby() {
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   
-  // Clear any potentially stuck room on component mount
+  // Improved clearing of stuck rooms on component mount
   useEffect(() => {
     const clearStuckRoom = async () => {
-      // Check if we need to leave any rooms on page load to prevent auto-reconnection
-      await leaveRoom();
-      await refreshCurrentRoom();
+      try {
+        // Force leave any rooms - this ensures no "test_max_" rooms persist
+        await leaveRoom();
+        
+        // Clear local storage manually to be extra safe
+        localStorage.removeItem('blob-battle-current-room');
+        
+        // Refresh rooms list
+        await refreshCurrentRoom();
+      } catch (error) {
+        console.error("Error clearing room state:", error);
+      }
     };
     
-    clearStuckRoom().catch(error => console.error("Error clearing room state:", error));
+    clearStuckRoom();
   }, [leaveRoom, refreshCurrentRoom]);
   
   const handleTestGame = async () => {

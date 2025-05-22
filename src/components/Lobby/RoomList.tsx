@@ -44,11 +44,12 @@ export default function RoomList() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Safely filter rooms with null check - MODIFIED to exclude solo rooms (maxPlayers === 1)
+  // Enhanced room filtering
   const waitingRooms = rooms ? rooms.filter(room => 
     room.status === 'waiting' && 
     (!currentRoom || room.id !== currentRoom.id) && 
-    room.maxPlayers > 1 // Filter out solo rooms
+    room.maxPlayers > 1 && // Filter out solo rooms
+    !room.name.toLowerCase().includes('test_max_') // Filter out test rooms
   ) : [];
 
   // Check if all players are ready with proper null checks
@@ -257,7 +258,6 @@ export default function RoomList() {
                       <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* Removed the option for 1 player since we have solo mode now */}
                       <SelectItem value="2">2 Joueurs</SelectItem>
                       <SelectItem value="4">4 Joueurs</SelectItem>
                       <SelectItem value="6">6 Joueurs</SelectItem>
