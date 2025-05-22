@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
@@ -42,22 +41,17 @@ export default function Lobby() {
     try {
       setIsCreatingTestGame(true);
       
-      // For local test mode
-      const localTestMode = () => {
-        toast({
-          title: "Mode solo local",
-          description: "Préparation du mode local..."
-        });
-        
-        // Start local game by navigating with query parameter
-        setTimeout(() => {
-          navigate('/game?local=true');
-          setIsCreatingTestGame(false);
-        }, 500);
-      };
+      // For local test mode - simplify by directly navigating to game with local param
+      toast({
+        title: "Mode solo local",
+        description: "Préparation du mode local..."
+      });
       
-      // Use local mode for stability
-      localTestMode();
+      // Start local game by navigating with query parameter
+      setTimeout(() => {
+        navigate('/game?local=true');
+        setIsCreatingTestGame(false);
+      }, 500);
       
     } catch (error) {
       setIsCreatingTestGame(false);

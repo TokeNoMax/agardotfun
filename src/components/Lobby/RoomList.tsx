@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,8 +44,12 @@ export default function RoomList() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Safely filter rooms with null check
-  const waitingRooms = rooms ? rooms.filter(room => room.status === 'waiting' && (!currentRoom || room.id !== currentRoom.id)) : [];
+  // Safely filter rooms with null check - MODIFIED to exclude solo rooms (maxPlayers === 1)
+  const waitingRooms = rooms ? rooms.filter(room => 
+    room.status === 'waiting' && 
+    (!currentRoom || room.id !== currentRoom.id) && 
+    room.maxPlayers > 1 // Filter out solo rooms
+  ) : [];
 
   // Check if all players are ready with proper null checks
   useEffect(() => {
@@ -254,6 +257,7 @@ export default function RoomList() {
                       <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Removed the option for 1 player since we have solo mode now */}
                       <SelectItem value="2">2 Joueurs</SelectItem>
                       <SelectItem value="4">4 Joueurs</SelectItem>
                       <SelectItem value="6">6 Joueurs</SelectItem>
