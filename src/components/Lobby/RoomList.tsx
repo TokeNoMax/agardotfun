@@ -1,36 +1,13 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RefreshCw } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useGame } from "@/context/GameContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import CreateRoomDialog from "./CreateRoomDialog";
+import CurrentRoom from "./CurrentRoom";
+import AvailableRooms from "./AvailableRooms";
 
 export default function RoomList() {
   const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
@@ -230,180 +207,39 @@ export default function RoomList() {
             <RefreshCw className="h-4 w-4" />
           </Button>
           
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button disabled={!player}>Créer une salle</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Créer une nouvelle salle</DialogTitle>
-                <DialogDescription>
-                  Créez votre propre salle de jeu et invitez d'autres joueurs à vous rejoindre
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Nom de la salle</Label>
-                  <Input
-                    id="name"
-                    placeholder="Entrer le nom de la salle"
-                    value={roomName}
-                    onChange={(e) => setRoomName(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="players">Joueurs maximum</Label>
-                  <Select value={maxPlayers} onValueChange={setMaxPlayers}>
-                    <SelectTrigger id="players">
-                      <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2">2 Joueurs</SelectItem>
-                      <SelectItem value="4">4 Joueurs</SelectItem>
-                      <SelectItem value="6">6 Joueurs</SelectItem>
-                      <SelectItem value="8">8 Joueurs</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleCreateRoom}>Créer</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <CreateRoomDialog 
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            roomName={roomName}
+            setRoomName={setRoomName}
+            maxPlayers={maxPlayers}
+            setMaxPlayers={setMaxPlayers}
+            handleCreateRoom={handleCreateRoom}
+            playerExists={!!player}
+          />
         </div>
       </div>
       
       {currentRoom ? (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-xl font-semibold">{currentRoom.name}</h3>
-              <p className="text-gray-600">
-                {currentRoom.players && currentRoom.players.length}/{currentRoom.maxPlayers} joueurs • {currentRoom.status === 'waiting' ? 'En attente' : currentRoom.status === 'playing' ? 'En cours' : 'Terminé'}
-              </p>
-              {countdown !== null && (
-                <p className="text-lg font-bold text-green-600 mt-2">
-                  Démarrage dans {countdown} secondes...
-                </p>
-              )}
-              {gameStarting && currentRoom.status === 'playing' && (
-                <p className="text-lg font-bold text-green-600 mt-2">
-                  La partie est prête ! Cliquez sur "Rejoindre la partie" pour commencer.
-                </p>
-              )}
-              <div className="mt-2">
-                <p className="text-sm font-medium">Joueurs:</p>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {currentRoom.players && currentRoom.players.map(player => (
-                    <span 
-                      key={player.id} 
-                      className={`px-2 py-1 rounded text-sm ${player.ready ? 'bg-green-100 text-green-800' : 'bg-white'}`}
-                    >
-                      {player.name} {player.ready ? '✓' : ''}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {isCurrentPlayerInRoom() ? (
-                <>
-                  <Button 
-                    onClick={handleToggleReady}
-                    className="w-full"
-                    variant={isCurrentPlayerReady() ? "outline" : "default"}
-                    disabled={gameStarting}
-                  >
-                    {isCurrentPlayerReady() ? "Annuler prêt" : "Je suis prêt"}
-                  </Button>
-                  
-                  {gameStarting && currentRoom.status === 'playing' ? (
-                    <Button 
-                      onClick={handleJoinGame}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                    >
-                      Rejoindre la partie
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={handleStartGame}
-                      disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
-                      className="w-full"
-                    >
-                      Démarrer la partie
-                    </Button>
-                  )}
-                  
-                  <Button 
-                    variant="outline" 
-                    onClick={handleLeaveRoom}
-                    className="w-full"
-                    disabled={gameStarting}
-                  >
-                    Quitter la salle
-                  </Button>
-                </>
-              ) : (
-                <Button 
-                  onClick={() => handleJoinRoom(currentRoom.id)}
-                  disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
-                  className="w-full"
-                >
-                  Rejoindre la salle
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+        <CurrentRoom 
+          currentRoom={currentRoom}
+          countdown={countdown}
+          gameStarting={gameStarting}
+          handleToggleReady={handleToggleReady}
+          handleStartGame={handleStartGame}
+          handleLeaveRoom={handleLeaveRoom}
+          handleJoinGame={handleJoinGame}
+          handleJoinRoom={handleJoinRoom}
+          isCurrentPlayerReady={isCurrentPlayerReady}
+          isCurrentPlayerInRoom={isCurrentPlayerInRoom}
+        />
       ) : null}
       
-      {/* Affichage des salles disponibles avec un tableau structuré */}
-      <div className="mb-4">
-        <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
-        {waitingRooms.length > 0 ? (
-          <div className="border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Joueurs</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {waitingRooms.map((room) => (
-                  <TableRow key={room.id}>
-                    <TableCell className="font-medium">{room.name}</TableCell>
-                    <TableCell>
-                      {room.players && room.players.length}/{room.maxPlayers}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        En attente
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button 
-                        size="sm"
-                        onClick={() => handleJoinRoom(room.id)}
-                        disabled={!player || (room.players && room.players.length >= room.maxPlayers)}
-                      >
-                        Rejoindre
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="text-center py-8 border rounded-md bg-gray-50">
-            <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
-          </div>
-        )}
-      </div>
+      <AvailableRooms 
+        rooms={waitingRooms}
+        handleJoinRoom={handleJoinRoom}
+        playerExists={!!player}
+      />
     </div>
   );
 }

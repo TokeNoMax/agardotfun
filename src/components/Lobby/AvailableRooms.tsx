@@ -1,0 +1,68 @@
+
+import { Button } from "@/components/ui/button";
+import { GameRoom } from "@/types/game";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+interface AvailableRoomsProps {
+  rooms: GameRoom[];
+  handleJoinRoom: (roomId: string) => Promise<void>;
+  playerExists: boolean;
+}
+
+export default function AvailableRooms({ rooms, handleJoinRoom, playerExists }: AvailableRoomsProps) {
+  return (
+    <div className="mb-4">
+      <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
+      {rooms.length > 0 ? (
+        <div className="border rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nom</TableHead>
+                <TableHead>Joueurs</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rooms.map((room) => (
+                <TableRow key={room.id}>
+                  <TableCell className="font-medium">{room.name}</TableCell>
+                  <TableCell>
+                    {room.players && room.players.length}/{room.maxPlayers}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      En attente
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button 
+                      size="sm"
+                      onClick={() => handleJoinRoom(room.id)}
+                      disabled={!playerExists || (room.players && room.players.length >= room.maxPlayers)}
+                    >
+                      Rejoindre
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <div className="text-center py-8 border rounded-md bg-gray-50">
+          <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
+        </div>
+      )}
+    </div>
+  );
+}
