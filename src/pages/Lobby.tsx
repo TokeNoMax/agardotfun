@@ -6,7 +6,7 @@ import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 
 export default function Lobby() {
-  const { currentRoom } = useGame();
+  const { currentRoom, player } = useGame();
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function Lobby() {
         </h1>
         
         <div className="flex flex-col md:flex-row gap-8 items-start justify-center">
-          <PlayerCustomization />
+          {!player && <PlayerCustomization />}
           <RoomList />
         </div>
         
@@ -32,6 +32,7 @@ export default function Lobby() {
           <ul className="space-y-2 list-disc pl-5 text-gray-700">
             <li>Personnalisez votre blob en choisissant un nom et une couleur</li>
             <li>Créez une nouvelle salle ou rejoignez-en une existante</li>
+            <li>Lorsque tous les joueurs sont prêts, cliquez sur "Démarrer la partie"</li>
             <li>Contrôlez votre blob avec la souris</li>
             <li>Mangez des points de nourriture pour grandir</li>
             <li>Évitez les tapis violets qui vous feront rétrécir</li>

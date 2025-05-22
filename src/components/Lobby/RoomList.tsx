@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,13 +20,15 @@ import {
 } from "@/components/ui/select";
 import { useGame } from "@/context/GameContext";
 import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
 
 export default function RoomList() {
-  const { rooms, createRoom, joinRoom, player } = useGame();
+  const { rooms, createRoom, joinRoom, player, currentRoom, startGame } = useGame();
   const [roomName, setRoomName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState("4");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleCreateRoom = async () => {
     if (!player) {
@@ -51,6 +53,20 @@ export default function RoomList() {
 
   const handleJoinRoom = async (roomId: string) => {
     await joinRoom(roomId);
+  };
+
+  const handleStartGame = async () => {
+    try {
+      await startGame();
+      navigate('/game');
+    } catch (error) {
+      console.error("Error starting game:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de démarrer la partie",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -98,12 +114,48 @@ export default function RoomList() {
         </Dialog>
       </div>
       
-      {rooms.length === 0 ? (
+      {currentRoom ? (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-semibold">{currentRoom.name}</h3>
+              <p className="text-gray-600">
+                {currentRoom.players.length}/{currentRoom.maxPlayers} joueurs • {currentRoom.status === 'waiting' ? 'En attente' : currentRoom.status === 'playing' ? 'En cours' : 'Terminé'}
+              </p>
+              <div className="mt-2">
+                <p className="text-sm font-medium">Joueurs:</p>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {currentRoom.players.map(player => (
+                    <span key={player.id} className="px-2 py-1 bg-white rounded text-sm">{player.name}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Button 
+                onClick={handleStartGame}
+                disabled={currentRoom.status !== 'waiting' || currentRoom.players.length < 2}
+                className="w-full"
+              >
+                Démarrer la partie
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => joinRoom("")}
+                className="w-full"
+              >
+                Quitter la salle
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : rooms.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
         </div>
       ) : (
         <div className="grid gap-4">
+          <p className="text-sm text-gray-500 mb-2">Salles disponibles:</p>
           {rooms.map((room) => (
             <div
               key={room.id}
