@@ -34,6 +34,9 @@ export default function RoomList() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Filtrer les salles pour n'afficher que celles en attente
+  const waitingRooms = rooms.filter(room => room.status === 'waiting');
+
   // Vérifier si tous les joueurs sont prêts
   useEffect(() => {
     if (
@@ -120,12 +123,6 @@ export default function RoomList() {
 
   const handleJoinRoom = async (roomId: string) => {
     await joinRoom(roomId);
-    
-    // Si la salle est en cours, rediriger directement vers la page de jeu
-    const roomToJoin = rooms.find(room => room.id === roomId);
-    if (roomToJoin && roomToJoin.status === 'playing') {
-      navigate('/game');
-    }
   };
 
   const handleStartGame = async () => {
@@ -287,7 +284,7 @@ export default function RoomList() {
               ) : (
                 <Button 
                   onClick={() => handleJoinRoom(currentRoom.id)}
-                  disabled={currentRoom.players.length >= currentRoom.maxPlayers}
+                  disabled={currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
                   className="w-full"
                 >
                   Rejoindre la salle
@@ -296,14 +293,14 @@ export default function RoomList() {
             </div>
           </div>
         </div>
-      ) : rooms.length === 0 ? (
+      ) : waitingRooms.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
         </div>
       ) : (
         <div className="grid gap-4">
           <p className="text-sm text-gray-500 mb-2">Salles disponibles:</p>
-          {rooms.map((room) => (
+          {waitingRooms.map((room) => (
             <div
               key={room.id}
               className="flex items-center justify-between p-4 border rounded-md hover:bg-gray-50 transition-colors"
@@ -311,14 +308,14 @@ export default function RoomList() {
               <div>
                 <h3 className="font-medium">{room.name}</h3>
                 <p className="text-sm text-gray-500">
-                  {room.players.length}/{room.maxPlayers} joueurs • {room.status === 'waiting' ? 'En attente' : room.status === 'playing' ? 'En cours' : 'Terminé'}
+                  {room.players.length}/{room.maxPlayers} joueurs • En attente
                 </p>
               </div>
               <Button 
                 onClick={() => handleJoinRoom(room.id)}
                 disabled={!player || room.players.length >= room.maxPlayers}
               >
-                {room.status === 'waiting' ? 'Rejoindre' : 'Rejoindre en cours'}
+                Rejoindre
               </Button>
             </div>
           ))}
