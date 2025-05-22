@@ -355,7 +355,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!currentRoom || !player) return;
 
     try {
-      // Update player ready status
+      // Update player ready status - fixed property name
       const { error } = await supabase
         .from('room_players')
         .update({ is_ready: isReady })

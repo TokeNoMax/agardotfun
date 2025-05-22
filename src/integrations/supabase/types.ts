@@ -35,6 +35,7 @@ export type Database = {
           created_at: string
           id: string
           is_alive: boolean | null
+          is_ready: boolean | null
           player_id: string
           room_id: string
           size: number
@@ -45,6 +46,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_alive?: boolean | null
+          is_ready?: boolean | null
           player_id: string
           room_id: string
           size?: number
@@ -55,6 +57,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_alive?: boolean | null
+          is_ready?: boolean | null
           player_id?: string
           room_id?: string
           size?: number
