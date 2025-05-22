@@ -10,10 +10,15 @@ export default function Lobby() {
   const navigate = useNavigate();
   
   useEffect(() => {
-    if (currentRoom && currentRoom.status === 'playing') {
+    // Uniquement rediriger si la salle existe, a le statut playing, 
+    // et que le joueur est dans cette salle
+    if (currentRoom && 
+        currentRoom.status === 'playing' && 
+        player && 
+        currentRoom.players.some(p => p.id === player.id)) {
       navigate('/game');
     }
-  }, [currentRoom, navigate]);
+  }, [currentRoom, navigate, player]);
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
