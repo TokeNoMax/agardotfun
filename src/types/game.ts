@@ -1,19 +1,43 @@
 
-// Je vais étendre la définition du type GameRoom pour inclure les timestamps
-// Note: Je ne modifie pas le fichier complet car c'est un fichier en lecture seule
-// que je ne peux pas éditer directement.
+// Types pour le jeu Blob Battle
 
-// Si le type GameRoom existe déjà dans le fichier types/game.ts,
-// il faudrait le mettre à jour pour ajouter les propriétés createdAt et updatedAt.
-// Cette mise à jour devra être faite manuellement.
+// Types pour les joueurs
+export type PlayerColor = 'blue' | 'red' | 'green' | 'yellow' | 'purple' | 'orange' | 'cyan' | 'pink';
 
-// Le type GameRoom devrait ressembler à ceci:
-// export interface GameRoom {
-//   id: string;
-//   name: string;
-//   maxPlayers: number;
-//   players: Player[];
-//   status: 'waiting' | 'playing' | 'finished';
-//   createdAt: string;
-//   updatedAt?: string;
-// }
+export interface Player {
+  id: string;
+  name: string;
+  color: PlayerColor;
+  size: number;
+  x: number;
+  y: number;
+  isAlive: boolean;
+  ready?: boolean;
+}
+
+// Types pour la nourriture
+export interface Food {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+}
+
+// Types pour les obstacles/rugs
+export interface Rug {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+}
+
+// Types pour les salles de jeu
+export interface GameRoom {
+  id: string;
+  name: string;
+  maxPlayers: number;
+  players: Player[];
+  status: 'waiting' | 'playing' | 'finished';
+  createdAt: string; // Timestamp au format ISO
+  updatedAt?: string; // Timestamp au format ISO, optionnel
+}

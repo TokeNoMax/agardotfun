@@ -129,7 +129,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           max_players, 
           status, 
           created_at,
-          updated_at,
           room_players (
             player_id
           )
@@ -147,7 +146,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         maxPlayers: room.max_players,
         status: room.status as 'waiting' | 'playing' | 'finished',
         createdAt: room.created_at,
-        updatedAt: room.updated_at || room.created_at,
+        updatedAt: room.created_at, // Utiliser created_at comme fallback si updated_at n'existe pas encore
         players: room.room_players.map((rp: any) => ({ id: rp.player_id })) as Player[],
       }));
 
@@ -167,8 +166,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name, 
           max_players, 
           status, 
-          created_at,
-          updated_at
+          created_at
         `)
         .eq('id', roomId)
         .single();
@@ -219,7 +217,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         maxPlayers: roomData.max_players,
         status: roomData.status as 'waiting' | 'playing' | 'finished',
         createdAt: roomData.created_at,
-        updatedAt: roomData.updated_at || roomData.created_at,
+        updatedAt: roomData.created_at, // Fallback to created_at si updated_at n'existe pas encore
         players: formattedPlayers,
       };
 
