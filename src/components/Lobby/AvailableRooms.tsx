@@ -83,9 +83,19 @@ export default function AvailableRooms({
                     {room.players && room.players.length}/{room.maxPlayers}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      En attente
-                    </Badge>
+                    {room.status === 'waiting' ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        En attente
+                      </Badge>
+                    ) : room.status === 'playing' ? (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                        En cours
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                        Terminée
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button 
@@ -94,7 +104,7 @@ export default function AvailableRooms({
                         e.stopPropagation();
                         handleJoinRoom(room.id);
                       }}
-                      disabled={!playerExists || (room.players && room.players.length >= room.maxPlayers)}
+                      disabled={!playerExists || (room.players && room.players.length >= room.maxPlayers) || room.status !== 'waiting'}
                     >
                       Rejoindre
                     </Button>

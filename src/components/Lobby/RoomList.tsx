@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -10,6 +9,7 @@ import CurrentRoom from "./CurrentRoom";
 import AvailableRooms from "./AvailableRooms";
 import { GameRoom } from "@/types/game";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function RoomList() {
   const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
@@ -265,13 +265,28 @@ export default function RoomList() {
         ) : selectedRoom ? (
           <Card className="mb-6 border-2 border-indigo-300">
             <CardHeader className="pb-2">
-              <CardTitle>{selectedRoom.name}</CardTitle>
+              <CardTitle className="flex justify-between items-center">
+                {selectedRoom.name}
+                {selectedRoom.status === 'waiting' ? (
+                  <Badge className="bg-green-100 text-green-800 border-green-200">
+                    En attente
+                  </Badge>
+                ) : selectedRoom.status === 'playing' ? (
+                  <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                    En cours
+                  </Badge>
+                ) : (
+                  <Badge className="bg-gray-100 text-gray-800 border-gray-200">
+                    Terminée
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-4">
                 <div>
                   <p className="text-gray-600">
-                    {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} joueurs • En attente
+                    {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} joueurs
                   </p>
                   {selectedRoom.players && selectedRoom.players.length > 0 && (
                     <div className="mt-2">
@@ -280,7 +295,11 @@ export default function RoomList() {
                         {selectedRoom.players.map(player => (
                           <span 
                             key={player.id} 
-                            className="px-2 py-1 rounded text-sm bg-gray-100"
+                            className={`px-2 py-1 rounded text-sm ${
+                              player.ready 
+                                ? 'bg-green-100 text-green-800 border border-green-300' 
+                                : 'bg-white border border-gray-200'
+                            }`}
                           >
                             {player.name} {player.ready ? '✓' : ''}
                           </span>
@@ -292,9 +311,11 @@ export default function RoomList() {
                 <Button 
                   className="w-full" 
                   onClick={() => handleJoinRoom(selectedRoom.id)}
-                  disabled={!player || (selectedRoom.players && selectedRoom.players.length >= selectedRoom.maxPlayers)}
+                  disabled={!player || 
+                    (selectedRoom.players && selectedRoom.players.length >= selectedRoom.maxPlayers) ||
+                    selectedRoom.status !== 'waiting'}
                 >
-                  Rejoindre cette salle
+                  {selectedRoom.status === 'waiting' ? 'Rejoindre cette salle' : 'Salle non disponible'}
                 </Button>
               </div>
             </CardContent>
