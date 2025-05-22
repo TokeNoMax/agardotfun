@@ -1,6 +1,6 @@
 
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import GameUI from "@/components/Game/GameUI";
 import { useToast } from "@/components/ui/use-toast";
@@ -8,15 +8,25 @@ import { useToast } from "@/components/ui/use-toast";
 export default function Game() {
   const { currentRoom, player, refreshCurrentRoom } = useGame();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   
-  // Improved session check function
+  // Check if we're in local mode
+  const isLocalMode = new URLSearchParams(location.search).get('local') === 'true';
+  
+  // Improved session check function - skipped for local mode
   const checkGameSession = useCallback(async () => {
+    // Skip validation for local mode
+    if (isLocalMode) {
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      // Si pas de salle active ou le joueur n'est pas défini, rediriger vers le lobby
+      // If no active room or player is not defined, redirect to lobby
       if (!currentRoom || !player) {
         toast({
           title: "Session expirée",
@@ -27,7 +37,7 @@ export default function Game() {
         return;
       } 
       
-      // Vérifier que le joueur est dans la salle
+      // Check if player is in the room
       const isPlayerInRoom = currentRoom.players.some(p => p.id === player.id);
       if (!isPlayerInRoom) {
         toast({
@@ -39,8 +49,8 @@ export default function Game() {
         return;
       }
       
-      // Ne redirige vers le lobby que si la salle n'est pas en mode jeu
-      // Exception: si c'est un mode test solo, on accepte même si status n'est pas 'playing'
+      // Only redirect to lobby if room is not in game mode
+      // Exception: if it's a solo test mode, we accept even if status is not 'playing'
       const isSoloTestMode = currentRoom.maxPlayers === 1 && currentRoom.players.length === 1;
       if (currentRoom.status !== 'playing' && !isSoloTestMode) {
         toast({
@@ -62,22 +72,19 @@ export default function Game() {
       });
       navigate('/lobby');
     }
-  }, [currentRoom, player, navigate, toast]);
+  }, [currentRoom, player, navigate, toast, isLocalMode]);
   
-  // Effet pour vérifier et restaurer la session si nécessaire
+  // Effect to check and restore session if necessary - skipped for local mode
   useEffect(() => {
-    checkGameSession();
-  }, [checkGameSession]);
+    if (isLocalMode) {
+      setIsLoading(false);
+    } else {
+      checkGameSession();
+    }
+  }, [checkGameSession, isLocalMode]);
   
-  // Désactive complètement le rafraîchissement périodique pendant le jeu actif
-  // pour éviter les problèmes de clignotement
-  useEffect(() => {
-    // Aucun rafraîchissement périodique pendant le jeu
-    // Ce commentaire est intentionnel pour montrer qu'on a désactivé le refresh
-  }, [currentRoom]);
-  
-  // Afficher un écran de chargement pendant la tentative de reconnexion
-  if (isLoading || !currentRoom) {
+  // Show loading screen while connecting
+  if (isLoading && !isLocalMode) {
     return (
       <div className="w-screen h-screen flex items-center justify-center">
         <div className="text-center">

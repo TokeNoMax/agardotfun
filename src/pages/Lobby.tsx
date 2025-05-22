@@ -15,17 +15,17 @@ export default function Lobby() {
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   
   useEffect(() => {
-    // Seulement rediriger vers la partie si:
-    // 1. La salle existe
-    // 2. La partie est en mode "playing"
-    // 3. Le joueur existe
-    // 4. Le joueur est dans la salle
+    // Only redirect to the game if:
+    // 1. The room exists
+    // 2. The game is in "playing" mode
+    // 3. The player exists
+    // 4. The player is in the room
     if (currentRoom && 
         currentRoom.status === 'playing' && 
         player && 
         currentRoom.players.some(p => p.id === player.id)) {
       
-      // On utilise un délai pour s'assurer que toutes les données sont synchronisées
+      // Use a delay to ensure all data is synchronized
       const redirectTimer = setTimeout(() => {
         navigate('/game');
       }, 1000);
@@ -44,45 +44,66 @@ export default function Lobby() {
       return;
     }
     
-    // Empêcher les clics multiples
+    // Prevent multiple clicks
     if (isCreatingTestGame) return;
     
     try {
       setIsCreatingTestGame(true);
       
-      toast({
-        title: "Création de la partie test",
-        description: "Préparation du mode solo en cours..."
-      });
-      
-      // Créer une salle de test temporaire avec un nom unique
-      const testRoomName = `Test_${player.name}_${Date.now()}`;
-      const roomId = await createRoom(testRoomName, 1);
-      
-      // Rejoindre la salle
-      await joinRoom(roomId);
-      
-      // Se mettre prêt
-      await setPlayerReady(true);
-      
-      // Démarrer la partie après un petit délai pour s'assurer que tout est synchronisé
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const success = await startGame();
-      
-      if (success) {
-        // Attendre un délai plus long pour s'assurer que la base de données est mise à jour
-        setTimeout(() => {
-          navigate('/game');
-        }, 1500);
-      } else {
-        setIsCreatingTestGame(false);
+      // For online test mode
+      const onlineTestMode = async () => {
         toast({
-          title: "Erreur",
-          description: "Impossible de démarrer le mode test",
-          variant: "destructive"
+          title: "Création de la partie test",
+          description: "Préparation du mode test en cours..."
         });
-      }
+        
+        // Create a test room with a unique name
+        const testRoomName = `Test_${player.name}_${Date.now()}`;
+        const roomId = await createRoom(testRoomName, 1);
+        
+        // Join the room
+        await joinRoom(roomId);
+        
+        // Set player ready
+        await setPlayerReady(true);
+        
+        // Start the game after a short delay to ensure synchronization
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const success = await startGame();
+        
+        if (success) {
+          // Wait a longer delay to ensure the database is updated
+          setTimeout(() => {
+            navigate('/game');
+          }, 1500);
+        } else {
+          setIsCreatingTestGame(false);
+          toast({
+            title: "Erreur",
+            description: "Impossible de démarrer le mode test",
+            variant: "destructive"
+          });
+        }
+      };
+
+      // For local test mode
+      const localTestMode = () => {
+        toast({
+          title: "Mode solo local",
+          description: "Préparation du mode local..."
+        });
+        
+        // Start local game by navigating with query parameter
+        setTimeout(() => {
+          navigate('/game?local=true');
+          setIsCreatingTestGame(false);
+        }, 500);
+      };
+      
+      // Use local mode for stability
+      localTestMode();
+      
     } catch (error) {
       setIsCreatingTestGame(false);
       console.error("Erreur lors du lancement du mode test:", error);
@@ -92,6 +113,19 @@ export default function Lobby() {
         variant: "destructive"
       });
     }
+  };
+  
+  const handleLocalGame = () => {
+    if (!player) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez personnaliser votre blob avant de créer une partie locale",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    navigate('/game?local=true');
   };
   
   return (
@@ -107,7 +141,7 @@ export default function Lobby() {
         </div>
         
         {player && (
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               onClick={handleTestGame}
               disabled={isCreatingTestGame}
@@ -124,6 +158,14 @@ export default function Lobby() {
                   Mode Test (solo)
                 </>
               )}
+            </Button>
+            
+            <Button 
+              onClick={handleLocalGame}
+              className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-lg"
+            >
+              <Gamepad2Icon className="mr-2" />
+              Mode Local (sans réseau)
             </Button>
           </div>
         )}
