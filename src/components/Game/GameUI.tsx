@@ -29,8 +29,8 @@ export default function GameUI() {
         name: player?.name || "LocalPlayer",
         color: player?.color || "blue",
         size: 15,
-        x: 750,
-        y: 750,
+        x: 1500, // Centré sur la nouvelle taille du jeu
+        y: 1500, // Centré sur la nouvelle taille du jeu
         isAlive: true
       });
       
@@ -107,7 +107,7 @@ export default function GameUI() {
   return (
     <div className="w-full h-full relative">
       {/* Game status */}
-      <div className="absolute top-4 left-4 bg-white/80 backdrop-blur-sm p-3 rounded-md shadow-md z-10">
+      <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm p-3 rounded-md shadow-md z-10 text-white">
         <div className="text-sm font-medium">
           {localMode ? "Mode Solo Local" : `Joueurs en vie: ${alivePlayers}`}
         </div>

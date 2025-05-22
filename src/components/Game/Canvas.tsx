@@ -2,15 +2,17 @@ import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player } from "@/types/game";
 
-// Constants - Simplified for stability
-const GAME_WIDTH = 1500;
-const GAME_HEIGHT = 1500;
-const FOOD_COUNT = 75;
-const RUG_COUNT = 5;
+// Constants - Augmenté la taille du jeu et ajouté des constantes pour la grille
+const GAME_WIDTH = 3000;
+const GAME_HEIGHT = 3000;
+const FOOD_COUNT = 150; // Augmenté pour la plus grande carte
+const RUG_COUNT = 10; // Augmenté pour la plus grande carte
 const FOOD_SIZE = 5;
 const RUG_SIZE = 40;
 const FOOD_VALUE = 1;
 const RUG_PENALTY = 5;
+const GRID_SIZE = 150;
+const GRID_COLOR = "#333333";
 
 interface CanvasProps {
   onGameOver: (winner: Player | null) => void;
@@ -25,7 +27,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
   const [rugs, setRugs] = useState<Rug[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [cameraZoom, setCameraZoom] = useState<number>(1);
-  const [cameraPosition, setCameraPosition] = useState({ x: 750, y: 750 });
+  const [cameraPosition, setCameraPosition] = useState({ x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [gameOverCalled, setGameOverCalled] = useState(false);
   const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
@@ -344,8 +346,9 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
       const context = canvas.getContext('2d');
       if (!context) return;
       
-      // Clear canvas
-      context.clearRect(0, 0, canvas.width, canvas.height);
+      // Clear canvas with black background
+      context.fillStyle = "#000000";
+      context.fillRect(0, 0, canvas.width, canvas.height);
       
       // Transform for camera position and zoom
       context.save();
@@ -355,22 +358,21 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
       
       // Draw game bounds
       context.beginPath();
-      context.strokeStyle = '#000';
-      context.lineWidth = 2 / cameraZoom;
+      context.strokeStyle = '#444';
+      context.lineWidth = 4 / cameraZoom;
       context.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       
-      // Draw grid - simplified
+      // Draw grid - with darker grid color
       context.beginPath();
-      context.strokeStyle = '#eee';
+      context.strokeStyle = GRID_COLOR;
       context.lineWidth = 1 / cameraZoom;
       
-      const gridSize = 100;
-      for (let x = 0; x <= GAME_WIDTH; x += gridSize) {
+      for (let x = 0; x <= GAME_WIDTH; x += GRID_SIZE) {
         context.moveTo(x, 0);
         context.lineTo(x, GAME_HEIGHT);
       }
       
-      for (let y = 0; y <= GAME_HEIGHT; y += gridSize) {
+      for (let y = 0; y <= GAME_HEIGHT; y += GRID_SIZE) {
         context.moveTo(0, y);
         context.lineTo(GAME_WIDTH, y);
       }
@@ -449,7 +451,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
   return (
     <canvas 
       ref={canvasRef} 
-      className="w-full h-full bg-gray-100"
+      className="w-full h-full bg-black"
     />
   );
 };
