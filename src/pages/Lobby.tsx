@@ -1,19 +1,24 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import { Button } from "@/components/ui/button";
 import { Gamepad2Icon, Users, User } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Lobby() {
-  const { player } = useGame();
+  const { player, refreshCurrentRoom } = useGame();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
+  
+  // Ajout d'un effet pour rafraîchir les salles au chargement de la page
+  useEffect(() => {
+    refreshCurrentRoom().catch(error => console.error("Error refreshing rooms:", error));
+  }, [refreshCurrentRoom]);
   
   const handleTestGame = async () => {
     if (!player) {

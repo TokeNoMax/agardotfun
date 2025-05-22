@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -22,6 +23,15 @@ import {
 import { useGame } from "@/context/GameContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 export default function RoomList() {
   const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
@@ -36,7 +46,7 @@ export default function RoomList() {
   const navigate = useNavigate();
 
   // Safely filter rooms with null check
-  const waitingRooms = rooms ? rooms.filter(room => room.status === 'waiting') : [];
+  const waitingRooms = rooms ? rooms.filter(room => room.status === 'waiting' && (!currentRoom || room.id !== currentRoom.id)) : [];
 
   // Check if all players are ready with proper null checks
   useEffect(() => {
@@ -162,12 +172,13 @@ export default function RoomList() {
   };
 
   const handleJoinGame = () => {
-    // MODIFICATION: Ajout du paramètre join=true pour indiquer une entrée volontaire
     navigate('/game?join=true');
   };
 
   const handleLeaveRoom = async () => {
     await leaveRoom();
+    // Force refresh rooms après avoir quitté
+    await refreshCurrentRoom();
   };
 
   const handleToggleReady = async () => {
@@ -222,6 +233,9 @@ export default function RoomList() {
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Créer une nouvelle salle</DialogTitle>
+                <DialogDescription>
+                  Créez votre propre salle de jeu et invitez d'autres joueurs à vous rejoindre
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -338,34 +352,54 @@ export default function RoomList() {
             </div>
           </div>
         </div>
-      ) : waitingRooms.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          <p className="text-sm text-gray-500 mb-2">Salles disponibles:</p>
-          {waitingRooms.map((room) => (
-            <div
-              key={room.id}
-              className="flex items-center justify-between p-4 border rounded-md hover:bg-gray-50 transition-colors"
-            >
-              <div>
-                <h3 className="font-medium">{room.name}</h3>
-                <p className="text-sm text-gray-500">
-                  {room.players && room.players.length}/{room.maxPlayers} joueurs • En attente
-                </p>
-              </div>
-              <Button 
-                onClick={() => handleJoinRoom(room.id)}
-                disabled={!player || (room.players && room.players.length >= room.maxPlayers)}
-              >
-                Rejoindre
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
+      ) : null}
+      
+      {/* Affichage des salles disponibles avec un tableau structuré */}
+      <div className="mb-4">
+        <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
+        {waitingRooms.length > 0 ? (
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nom</TableHead>
+                  <TableHead>Joueurs</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {waitingRooms.map((room) => (
+                  <TableRow key={room.id}>
+                    <TableCell className="font-medium">{room.name}</TableCell>
+                    <TableCell>
+                      {room.players && room.players.length}/{room.maxPlayers}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        En attente
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button 
+                        size="sm"
+                        onClick={() => handleJoinRoom(room.id)}
+                        disabled={!player || (room.players && room.players.length >= room.maxPlayers)}
+                      >
+                        Rejoindre
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="text-center py-8 border rounded-md bg-gray-50">
+            <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
