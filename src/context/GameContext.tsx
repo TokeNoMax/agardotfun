@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { Player, Food, Rug, GameRoom, PlayerColor } from "@/types/game";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 interface GameContextType {
@@ -78,17 +78,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  // Fetch current room details when it changes or on interval
+  // Fetch current room details when it changes - remove interval
   useEffect(() => {
     if (currentRoom) {
       fetchRoomDetails(currentRoom.id);
       
-      // Set up interval to refresh room details
-      const refreshInterval = setInterval(() => {
-        fetchRoomDetails(currentRoom.id);
-      }, 5000); // Every 5 seconds
-      
-      return () => clearInterval(refreshInterval);
+      // Nous supprimons l'intervalle qui rafraîchit les données toutes les 5 secondes
+      // pour éviter les redémarrages constants du jeu
     }
   }, [currentRoom?.id]);
 

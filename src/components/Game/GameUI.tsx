@@ -16,7 +16,7 @@ export default function GameUI() {
   const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
   const navigate = useNavigate();
   
-  // Check if we're in local mode based on URL parameters
+  // Check if we're in local mode based on URL parameters - seulement une fois au chargement
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const isLocalMode = urlParams.get('local') === 'true';
@@ -36,11 +36,19 @@ export default function GameUI() {
       
       setAlivePlayers(1);
     } else if (currentRoom) {
-      // Normal online mode - use currentRoom
+      // Normal online mode - use currentRoom - seulement une mise à jour initiale
       const alive = currentRoom.players.filter(p => p.isAlive).length;
       setAlivePlayers(alive || currentRoom.players.length);
     }
-  }, [currentRoom, player]);
+  }, []);
+
+  // Mise à jour des joueurs en vie uniquement lorsque le statut des joueurs change
+  useEffect(() => {
+    if (!localMode && currentRoom) {
+      const alive = currentRoom.players.filter(p => p.isAlive).length;
+      setAlivePlayers(alive || currentRoom.players.length);
+    }
+  }, [currentRoom?.players, localMode]);
 
   // Redirect if not in local mode and no valid session
   useEffect(() => {
