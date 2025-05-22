@@ -32,59 +32,65 @@ export default function PlayerCustomization() {
     <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
       <h2 className="text-2xl font-bold text-center mb-6">Personnalisez votre blob</h2>
       
-      {player ? (
-        <div className="text-center">
-          <div 
-            className={`w-24 h-24 rounded-full mx-auto mb-4 bg-game-${player.color} animate-pulse`}
-            style={{ backgroundColor: `#${getColorHex(player.color)}` }}
-          >
-            <span className="flex items-center justify-center h-full text-white font-bold">
-              {player.name.substring(0, 2)}
-            </span>
-          </div>
-          <p className="text-lg font-medium">Prêt à jouer en tant que <span className="font-bold">{player.name}</span></p>
-          
-          <Button onClick={() => setPlayerDetails(name, selectedColor)} className="mt-4">
-            Modifier
-          </Button>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Nom du blob</Label>
+          <Input
+            id="name"
+            placeholder="Entrez le nom de votre blob"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={15}
+          />
         </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nom du blob</Label>
-            <Input
-              id="name"
-              placeholder="Entrez le nom de votre blob"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              maxLength={15}
-            />
+        
+        <div className="space-y-2">
+          <Label>Choisissez une couleur</Label>
+          <div className="grid grid-cols-4 gap-2">
+            {COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`w-12 h-12 rounded-full transition-all ${
+                  selectedColor === color ? "ring-4 ring-offset-2 ring-black" : "hover:opacity-80"
+                }`}
+                style={{ backgroundColor: `#${getColorHex(color)}` }}
+                onClick={() => setSelectedColor(color)}
+                aria-label={`Sélectionner la couleur ${color}`}
+              />
+            ))}
           </div>
-          
-          <div className="space-y-2">
-            <Label>Choisissez une couleur</Label>
-            <div className="grid grid-cols-4 gap-2">
-              {COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  className={`w-12 h-12 rounded-full transition-all ${
-                    selectedColor === color ? "ring-4 ring-offset-2 ring-black" : "hover:opacity-80"
-                  }`}
-                  style={{ backgroundColor: `#${getColorHex(color)}` }}
-                  onClick={() => setSelectedColor(color)}
-                  aria-label={`Sélectionner la couleur ${color}`}
-                />
-              ))}
+        </div>
+        
+        <div className="pt-2">
+          {player ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: `#${getColorHex(player.color)}` }}
+                >
+                  <span className="text-white font-bold">
+                    {player.name.substring(0, 2)}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Actuellement</p>
+                  <p className="font-bold">{player.name}</p>
+                </div>
+              </div>
+              <Button type="submit">
+                Modifier
+              </Button>
             </div>
-          </div>
-          
-          <Button type="submit" className="w-full">
-            Confirmer
-          </Button>
-        </form>
-      )}
+          ) : (
+            <Button type="submit" className="w-full">
+              Confirmer
+            </Button>
+          )}
+        </div>
+      </form>
     </div>
   );
 }
