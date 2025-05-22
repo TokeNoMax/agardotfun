@@ -1,12 +1,20 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import { Button } from "@/components/ui/button";
-import { Gamepad2Icon, Users, User } from "lucide-react";
+import { Gamepad2Icon, Users, User, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Sheet, 
+  SheetContent, 
+  SheetHeader, 
+  SheetTitle, 
+  SheetTrigger 
+} from "@/components/ui/sheet";
 
 export default function Lobby() {
   const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();
@@ -105,17 +113,77 @@ export default function Lobby() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto py-10">
-        <h1 className="text-4xl font-extrabold text-center mb-10 text-indigo-800">
-          Blob Battle Royale
-        </h1>
-        
-        {!player && (
-          <div className="mb-8">
-            <PlayerCustomization />
+        {/* Header with logo and back button */}
+        <div className="flex justify-between items-center mb-8">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => navigate("/")}
+            className="rounded-full"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex items-center">
+            <h1 className="text-3xl font-extrabold text-indigo-800">
+              agar<span className="text-indigo-500">.fun</span>
+            </h1>
           </div>
-        )}
+          
+          {/* Profile button / personalization button */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button 
+                variant={player ? "outline" : "default"}
+                className={player ? "gap-2" : ""}
+              >
+                {player ? (
+                  <>
+                    <div 
+                      className="w-6 h-6 rounded-full"
+                      style={{ backgroundColor: `#${getColorHex(player.color)}` }}
+                    ></div>
+                    <span>{player.name}</span>
+                  </>
+                ) : (
+                  "Personnaliser"
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader className="mb-5">
+                <SheetTitle>Personnalisation</SheetTitle>
+              </SheetHeader>
+              <PlayerCustomization />
+            </SheetContent>
+          </Sheet>
+        </div>
         
-        {player && (
+        <div className="flex flex-col items-center mb-10">
+          <h2 className="text-2xl font-bold text-center mb-3">Lobby de jeu</h2>
+          <p className="text-gray-600 max-w-lg text-center">
+            Rejoignez ou créez une partie pour commencer à jouer. Assurez-vous de personnaliser votre blob avant de rejoindre une partie.
+          </p>
+        </div>
+        
+        {!player ? (
+          <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-lg mb-8 text-center">
+            <h3 className="text-xl font-semibold mb-4">Personnalisez votre blob</h3>
+            <p className="text-gray-600 mb-4">
+              Vous devez créer un blob personnalisé pour rejoindre ou créer des parties.
+            </p>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button className="w-full">Personnaliser mon blob</Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader className="mb-5">
+                  <SheetTitle>Personnalisation</SheetTitle>
+                </SheetHeader>
+                <PlayerCustomization />
+              </SheetContent>
+            </Sheet>
+          </div>
+        ) : (
           <Tabs defaultValue="multiplayer" className="w-full max-w-5xl mx-auto">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="multiplayer" className="text-lg py-3">
@@ -186,4 +254,19 @@ export default function Lobby() {
       </div>
     </div>
   );
+}
+
+// Helper function to get color hex
+function getColorHex(color: string): string {
+  const colorMap: Record<string, string> = {
+    blue: '3498db',
+    red: 'e74c3c',
+    green: '2ecc71',
+    yellow: 'f1c40f',
+    purple: '9b59b6',
+    orange: 'e67e22',
+    cyan: '1abc9c',
+    pink: 'fd79a8'
+  };
+  return colorMap[color] || '3498db';
 }
