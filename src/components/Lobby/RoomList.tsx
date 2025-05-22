@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useGame } from "@/context/GameContext";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/toast";
 import { useNavigate } from "react-router-dom";
 
 export default function RoomList() {
@@ -34,23 +34,24 @@ export default function RoomList() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Filtrer les salles pour n'afficher que celles en attente
-  const waitingRooms = rooms.filter(room => room.status === 'waiting');
+  // Safely filter rooms with null check
+  const waitingRooms = rooms ? rooms.filter(room => room.status === 'waiting') : [];
 
-  // Vérifier si tous les joueurs sont prêts
+  // Check if all players are ready with proper null checks
   useEffect(() => {
     if (
       currentRoom && 
       currentRoom.status === 'waiting' && 
+      currentRoom.players && 
       currentRoom.players.length >= 2 && 
       currentRoom.players.every(p => p.ready === true)
     ) {
-      // Lancer le compte à rebours si tous les joueurs sont prêts
+      // Launch countdown if all players are ready
       if (countdown === null) {
         setCountdown(5);
       }
     } else {
-      // Annuler le compte à rebours si un joueur n'est plus prêt
+      // Cancel countdown if a player is no longer ready
       if (countdown !== null) {
         setCountdown(null);
         if (countdownTimerRef.current) {
@@ -59,9 +60,9 @@ export default function RoomList() {
         }
       }
     }
-  }, [currentRoom]);
+  }, [currentRoom, countdown]);
 
-  // Gérer le compte à rebours
+  // Handle countdown with proper cleanup
   useEffect(() => {
     if (countdown !== null && countdown > 0) {
       if (countdownTimerRef.current) {
@@ -75,7 +76,7 @@ export default function RoomList() {
               clearInterval(countdownTimerRef.current);
               countdownTimerRef.current = null;
             }
-            // Lancer la partie automatiquement à la fin du compte à rebours
+            // Launch game automatically at the end of countdown
             startGame().then(() => {
               navigate('/game');
             }).catch(error => {
@@ -98,7 +99,7 @@ export default function RoomList() {
         clearInterval(countdownTimerRef.current);
       }
     };
-  }, [countdown, navigate]);
+  }, [countdown, navigate, startGame, toast]);
 
   const handleCreateRoom = async () => {
     if (!player) {
@@ -146,8 +147,8 @@ export default function RoomList() {
   const handleToggleReady = async () => {
     if (!currentRoom || !player) return;
     
-    // Rechercher le joueur dans la salle pour connaître son état actuel
-    const currentPlayer = currentRoom.players.find(p => p.id === player.id);
+    // Find player in room to know current state with null check
+    const currentPlayer = currentRoom.players && currentRoom.players.find(p => p.id === player.id);
     if (currentPlayer) {
       await setPlayerReady(!currentPlayer.ready);
     } else {
@@ -162,13 +163,13 @@ export default function RoomList() {
   };
 
   const isCurrentPlayerReady = () => {
-    if (!currentRoom || !player) return false;
+    if (!currentRoom || !player || !currentRoom.players) return false;
     const currentPlayer = currentRoom.players.find(p => p.id === player.id);
     return !!currentPlayer?.ready;
   };
 
   const isCurrentPlayerInRoom = () => {
-    if (!currentRoom || !player) return false;
+    if (!currentRoom || !player || !currentRoom.players) return false;
     return currentRoom.players.some(p => p.id === player.id);
   };
 
@@ -235,7 +236,7 @@ export default function RoomList() {
             <div>
               <h3 className="text-xl font-semibold">{currentRoom.name}</h3>
               <p className="text-gray-600">
-                {currentRoom.players.length}/{currentRoom.maxPlayers} joueurs • {currentRoom.status === 'waiting' ? 'En attente' : currentRoom.status === 'playing' ? 'En cours' : 'Terminé'}
+                {currentRoom.players && currentRoom.players.length}/{currentRoom.maxPlayers} joueurs • {currentRoom.status === 'waiting' ? 'En attente' : currentRoom.status === 'playing' ? 'En cours' : 'Terminé'}
               </p>
               {countdown !== null && (
                 <p className="text-lg font-bold text-green-600 mt-2">
@@ -245,7 +246,7 @@ export default function RoomList() {
               <div className="mt-2">
                 <p className="text-sm font-medium">Joueurs:</p>
                 <div className="flex flex-wrap gap-2 mt-1">
-                  {currentRoom.players.map(player => (
+                  {currentRoom.players && currentRoom.players.map(player => (
                     <span 
                       key={player.id} 
                       className={`px-2 py-1 rounded text-sm ${player.ready ? 'bg-green-100 text-green-800' : 'bg-white'}`}
@@ -268,7 +269,7 @@ export default function RoomList() {
                   </Button>
                   <Button 
                     onClick={handleStartGame}
-                    disabled={currentRoom.status !== 'waiting' || currentRoom.players.length < 2 || !isCurrentPlayerReady()}
+                    disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady()}
                     className="w-full"
                   >
                     Démarrer la partie
@@ -284,7 +285,7 @@ export default function RoomList() {
               ) : (
                 <Button 
                   onClick={() => handleJoinRoom(currentRoom.id)}
-                  disabled={currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
+                  disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
                   className="w-full"
                 >
                   Rejoindre la salle
@@ -308,12 +309,12 @@ export default function RoomList() {
               <div>
                 <h3 className="font-medium">{room.name}</h3>
                 <p className="text-sm text-gray-500">
-                  {room.players.length}/{room.maxPlayers} joueurs • En attente
+                  {room.players && room.players.length}/{room.maxPlayers} joueurs • En attente
                 </p>
               </div>
               <Button 
                 onClick={() => handleJoinRoom(room.id)}
-                disabled={!player || room.players.length >= room.maxPlayers}
+                disabled={!player || (room.players && room.players.length >= room.maxPlayers)}
               >
                 Rejoindre
               </Button>

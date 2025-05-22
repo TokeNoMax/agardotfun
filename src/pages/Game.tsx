@@ -37,6 +37,18 @@ export default function Game() {
         return;
       } 
       
+      // Check if players array exists before trying to use it
+      if (!currentRoom.players) {
+        console.error("Room has no players array");
+        toast({
+          title: "Erreur de données",
+          description: "Données de la salle incomplètes. Retour au lobby.",
+          variant: "destructive"
+        });
+        navigate('/lobby');
+        return;
+      }
+      
       // Check if player is in the room
       const isPlayerInRoom = currentRoom.players.some(p => p.id === player.id);
       if (!isPlayerInRoom) {
