@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -71,11 +70,14 @@ export default function AvailableRooms({
     );
   }
 
+  // Filter out any remaining 'finished' rooms before displaying
+  const displayRooms = stableRooms.filter(room => room.status !== 'finished');
+
   return (
     <div className="mb-4">
       <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
       <p className="text-sm text-gray-500 mb-2">Les salles inactives depuis plus de 30 minutes sont automatiquement supprimées.</p>
-      {stableRooms.length > 0 ? (
+      {displayRooms.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
@@ -88,7 +90,7 @@ export default function AvailableRooms({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stableRooms.map((room) => (
+              {displayRooms.map((room) => (
                 <TableRow 
                   key={room.id} 
                   className={selectedRoomId === room.id ? "bg-indigo-50 hover:bg-indigo-100" : ""}
