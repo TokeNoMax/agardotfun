@@ -48,7 +48,8 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
       ...p,
       x: Math.random() * (GAME_WIDTH - 100) + 50,
       y: Math.random() * (GAME_HEIGHT - 100) + 50,
-      isAlive: true
+      isAlive: true,
+      size: 20 // Start with smaller size, like agar.io
     }));
     setPlayers(initialPlayers);
     
@@ -210,7 +211,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           const dy = targetY - me.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          // Smaller blobs move faster, larger blobs move slower
+          // Agar.io style: Smaller blobs move faster, larger blobs move slower
           const speedFactor = Math.max(0.5, 5 / Math.sqrt(me.size));
           const speed = 2 * speedFactor;
           
@@ -275,7 +276,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           return prevRugs;
         });
         
-        // Check collisions with other players
+        // Check collisions with other players - Agar.io style
         for (let i = 0; i < updatedPlayers.length; i++) {
           if (i === ourPlayerIndex || !updatedPlayers[i].isAlive) continue;
           
@@ -286,8 +287,9 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           
           // If players collide
           if (distance < me.size + otherPlayer.size) {
-            // Larger player eats smaller player
-            if (me.size > otherPlayer.size * 1.1) {
+            // Agar.io style: Player can only eat others that are significantly smaller
+            // (typically 10-20% smaller)
+            if (me.size > otherPlayer.size * 1.2) {
               // Our player eats the other player
               otherPlayer.isAlive = false;
               me.size += otherPlayer.size / 2;
@@ -295,7 +297,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
                 title: "Joueur éliminé !",
                 description: `Vous avez mangé ${otherPlayer.name} !`
               });
-            } else if (otherPlayer.size > me.size * 1.1) {
+            } else if (otherPlayer.size > me.size * 1.2) {
               // We get eaten
               me.isAlive = false;
               toast({
@@ -304,7 +306,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
                 variant: "destructive"
               });
             } else {
-              // Bounce off each other if similar size
+              // If similar size (within 20%), bounce off each other
               const angle = Math.atan2(dy, dx);
               const pushDistance = 5;
               me.x += Math.cos(angle) * pushDistance;
@@ -313,11 +315,12 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           }
         }
         
-        // Update camera position to follow player
+        // Update camera position to follow player - agar.io style
         setCameraPosition({ x: me.x, y: me.y });
         
-        // Update zoom based on player size
-        setCameraZoom(Math.max(0.5, 50 / Math.sqrt(me.size)));
+        // Update zoom based on player size - agar.io style
+        // Smaller zoom value = more zoomed out view for larger players
+        setCameraZoom(Math.max(0.5, 30 / Math.sqrt(me.size)));
         
         // Send player position to Supabase if enough time has passed
         if (shouldUpdate && currentRoom) {
@@ -325,7 +328,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           updatePlayerPosition(currentRoom.id, me);
         }
         
-        // Check if game over - FIX: Only call game over if there's more than one player
+        // Check if game over - Only call game over if there's more than one player
         // to begin with AND game over hasn't already been called
         const alivePlayers = updatedPlayers.filter(p => p.isAlive);
         
@@ -455,13 +458,22 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         }
       });
       
-      // Draw players
+      // Draw players - agar.io style with cell-like appearance
       players.forEach(player => {
         if (!player.isAlive) return;
         
-        // Draw blob
+        // Draw blob with lighter outer edge
         context.beginPath();
-        context.fillStyle = `#${getColorHex(player.color)}`;
+        const gradient = context.createRadialGradient(
+          player.x, player.y, 0,
+          player.x, player.y, player.size
+        );
+        const baseColor = `#${getColorHex(player.color)}`;
+        gradient.addColorStop(0, baseColor);
+        gradient.addColorStop(0.8, baseColor);
+        gradient.addColorStop(1, lightenColor(baseColor, 30));
+        
+        context.fillStyle = gradient;
         context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
         context.fill();
         
@@ -472,12 +484,12 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
         context.stroke();
         
-        // Draw player name
-        context.font = `${15 / cameraZoom}px Arial`;
+        // Draw player name and size - agar.io style
+        context.font = `${14 / cameraZoom}px Arial`;
         context.fillStyle = '#fff';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText(player.name, player.x, player.y);
+        context.fillText(`${player.name} (${Math.round(player.size)})`, player.x, player.y);
       });
       
       // Restore context
@@ -509,6 +521,25 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
       pink: 'fd79a8'
     };
     return colorMap[color] || '3498db';
+  };
+  
+  // Helper function to lighten a color
+  const lightenColor = (hex: string, percent: number): string => {
+    // Remove the # if present
+    hex = hex.replace('#', '');
+    
+    // Parse the hex string
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    // Lighten
+    const lightenR = Math.min(255, Math.floor(r + (255 - r) * (percent / 100)));
+    const lightenG = Math.min(255, Math.floor(g + (255 - g) * (percent / 100)));
+    const lightenB = Math.min(255, Math.floor(b + (255 - b) * (percent / 100)));
+    
+    // Convert back to hex
+    return `#${lightenR.toString(16).padStart(2, '0')}${lightenG.toString(16).padStart(2, '0')}${lightenB.toString(16).padStart(2, '0')}`;
   };
 
   return (
