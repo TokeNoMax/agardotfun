@@ -2,16 +2,18 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { Player, Food, Rug, GameRoom, PlayerColor } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface GameContextType {
   rooms: GameRoom[];
   currentRoom: GameRoom | null;
   player: Player | null;
-  createRoom: (name: string, maxPlayers: number) => string;
-  joinRoom: (roomId: string) => void;
-  leaveRoom: () => void;
-  setPlayerDetails: (name: string, color: PlayerColor) => void;
-  startGame: () => void;
+  createRoom: (name: string, maxPlayers: number) => Promise<string>;
+  joinRoom: (roomId: string) => Promise<void>;
+  leaveRoom: () => Promise<void>;
+  setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
+  startGame: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -24,56 +26,62 @@ export const useGame = () => {
   return context;
 };
 
-// Local storage keys for game state
-const ROOMS_STORAGE_KEY = 'blob-battle-rooms';
-const CURRENT_ROOM_STORAGE_KEY = 'blob-battle-current-room';
+// Local storage key for player
 const PLAYER_STORAGE_KEY = 'blob-battle-player';
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [rooms, setRooms] = useState<GameRoom[]>(() => {
-    const storedRooms = localStorage.getItem(ROOMS_STORAGE_KEY);
-    return storedRooms ? JSON.parse(storedRooms) : [];
-  });
-  
-  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(() => {
-    const storedRoom = localStorage.getItem(CURRENT_ROOM_STORAGE_KEY);
-    return storedRoom ? JSON.parse(storedRoom) : null;
-  });
-  
+  const [rooms, setRooms] = useState<GameRoom[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
   const [player, setPlayer] = useState<Player | null>(() => {
     const storedPlayer = localStorage.getItem(PLAYER_STORAGE_KEY);
     return storedPlayer ? JSON.parse(storedPlayer) : null;
   });
   
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Effect to handle storage events from other tabs
+  // Fetch rooms and subscribe to changes
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === ROOMS_STORAGE_KEY && e.newValue) {
-        setRooms(JSON.parse(e.newValue));
-      } else if (e.key === CURRENT_ROOM_STORAGE_KEY) {
-        setCurrentRoom(e.newValue ? JSON.parse(e.newValue) : null);
-      }
-    };
+    fetchRooms();
+    
+    // Subscribe to room changes
+    const roomsChannel = supabase
+      .channel('public:rooms')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'rooms' }, 
+        () => {
+          fetchRooms();
+        }
+      )
+      .subscribe();
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    // Subscribe to room_players changes
+    const roomPlayersChannel = supabase
+      .channel('public:room_players')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'room_players' }, 
+        () => {
+          if (currentRoom) {
+            fetchRoomDetails(currentRoom.id);
+          }
+        }
+      )
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(roomsChannel);
+      supabase.removeChannel(roomPlayersChannel);
+    };
   }, []);
 
-  // Update localStorage when state changes
-  useEffect(() => {
-    localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
-  }, [rooms]);
-
+  // Fetch current room details when it changes
   useEffect(() => {
     if (currentRoom) {
-      localStorage.setItem(CURRENT_ROOM_STORAGE_KEY, JSON.stringify(currentRoom));
-    } else {
-      localStorage.removeItem(CURRENT_ROOM_STORAGE_KEY);
+      fetchRoomDetails(currentRoom.id);
     }
-  }, [currentRoom]);
+  }, [currentRoom?.id]);
 
+  // Update localStorage when player changes
   useEffect(() => {
     if (player) {
       localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify(player));
@@ -82,139 +90,339 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [player]);
 
-  const createRoom = (name: string, maxPlayers: number) => {
-    const roomId = Math.random().toString(36).substring(2, 9);
-    const newRoom: GameRoom = {
-      id: roomId,
-      name,
-      maxPlayers,
-      players: [],
-      status: 'waiting'
-    };
-    setRooms(prevRooms => {
-      const updatedRooms = [...prevRooms, newRoom];
-      return updatedRooms;
-    });
-    toast({
-      title: "Room created",
-      description: `Room "${name}" has been created`
-    });
-    return roomId;
+  const fetchRooms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select(`
+          id, 
+          name, 
+          max_players, 
+          status, 
+          created_at,
+          room_players (
+            player_id
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching rooms:', error);
+        return;
+      }
+
+      const formattedRooms: GameRoom[] = data.map(room => ({
+        id: room.id,
+        name: room.name,
+        maxPlayers: room.max_players,
+        status: room.status as 'waiting' | 'playing' | 'finished',
+        players: room.room_players.map((rp: any) => ({ id: rp.player_id })) as Player[],
+      }));
+
+      setRooms(formattedRooms);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+    }
   };
 
-  const joinRoom = (roomId: string) => {
+  const fetchRoomDetails = async (roomId: string) => {
+    try {
+      // Get room details
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .select(`
+          id, 
+          name, 
+          max_players, 
+          status, 
+          created_at
+        `)
+        .eq('id', roomId)
+        .single();
+
+      if (roomError) {
+        console.error('Error fetching room details:', roomError);
+        return;
+      }
+
+      // Get players in room
+      const { data: playersData, error: playersError } = await supabase
+        .from('room_players')
+        .select(`
+          id, 
+          size, 
+          x, 
+          y, 
+          is_alive, 
+          players (
+            id, 
+            name, 
+            color
+          )
+        `)
+        .eq('room_id', roomId);
+
+      if (playersError) {
+        console.error('Error fetching room players:', playersError);
+        return;
+      }
+
+      // Format room data with players
+      const formattedPlayers: Player[] = playersData.map((rp: any) => ({
+        id: rp.players.id,
+        name: rp.players.name,
+        color: rp.players.color,
+        size: rp.size,
+        x: rp.x,
+        y: rp.y,
+        isAlive: rp.is_alive,
+      }));
+
+      const formattedRoom: GameRoom = {
+        id: roomData.id,
+        name: roomData.name,
+        maxPlayers: roomData.max_players,
+        status: roomData.status,
+        players: formattedPlayers,
+      };
+
+      // Update current room if we're looking at it
+      if (currentRoom?.id === roomId) {
+        setCurrentRoom(formattedRoom);
+      }
+
+      // Update room in rooms list
+      setRooms(prevRooms => 
+        prevRooms.map(r => r.id === roomId ? formattedRoom : r)
+      );
+
+      // Navigate to game if the room is now playing
+      if (formattedRoom.status === 'playing' && player && formattedRoom.players.some(p => p.id === player.id)) {
+        navigate('/game');
+      }
+
+    } catch (error) {
+      console.error('Error fetching room details:', error);
+    }
+  };
+
+  const createRoom = async (name: string, maxPlayers: number) => {
     if (!player) {
       toast({
-        title: "Error",
-        description: "Please set your name and color before joining a room",
+        title: "Erreur",
+        description: "Veuillez personnaliser votre blob avant de créer une salle",
         variant: "destructive"
       });
-      return;
+      throw new Error("Player not set");
     }
 
-    const room = rooms.find(r => r.id === roomId);
-    if (!room) {
+    try {
+      // Create room
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .insert({ name, max_players: maxPlayers })
+        .select('id')
+        .single();
+
+      if (roomError) {
+        console.error('Error creating room:', roomError);
+        toast({
+          title: "Erreur",
+          description: "Impossible de créer la salle",
+          variant: "destructive"
+        });
+        throw roomError;
+      }
+
       toast({
-        title: "Error",
-        description: "Room not found",
-        variant: "destructive"
+        title: "Salle créée",
+        description: `La salle "${name}" a été créée`
       });
-      return;
-    }
-
-    if (room.players.length >= room.maxPlayers) {
-      toast({
-        title: "Error",
-        description: "Room is full",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Check if player is already in room
-    if (room.players.some(p => p.id === player.id)) {
-      setCurrentRoom(room);
-      toast({
-        title: "Rejoined room",
-        description: `You have rejoined "${room.name}"`
-      });
-      return;
-    }
-
-    // Add player to room
-    const updatedRoom = {
-      ...room,
-      players: [...room.players, player]
-    };
-
-    setRooms(prevRooms => 
-      prevRooms.map(r => r.id === roomId ? updatedRoom : r)
-    );
-    setCurrentRoom(updatedRoom);
-    
-    toast({
-      title: "Joined room",
-      description: `You have joined "${room.name}"`
-    });
-
-    // Check if room is full to start the game
-    if (updatedRoom.players.length === updatedRoom.maxPlayers) {
-      setTimeout(() => startGame(), 500);
+      
+      return roomData.id;
+    } catch (error) {
+      console.error('Error creating room:', error);
+      throw error;
     }
   };
 
-  const leaveRoom = () => {
+  const joinRoom = async (roomId: string) => {
+    if (!player) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez personnaliser votre blob avant de rejoindre une salle",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Check if player is already in room
+      const { data: existingPlayer, error: checkError } = await supabase
+        .from('room_players')
+        .select('id')
+        .eq('room_id', roomId)
+        .eq('player_id', player.id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking player in room:', checkError);
+        return;
+      }
+
+      if (!existingPlayer) {
+        // Add player to room
+        const { error: joinError } = await supabase
+          .from('room_players')
+          .insert({
+            room_id: roomId,
+            player_id: player.id,
+          });
+
+        if (joinError) {
+          console.error('Error joining room:', joinError);
+          toast({
+            title: "Erreur",
+            description: "Impossible de rejoindre la salle",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
+      // Get room details to update current room
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+
+      if (roomError) {
+        console.error('Error fetching room details:', roomError);
+        return;
+      }
+
+      const room = {
+        id: roomData.id,
+        name: roomData.name,
+        maxPlayers: roomData.max_players,
+        status: roomData.status,
+        players: [], // Players will be fetched in useEffect
+      };
+
+      setCurrentRoom(room);
+      
+      toast({
+        title: "Salle rejointe",
+        description: `Vous avez rejoint "${room.name}"`
+      });
+
+    } catch (error) {
+      console.error('Error joining room:', error);
+    }
+  };
+
+  const leaveRoom = async () => {
     if (!currentRoom || !player) return;
 
-    const updatedRoom = {
-      ...currentRoom,
-      players: currentRoom.players.filter(p => p.id !== player.id)
-    };
+    try {
+      // Remove player from room
+      const { error } = await supabase
+        .from('room_players')
+        .delete()
+        .eq('room_id', currentRoom.id)
+        .eq('player_id', player.id);
 
-    setRooms(prevRooms => 
-      prevRooms.map(r => r.id === currentRoom.id ? updatedRoom : r)
-    );
-    setCurrentRoom(null);
-    toast({
-      title: "Left room",
-      description: "You have left the room"
-    });
+      if (error) {
+        console.error('Error leaving room:', error);
+        return;
+      }
+
+      setCurrentRoom(null);
+      toast({
+        title: "Salle quittée",
+        description: "Vous avez quitté la salle"
+      });
+
+    } catch (error) {
+      console.error('Error leaving room:', error);
+    }
   };
 
-  const setPlayerDetails = (name: string, color: PlayerColor) => {
-    const newPlayer: Player = {
-      id: Math.random().toString(36).substring(2, 9),
-      name,
-      color,
-      size: 30,
-      x: 0,
-      y: 0,
-      isAlive: true
-    };
-    setPlayer(newPlayer);
-    toast({
-      title: "Player setup",
-      description: "Your player has been customized"
-    });
+  const setPlayerDetails = async (name: string, color: PlayerColor) => {
+    try {
+      // Check if player already exists
+      if (player) {
+        // Update existing player
+        const { error } = await supabase
+          .from('players')
+          .update({ name, color })
+          .eq('id', player.id);
+
+        if (error) {
+          console.error('Error updating player:', error);
+          return;
+        }
+
+        setPlayer({ ...player, name, color });
+
+      } else {
+        // Create new player
+        const { data, error } = await supabase
+          .from('players')
+          .insert({ name, color })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating player:', error);
+          return;
+        }
+
+        const newPlayer: Player = {
+          id: data.id,
+          name: data.name,
+          color: data.color,
+          size: 30,
+          x: 0,
+          y: 0,
+          isAlive: true
+        };
+        
+        setPlayer(newPlayer);
+      }
+
+      toast({
+        title: "Personnalisation terminée",
+        description: "Votre blob a été personnalisé"
+      });
+    } catch (error) {
+      console.error('Error setting player details:', error);
+    }
   };
 
-  const startGame = () => {
+  const startGame = async () => {
     if (!currentRoom) return;
     
-    const updatedRoom = {
-      ...currentRoom,
-      status: 'playing' as const
-    };
-    
-    setRooms(prevRooms => 
-      prevRooms.map(r => r.id === currentRoom.id ? updatedRoom : r)
-    );
-    setCurrentRoom(updatedRoom);
-    
-    toast({
-      title: "Game started!",
-      description: "The battle begins now!"
-    });
+    try {
+      // Update room status to playing
+      const { error } = await supabase
+        .from('rooms')
+        .update({ status: 'playing' })
+        .eq('id', currentRoom.id);
+
+      if (error) {
+        console.error('Error starting game:', error);
+        return;
+      }
+      
+      toast({
+        title: "Partie commencée !",
+        description: "Que la bataille commence !"
+      });
+    } catch (error) {
+      console.error('Error starting game:', error);
+    }
   };
 
   const value = {

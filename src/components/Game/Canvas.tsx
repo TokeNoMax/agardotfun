@@ -1,8 +1,8 @@
-
 import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // Constants
 const GAME_WIDTH = 2000;
@@ -31,10 +31,11 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
 
   const playerRef = useRef(currentPlayer);
   const gameLoopRef = useRef<number | null>(null);
+  const gameIdRef = useRef<string | null>(null);
 
   // Initialize game
   useEffect(() => {
-    if (!currentRoom || currentRoom?.status !== 'playing') return;
+    if (!currentRoom || currentRoom?.status !== 'playing' || !currentPlayer) return;
     
     // Initialize players with random positions
     const initialPlayers = currentRoom.players.map(p => ({
@@ -64,26 +65,84 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     setRugs(initialRugs);
     
     // Find our player from the current room
-    if (currentPlayer) {
-      const ourPlayer = initialPlayers.find(p => p.id === currentPlayer.id);
-      if (ourPlayer) {
-        playerRef.current = ourPlayer;
-        // Center camera on player
-        setCameraPosition({ x: ourPlayer.x, y: ourPlayer.y });
-      }
+    const ourPlayer = initialPlayers.find(p => p.id === currentPlayer.id);
+    if (ourPlayer) {
+      playerRef.current = ourPlayer;
+      
+      // Update player position in Supabase
+      updatePlayerPosition(currentRoom.id, ourPlayer);
+      
+      // Center camera on player
+      setCameraPosition({ x: ourPlayer.x, y: ourPlayer.y });
     }
     
+    // Subscribe to room_players changes for real-time updates
+    const channel = supabase
+      .channel('game-updates')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'room_players', filter: `room_id=eq.${currentRoom.id}` }, 
+        (payload) => {
+          // Only update other players, not ourselves
+          if (payload.new && payload.new.player_id !== currentPlayer.id) {
+            updatePlayerFromSupabase(payload.new);
+          }
+        }
+      )
+      .subscribe();
+      
+    gameIdRef.current = channel.subscribe.toString();
+    
     toast({
-      title: "Battle Started!",
-      description: "Eat or be eaten. Good luck!"
+      title: "Bataille commencée !",
+      description: "Mangez ou soyez mangé. Bonne chance !"
     });
 
     return () => {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
       }
+      
+      if (gameIdRef.current) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [currentRoom, currentPlayer, toast]);
+
+  const updatePlayerFromSupabase = (newPlayerData: any) => {
+    setPlayers(prevPlayers => {
+      return prevPlayers.map(p => {
+        if (p.id === newPlayerData.player_id) {
+          return {
+            ...p,
+            size: newPlayerData.size,
+            x: newPlayerData.x,
+            y: newPlayerData.y,
+            isAlive: newPlayerData.is_alive
+          };
+        }
+        return p;
+      });
+    });
+  };
+
+  const updatePlayerPosition = async (roomId: string, player: Player) => {
+    if (!player) return;
+    
+    try {
+      await supabase
+        .from('room_players')
+        .update({
+          x: player.x,
+          y: player.y,
+          size: player.size,
+          is_alive: player.isAlive
+        })
+        .eq('room_id', roomId)
+        .eq('player_id', player.id);
+    } catch (error) {
+      console.error('Error updating player position:', error);
+    }
+  };
 
   // Handle mouse movement
   useEffect(() => {
@@ -111,7 +170,12 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     const ourPlayer = players.find(p => p.id === currentPlayer.id);
     if (!ourPlayer || !ourPlayer.isAlive) return;
     
-    const gameLoop = () => {
+    let lastUpdateTime = 0;
+    
+    const gameLoop = (timestamp: number) => {
+      // Throttle Supabase updates to every 100ms
+      const shouldUpdate = timestamp - lastUpdateTime > 100;
+      
       setPlayers(prevPlayers => {
         // Only update if we have enough players
         if (prevPlayers.length <= 1) return prevPlayers;
@@ -222,16 +286,15 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
               otherPlayer.isAlive = false;
               me.size += otherPlayer.size / 2;
               toast({
-                title: "Player Eliminated!",
-                description: `You ate ${otherPlayer.name}!`
+                title: "Joueur éliminé !",
+                description: `Vous avez mangé ${otherPlayer.name} !`
               });
             } else if (otherPlayer.size > me.size * 1.1) {
               // We get eaten
               me.isAlive = false;
-              otherPlayer.size += me.size / 2;
               toast({
-                title: "You were eliminated!",
-                description: `${otherPlayer.name} ate you!`,
+                title: "Vous avez été éliminé !",
+                description: `${otherPlayer.name} vous a mangé !`,
                 variant: "destructive"
               });
             } else {
@@ -240,8 +303,6 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
               const pushDistance = 5;
               me.x += Math.cos(angle) * pushDistance;
               me.y += Math.sin(angle) * pushDistance;
-              otherPlayer.x -= Math.cos(angle) * pushDistance;
-              otherPlayer.y -= Math.sin(angle) * pushDistance;
             }
           }
         }
@@ -252,11 +313,28 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         // Update zoom based on player size
         setCameraZoom(Math.max(0.5, 50 / Math.sqrt(me.size)));
         
+        // Send player position to Supabase if enough time has passed
+        if (shouldUpdate && currentRoom) {
+          lastUpdateTime = timestamp;
+          updatePlayerPosition(currentRoom.id, me);
+        }
+        
         // Check if game over
         const alivePlayers = updatedPlayers.filter(p => p.isAlive);
         if (alivePlayers.length <= 1) {
           const winner = alivePlayers.length === 1 ? alivePlayers[0] : null;
-          onGameOver(winner);
+          // Mark game as finished in Supabase
+          if (currentRoom) {
+            supabase
+              .from('rooms')
+              .update({ status: 'finished' })
+              .eq('id', currentRoom.id)
+              .then(() => {
+                onGameOver(winner);
+              });
+          } else {
+            onGameOver(winner);
+          }
           return updatedPlayers;
         }
         

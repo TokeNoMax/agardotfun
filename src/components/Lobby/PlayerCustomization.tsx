@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,35 +13,48 @@ export default function PlayerCustomization() {
   const [selectedColor, setSelectedColor] = useState<PlayerColor>("blue");
   const { setPlayerDetails, player } = useGame();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Pre-fill form with player data if exists
+  useEffect(() => {
+    if (player) {
+      setName(player.name);
+      setSelectedColor(player.color);
+    }
+  }, [player]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      setPlayerDetails(name, selectedColor);
+      await setPlayerDetails(name, selectedColor);
     }
   };
 
   return (
     <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-2xl font-bold text-center mb-6">Customize Your Blob</h2>
+      <h2 className="text-2xl font-bold text-center mb-6">Personnalisez votre blob</h2>
       
       {player ? (
         <div className="text-center">
           <div 
             className={`w-24 h-24 rounded-full mx-auto mb-4 bg-game-${player.color} animate-pulse`}
+            style={{ backgroundColor: `#${getColorHex(player.color)}` }}
           >
             <span className="flex items-center justify-center h-full text-white font-bold">
               {player.name.substring(0, 2)}
             </span>
           </div>
-          <p className="text-lg font-medium">Ready to play as <span className="font-bold">{player.name}</span></p>
+          <p className="text-lg font-medium">Prêt à jouer en tant que <span className="font-bold">{player.name}</span></p>
+          
+          <Button onClick={() => setPlayerDetails(name, selectedColor)} className="mt-4">
+            Modifier
+          </Button>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Blob Name</Label>
+            <Label htmlFor="name">Nom du blob</Label>
             <Input
               id="name"
-              placeholder="Enter your blob name"
+              placeholder="Entrez le nom de votre blob"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -50,27 +63,43 @@ export default function PlayerCustomization() {
           </div>
           
           <div className="space-y-2">
-            <Label>Choose Color</Label>
+            <Label>Choisissez une couleur</Label>
             <div className="grid grid-cols-4 gap-2">
               {COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
-                  className={`w-12 h-12 rounded-full bg-game-${color} transition-all ${
+                  className={`w-12 h-12 rounded-full transition-all ${
                     selectedColor === color ? "ring-4 ring-offset-2 ring-black" : "hover:opacity-80"
                   }`}
+                  style={{ backgroundColor: `#${getColorHex(color)}` }}
                   onClick={() => setSelectedColor(color)}
-                  aria-label={`Select ${color} color`}
+                  aria-label={`Sélectionner la couleur ${color}`}
                 />
               ))}
             </div>
           </div>
           
           <Button type="submit" className="w-full">
-            Confirm
+            Confirmer
           </Button>
         </form>
       )}
     </div>
   );
+}
+
+// Helper function to get color hex
+function getColorHex(color: string): string {
+  const colorMap: Record<string, string> = {
+    blue: '3498db',
+    red: 'e74c3c',
+    green: '2ecc71',
+    yellow: 'f1c40f',
+    purple: '9b59b6',
+    orange: 'e67e22',
+    cyan: '1abc9c',
+    pink: 'fd79a8'
+  };
+  return colorMap[color] || '3498db';
 }

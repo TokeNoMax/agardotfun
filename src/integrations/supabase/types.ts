@@ -9,7 +9,99 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      players: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      room_players: {
+        Row: {
+          created_at: string
+          id: string
+          is_alive: boolean | null
+          player_id: string
+          room_id: string
+          size: number
+          x: number | null
+          y: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_alive?: boolean | null
+          player_id: string
+          room_id: string
+          size?: number
+          x?: number | null
+          y?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_alive?: boolean | null
+          player_id?: string
+          room_id?: string
+          size?: number
+          x?: number | null
+          y?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_players_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          created_at: string
+          id: string
+          max_players: number
+          name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          max_players?: number
+          name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          max_players?: number
+          name?: string
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

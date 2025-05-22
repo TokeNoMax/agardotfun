@@ -28,67 +28,71 @@ export default function RoomList() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     if (!player) {
       toast({
-        title: "Error",
-        description: "Please set your name and color before creating a room",
+        title: "Erreur",
+        description: "Veuillez définir votre nom et votre couleur avant de créer une salle",
         variant: "destructive"
       });
       return;
     }
     
     if (roomName.trim()) {
-      const roomId = createRoom(roomName, parseInt(maxPlayers));
-      setCreateDialogOpen(false);
-      joinRoom(roomId);
+      try {
+        const roomId = await createRoom(roomName, parseInt(maxPlayers));
+        setCreateDialogOpen(false);
+        await joinRoom(roomId);
+      } catch (error) {
+        console.error("Error creating room:", error);
+      }
     }
   };
 
-  const handleJoinRoom = (roomId: string) => {
-    joinRoom(roomId);
+  const handleJoinRoom = async (roomId: string) => {
+    await joinRoom(roomId);
   };
 
   return (
     <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Game Rooms</h2>
+        <h2 className="text-2xl font-bold">Salles de jeu</h2>
         
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button disabled={!player}>Create Room</Button>
+            <Button disabled={!player}>Créer une salle</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Create New Game Room</DialogTitle>
+              <DialogTitle>Créer une nouvelle salle</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Room Name</Label>
+                <Label htmlFor="name">Nom de la salle</Label>
                 <Input
                   id="name"
-                  placeholder="Enter room name"
+                  placeholder="Entrer le nom de la salle"
                   value={roomName}
                   onChange={(e) => setRoomName(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="players">Max Players</Label>
+                <Label htmlFor="players">Joueurs maximum</Label>
                 <Select value={maxPlayers} onValueChange={setMaxPlayers}>
                   <SelectTrigger id="players">
-                    <SelectValue placeholder="Select max players" />
+                    <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="2">2 Players</SelectItem>
-                    <SelectItem value="4">4 Players</SelectItem>
-                    <SelectItem value="6">6 Players</SelectItem>
-                    <SelectItem value="8">8 Players</SelectItem>
+                    <SelectItem value="2">2 Joueurs</SelectItem>
+                    <SelectItem value="4">4 Joueurs</SelectItem>
+                    <SelectItem value="6">6 Joueurs</SelectItem>
+                    <SelectItem value="8">8 Joueurs</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleCreateRoom}>Create</Button>
+              <Button onClick={handleCreateRoom}>Créer</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -96,7 +100,7 @@ export default function RoomList() {
       
       {rooms.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-gray-500">No rooms available. Create one to start playing!</p>
+          <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -108,14 +112,14 @@ export default function RoomList() {
               <div>
                 <h3 className="font-medium">{room.name}</h3>
                 <p className="text-sm text-gray-500">
-                  {room.players.length}/{room.maxPlayers} players • {room.status}
+                  {room.players.length}/{room.maxPlayers} joueurs • {room.status === 'waiting' ? 'En attente' : room.status === 'playing' ? 'En cours' : 'Terminé'}
                 </p>
               </div>
               <Button 
                 onClick={() => handleJoinRoom(room.id)}
                 disabled={!player || room.players.length >= room.maxPlayers || room.status !== 'waiting'}
               >
-                {room.status === 'waiting' ? 'Join' : 'In Progress'}
+                {room.status === 'waiting' ? 'Rejoindre' : 'En cours'}
               </Button>
             </div>
           ))}

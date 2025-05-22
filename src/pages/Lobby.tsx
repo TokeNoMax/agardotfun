@@ -28,15 +28,15 @@ export default function Lobby() {
         </div>
         
         <div className="mt-10 max-w-2xl mx-auto bg-white/80 backdrop-blur rounded-lg p-6 shadow-lg">
-          <h2 className="text-xl font-bold mb-4">How to Play</h2>
+          <h2 className="text-xl font-bold mb-4">Comment jouer</h2>
           <ul className="space-y-2 list-disc pl-5 text-gray-700">
-            <li>Customize your blob by choosing a name and color</li>
-            <li>Create a new game room or join an existing one</li>
-            <li>Control your blob with mouse movements</li>
-            <li>Eat food pellets to grow larger</li>
-            <li>Avoid the purple rugs that will shrink you</li>
-            <li>You can eat other players that are at least 10% smaller than you</li>
-            <li>Last blob standing wins!</li>
+            <li>Personnalisez votre blob en choisissant un nom et une couleur</li>
+            <li>Créez une nouvelle salle ou rejoignez-en une existante</li>
+            <li>Contrôlez votre blob avec la souris</li>
+            <li>Mangez des points de nourriture pour grandir</li>
+            <li>Évitez les tapis violets qui vous feront rétrécir</li>
+            <li>Vous pouvez manger d'autres joueurs qui sont au moins 10% plus petits que vous</li>
+            <li>Le dernier blob en vie gagne !</li>
           </ul>
         </div>
       </div>
