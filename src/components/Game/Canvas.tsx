@@ -5,16 +5,16 @@ import { Food, Rug, Player } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-// Constants
-const GAME_WIDTH = 2000;
-const GAME_HEIGHT = 2000;
-const FOOD_COUNT = 100;
-const RUG_COUNT = 10;
+// Constants - Simplifiés pour la stabilité
+const GAME_WIDTH = 1500;
+const GAME_HEIGHT = 1500;
+const FOOD_COUNT = 75;
+const RUG_COUNT = 5;
 const FOOD_SIZE = 5;
 const RUG_SIZE = 40;
 const FOOD_VALUE = 1;
 const RUG_PENALTY = 5;
-const SUPABASE_UPDATE_INTERVAL = 250; // Less frequent updates to reduce flickering
+const SUPABASE_UPDATE_INTERVAL = 500; // Réduit la fréquence des mises à jour
 
 interface CanvasProps {
   onGameOver: (winner: Player | null) => void;
@@ -29,7 +29,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
   const [cameraZoom, setCameraZoom] = useState<number>(1);
   const [cameraPosition, setCameraPosition] = useState({ x: 0, y: 0 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [gameOverCalled, setGameOverCalled] = useState(false); // Track if game over was already called
+  const [gameOverCalled, setGameOverCalled] = useState(false);
   const { toast } = useToast();
 
   const playerRef = useRef(currentPlayer);
@@ -37,8 +37,9 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
   const gameIdRef = useRef<string | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
   const isInitializedRef = useRef<boolean>(false);
+  const animationFrameRef = useRef<number | null>(null);
 
-  // Initialize game only once
+  // Initialisation - simplifiée
   useEffect(() => {
     if (!currentRoom || currentRoom?.status !== 'playing' || !currentPlayer || isInitializedRef.current) return;
     isInitializedRef.current = true;
@@ -49,7 +50,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
       x: Math.random() * (GAME_WIDTH - 100) + 50,
       y: Math.random() * (GAME_HEIGHT - 100) + 50,
       isAlive: true,
-      size: 20 // Start with smaller size, like agar.io
+      size: 15 // Taille de départ réduite pour plus de stabilité
     }));
     setPlayers(initialPlayers);
     
@@ -76,22 +77,29 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     if (ourPlayer) {
       playerRef.current = ourPlayer;
       
-      // Update player position in Supabase
-      updatePlayerPosition(currentRoom.id, ourPlayer);
+      // Update player position in Supabase - moins fréquemment
+      try {
+        updatePlayerPosition(currentRoom.id, ourPlayer);
+      } catch (error) {
+        console.log("Erreur de mise à jour initiale, ignorée:", error);
+      }
       
       // Center camera on player
       setCameraPosition({ x: ourPlayer.x, y: ourPlayer.y });
     }
     
-    // Subscribe to room_players changes for real-time updates
+    // Réduit les souscriptions Supabase pour améliorer la stabilité
     const channel = supabase
       .channel('game-updates')
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'room_players', filter: `room_id=eq.${currentRoom.id}` }, 
         (payload) => {
-          // Only update other players, not ourselves
           if (payload.new && payload.new.player_id !== currentPlayer.id) {
-            updatePlayerFromSupabase(payload.new);
+            try {
+              updatePlayerFromSupabase(payload.new);
+            } catch (error) {
+              console.log("Erreur de mise à jour, ignorée:", error);
+            }
           }
         }
       )
@@ -111,22 +119,32 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         gameLoopRef.current = null;
       }
       
-      if (channel) {
-        supabase.removeChannel(channel);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
+      try {
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      } catch (error) {
+        console.log("Erreur lors du nettoyage, ignorée:", error);
       }
     };
   }, [currentRoom, currentPlayer, toast]);
 
+  // Simplifier les mises à jour - seulement les données essentielles
   const updatePlayerFromSupabase = (newPlayerData: any) => {
     setPlayers(prevPlayers => {
       return prevPlayers.map(p => {
         if (p.id === newPlayerData.player_id) {
           return {
             ...p,
-            size: newPlayerData.size,
-            x: newPlayerData.x,
-            y: newPlayerData.y,
-            isAlive: newPlayerData.is_alive
+            size: newPlayerData.size || p.size,
+            x: newPlayerData.x || p.x,
+            y: newPlayerData.y || p.y,
+            isAlive: newPlayerData.is_alive !== undefined ? newPlayerData.is_alive : p.isAlive
           };
         }
         return p;
@@ -134,6 +152,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     });
   };
 
+  // Mise à jour Supabase optimisée et avec gestion d'erreur
   const updatePlayerPosition = async (roomId: string, player: Player) => {
     if (!player || !roomId) return;
     
@@ -149,11 +168,12 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         .eq('room_id', roomId)
         .eq('player_id', player.id);
     } catch (error) {
-      console.error('Error updating player position:', error);
+      // On ignore les erreurs pour maintenir la stabilité
+      console.log("Erreur de mise à jour ignorée:", error);
     }
   };
 
-  // Handle mouse movement
+  // Mouse movement - simplifié
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!canvasRef.current) return;
@@ -172,7 +192,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     };
   }, []);
 
-  // Game loop with optimized rendering and updates
+  // Game loop - optimisé
   useEffect(() => {
     if (!currentRoom || !currentPlayer || currentRoom?.status !== 'playing') return;
     
@@ -180,14 +200,12 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     if (!ourPlayer || !ourPlayer.isAlive) return;
     
     const gameLoop = (timestamp: number) => {
-      // Throttle Supabase updates to reduce network traffic and flickering
+      // Throttle Supabase updates
       const shouldUpdate = timestamp - lastUpdateTimeRef.current > SUPABASE_UPDATE_INTERVAL;
       
       setPlayers(prevPlayers => {
-        // Only update if we have players
         if (prevPlayers.length === 0) return prevPlayers;
         
-        // Update our player's position toward mouse
         const ourPlayerIndex = prevPlayers.findIndex(p => p.id === currentPlayer.id);
         if (ourPlayerIndex === -1 || !prevPlayers[ourPlayerIndex].isAlive) {
           return prevPlayers;
@@ -196,7 +214,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Calculate movement direction
+        // Calculate movement direction - simplifié
         const canvas = canvasRef.current;
         if (canvas) {
           const canvasWidth = canvas.width;
@@ -211,21 +229,21 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           const dy = targetY - me.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          // Agar.io style: Smaller blobs move faster, larger blobs move slower
-          const speedFactor = Math.max(0.5, 5 / Math.sqrt(me.size));
+          // Vitesse plus lente pour les grands blobs, plus rapide pour les petits
+          const speedFactor = Math.max(0.5, 3 / Math.sqrt(me.size));
           const speed = 2 * speedFactor;
           
           if (distance > 5) {
             me.x += (dx / distance) * speed;
             me.y += (dy / distance) * speed;
             
-            // Constrain player within game bounds
+            // Limites du jeu
             me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
             me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
           }
         }
         
-        // Check collisions with food
+        // Check collisions with food - simplifié
         setFoods(prevFoods => {
           const remainingFoods = prevFoods.filter(food => {
             const dx = me.x - food.x;
@@ -255,7 +273,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           return remainingFoods;
         });
         
-        // Check collisions with rugs
+        // Check collisions with rugs - simplifié
         setRugs(prevRugs => {
           prevRugs.forEach(rug => {
             const dx = me.x - rug.x;
@@ -276,7 +294,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           return prevRugs;
         });
         
-        // Check collisions with other players - Agar.io style
+        // Check collisions with other players - simplifié
         for (let i = 0; i < updatedPlayers.length; i++) {
           if (i === ourPlayerIndex || !updatedPlayers[i].isAlive) continue;
           
@@ -288,25 +306,15 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           // If players collide
           if (distance < me.size + otherPlayer.size) {
             // Agar.io style: Player can only eat others that are significantly smaller
-            // (typically 10-20% smaller)
             if (me.size > otherPlayer.size * 1.2) {
               // Our player eats the other player
               otherPlayer.isAlive = false;
               me.size += otherPlayer.size / 2;
-              toast({
-                title: "Joueur éliminé !",
-                description: `Vous avez mangé ${otherPlayer.name} !`
-              });
             } else if (otherPlayer.size > me.size * 1.2) {
               // We get eaten
               me.isAlive = false;
-              toast({
-                title: "Vous avez été éliminé !",
-                description: `${otherPlayer.name} vous a mangé !`,
-                variant: "destructive"
-              });
             } else {
-              // If similar size (within 20%), bounce off each other
+              // If similar size, bounce off each other
               const angle = Math.atan2(dy, dx);
               const pushDistance = 5;
               me.x += Math.cos(angle) * pushDistance;
@@ -315,42 +323,47 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           }
         }
         
-        // Update camera position to follow player - agar.io style
+        // Update camera position to follow player - zoom limité pour éviter le plein écran
         setCameraPosition({ x: me.x, y: me.y });
         
-        // Update zoom based on player size - agar.io style
-        // Smaller zoom value = more zoomed out view for larger players
-        setCameraZoom(Math.max(0.5, 30 / Math.sqrt(me.size)));
+        // Limiter le zoom pour éviter les problèmes
+        const maxSize = 50; // Taille maximum à considérer pour le zoom
+        const effectiveSize = Math.min(me.size, maxSize);
+        setCameraZoom(Math.max(0.5, Math.min(1.5, 20 / Math.sqrt(effectiveSize))));
         
         // Send player position to Supabase if enough time has passed
         if (shouldUpdate && currentRoom) {
           lastUpdateTimeRef.current = timestamp;
-          updatePlayerPosition(currentRoom.id, me);
+          try {
+            updatePlayerPosition(currentRoom.id, me);
+          } catch (error) {
+            console.log("Erreur de mise à jour ignorée:", error);
+          }
         }
         
-        // Check if game over - Only call game over if there's more than one player
-        // to begin with AND game over hasn't already been called
+        // Check if game over - simplifié
         const alivePlayers = updatedPlayers.filter(p => p.isAlive);
-        
-        // For solo test mode, don't trigger game over automatically
         const isSoloMode = currentRoom.maxPlayers === 1 && updatedPlayers.length === 1;
         
         if (!isSoloMode && !gameOverCalled && updatedPlayers.length > 1 && alivePlayers.length <= 1) {
           const winner = alivePlayers.length === 1 ? alivePlayers[0] : null;
-          // Set flag to prevent multiple game over calls
           setGameOverCalled(true);
           
-          // Mark game as finished in Supabase
-          if (currentRoom) {
-            supabase
-              .from('rooms')
-              .update({ status: 'finished' })
-              .eq('id', currentRoom.id)
-              .then(() => {
-                onGameOver(winner);
-              });
-          } else {
-            onGameOver(winner);
+          try {
+            if (currentRoom) {
+              supabase
+                .from('rooms')
+                .update({ status: 'finished' })
+                .eq('id', currentRoom.id)
+                .then(() => {
+                  onGameOver(winner);
+                });
+            } else {
+              onGameOver(winner);
+            }
+          } catch (error) {
+            console.log("Erreur lors de la fin de partie:", error);
+            onGameOver(winner); // On termine quand même la partie
           }
         }
         
@@ -370,20 +383,26 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     };
   }, [currentRoom, currentPlayer, cameraZoom, cameraPosition, mousePosition, players, onGameOver, toast]);
 
-  // Draw game - optimized to prevent unnecessary re-renders
+  // Rendering - complètement optimisé
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    const ctx = canvas.getBoundingClientRect();
-    canvas.width = ctx.width;
-    canvas.height = ctx.height;
+    // Taille du canvas basée sur le conteneur
+    const resizeCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    };
     
-    const context = canvas.getContext('2d');
-    if (!context) return;
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
     
-    // Create a render function that can be called in the animation frame
+    // Dessin optimisé
     const renderCanvas = () => {
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      
       // Clear canvas
       context.clearRect(0, 0, canvas.width, canvas.height);
       
@@ -393,36 +412,31 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
       context.scale(cameraZoom, cameraZoom);
       context.translate(-cameraPosition.x, -cameraPosition.y);
       
-      // Draw grid
-      context.beginPath();
-      context.strokeStyle = '#eee';
-      context.lineWidth = 1 / cameraZoom;
-      
-      const gridSize = 50;
-      const startX = Math.floor((cameraPosition.x - canvas.width / (2 * cameraZoom)) / gridSize) * gridSize;
-      const endX = Math.ceil((cameraPosition.x + canvas.width / (2 * cameraZoom)) / gridSize) * gridSize;
-      const startY = Math.floor((cameraPosition.y - canvas.height / (2 * cameraZoom)) / gridSize) * gridSize;
-      const endY = Math.ceil((cameraPosition.y + canvas.height / (2 * cameraZoom)) / gridSize) * gridSize;
-      
-      for (let x = startX; x <= endX; x += gridSize) {
-        context.moveTo(x, startY);
-        context.lineTo(x, endY);
-      }
-      
-      for (let y = startY; y <= endY; y += gridSize) {
-        context.moveTo(startX, y);
-        context.lineTo(endX, y);
-      }
-      
-      context.stroke();
-      
       // Draw game bounds
       context.beginPath();
       context.strokeStyle = '#000';
       context.lineWidth = 2 / cameraZoom;
       context.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       
-      // Draw food
+      // Draw grid - plus simple
+      context.beginPath();
+      context.strokeStyle = '#eee';
+      context.lineWidth = 1 / cameraZoom;
+      
+      const gridSize = 100; // Plus grand = moins de lignes
+      for (let x = 0; x <= GAME_WIDTH; x += gridSize) {
+        context.moveTo(x, 0);
+        context.lineTo(x, GAME_HEIGHT);
+      }
+      
+      for (let y = 0; y <= GAME_HEIGHT; y += gridSize) {
+        context.moveTo(0, y);
+        context.lineTo(GAME_WIDTH, y);
+      }
+      
+      context.stroke();
+      
+      // Draw food - simplifié
       foods.forEach(food => {
         context.beginPath();
         context.fillStyle = '#2ecc71';
@@ -430,61 +444,25 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         context.fill();
       });
       
-      // Draw rugs
+      // Draw rugs - simplifié
       rugs.forEach(rug => {
         context.beginPath();
         context.fillStyle = '#8e44ad';
         context.arc(rug.x, rug.y, rug.size, 0, Math.PI * 2);
         context.fill();
-        
-        // Draw small spikes
-        for (let i = 0; i < 8; i++) {
-          const angle = (Math.PI * 2 * i) / 8;
-          const innerRadius = rug.size;
-          const outerRadius = rug.size * 1.3;
-          
-          context.beginPath();
-          context.strokeStyle = '#6c3483';
-          context.lineWidth = 3 / cameraZoom;
-          context.moveTo(
-            rug.x + innerRadius * Math.cos(angle),
-            rug.y + innerRadius * Math.sin(angle)
-          );
-          context.lineTo(
-            rug.x + outerRadius * Math.cos(angle),
-            rug.y + outerRadius * Math.sin(angle)
-          );
-          context.stroke();
-        }
       });
       
-      // Draw players - agar.io style with cell-like appearance
+      // Draw players - simplifié
       players.forEach(player => {
         if (!player.isAlive) return;
         
-        // Draw blob with lighter outer edge
+        // Dessin simple pour les blobs
         context.beginPath();
-        const gradient = context.createRadialGradient(
-          player.x, player.y, 0,
-          player.x, player.y, player.size
-        );
-        const baseColor = `#${getColorHex(player.color)}`;
-        gradient.addColorStop(0, baseColor);
-        gradient.addColorStop(0.8, baseColor);
-        gradient.addColorStop(1, lightenColor(baseColor, 30));
-        
-        context.fillStyle = gradient;
+        context.fillStyle = `#${getColorHex(player.color)}`;
         context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
         context.fill();
         
-        // Draw outline
-        context.beginPath();
-        context.strokeStyle = '#fff';
-        context.lineWidth = 2 / cameraZoom;
-        context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-        context.stroke();
-        
-        // Draw player name and size - agar.io style
+        // Draw player name and size
         context.font = `${14 / cameraZoom}px Arial`;
         context.fillStyle = '#fff';
         context.textAlign = 'center';
@@ -494,21 +472,25 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
       
       // Restore context
       context.restore();
+      
+      // Boucle d'animation optimisée
+      animationFrameRef.current = requestAnimationFrame(renderCanvas);
     };
     
-    // Call render function immediately
-    renderCanvas();
+    // Start the render loop
+    animationFrameRef.current = requestAnimationFrame(renderCanvas);
     
-    // Set up animation frame for continuous rendering
-    const animationId = requestAnimationFrame(renderCanvas);
-    
-    // Clean up
+    // Cleanup
     return () => {
-      cancelAnimationFrame(animationId);
+      window.removeEventListener('resize', resizeCanvas);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
     };
   }, [players, foods, rugs, cameraPosition, cameraZoom]);
 
-  // Helper function to get color hex
+  // Helper function to get color hex - simplifié
   const getColorHex = (color: string): string => {
     const colorMap: Record<string, string> = {
       blue: '3498db',
@@ -521,25 +503,6 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
       pink: 'fd79a8'
     };
     return colorMap[color] || '3498db';
-  };
-  
-  // Helper function to lighten a color
-  const lightenColor = (hex: string, percent: number): string => {
-    // Remove the # if present
-    hex = hex.replace('#', '');
-    
-    // Parse the hex string
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    
-    // Lighten
-    const lightenR = Math.min(255, Math.floor(r + (255 - r) * (percent / 100)));
-    const lightenG = Math.min(255, Math.floor(g + (255 - g) * (percent / 100)));
-    const lightenB = Math.min(255, Math.floor(b + (255 - b) * (percent / 100)));
-    
-    // Convert back to hex
-    return `#${lightenR.toString(16).padStart(2, '0')}${lightenG.toString(16).padStart(2, '0')}${lightenB.toString(16).padStart(2, '0')}`;
   };
 
   return (
