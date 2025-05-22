@@ -29,6 +29,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
   const [cameraZoom, setCameraZoom] = useState<number>(1);
   const [cameraPosition, setCameraPosition] = useState({ x: 0, y: 0 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [gameOverCalled, setGameOverCalled] = useState(false); // Track if game over was already called
   const { toast } = useToast();
 
   const playerRef = useRef(currentPlayer);
@@ -324,10 +325,18 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           updatePlayerPosition(currentRoom.id, me);
         }
         
-        // Check if game over
+        // Check if game over - FIX: Only call game over if there's more than one player
+        // to begin with AND game over hasn't already been called
         const alivePlayers = updatedPlayers.filter(p => p.isAlive);
-        if (alivePlayers.length <= 1) {
+        
+        // For solo test mode, don't trigger game over automatically
+        const isSoloMode = currentRoom.maxPlayers === 1 && updatedPlayers.length === 1;
+        
+        if (!isSoloMode && !gameOverCalled && updatedPlayers.length > 1 && alivePlayers.length <= 1) {
           const winner = alivePlayers.length === 1 ? alivePlayers[0] : null;
+          // Set flag to prevent multiple game over calls
+          setGameOverCalled(true);
+          
           // Mark game as finished in Supabase
           if (currentRoom) {
             supabase
@@ -340,7 +349,6 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
           } else {
             onGameOver(winner);
           }
-          return updatedPlayers;
         }
         
         return updatedPlayers;

@@ -11,7 +11,7 @@ export default function Game() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   
-  // Fonction de vérification de session mise à jour
+  // Improved session check function
   const checkGameSession = useCallback(async () => {
     setIsLoading(true);
     
@@ -40,7 +40,9 @@ export default function Game() {
       }
       
       // Ne redirige vers le lobby que si la salle n'est pas en mode jeu
-      if (currentRoom.status !== 'playing') {
+      // Exception: si c'est un mode test solo, on accepte même si status n'est pas 'playing'
+      const isSoloTestMode = currentRoom.maxPlayers === 1 && currentRoom.players.length === 1;
+      if (currentRoom.status !== 'playing' && !isSoloTestMode) {
         toast({
           title: "Partie non démarrée",
           description: "Cette partie n'est pas encore démarrée. Retour au lobby.",

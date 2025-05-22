@@ -35,7 +35,21 @@ export default function GameUI() {
   }, [currentRoom, player, navigate]);
 
   const handleGameOver = (winner: Player | null) => {
+    // In solo test mode, don't end the game automatically
+    const isSoloMode = currentRoom?.maxPlayers === 1 && currentRoom.players.length === 1;
+    
+    if (isSoloMode) {
+      console.log("Solo mode: Game would normally end here, but we're continuing for testing");
+      return;
+    }
+    
     setWinner(winner);
+    setIsGameOver(true);
+  };
+  
+  // Add force game over functionality for solo mode
+  const handleForceGameOver = () => {
+    setWinner(player);
     setIsGameOver(true);
   };
   
@@ -65,6 +79,9 @@ export default function GameUI() {
     );
   }
   
+  // Check if this is a solo test mode
+  const isSoloTestMode = currentRoom.maxPlayers === 1 && currentRoom.players.length === 1;
+  
   return (
     <div className="w-full h-full relative">
       {/* Game status */}
@@ -74,18 +91,43 @@ export default function GameUI() {
         {player && (
           <div className="text-sm font-medium">Vous: {player.name}</div>
         )}
+        {isSoloTestMode && (
+          <div className="text-sm font-medium text-green-600">Mode Test Solo</div>
+        )}
       </div>
       
-      {/* Leave button */}
-      <div className="absolute top-4 right-4 z-10">
-        <Button 
-          variant="destructive" 
-          size="sm"
-          onClick={handleBackToLobby}
-        >
-          Quitter
-        </Button>
-      </div>
+      {/* Control panel for solo test mode */}
+      {isSoloTestMode && (
+        <div className="absolute top-4 right-4 z-10 flex gap-2">
+          <Button 
+            variant="secondary" 
+            size="sm"
+            onClick={handleForceGameOver}
+          >
+            Terminer Test
+          </Button>
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={handleBackToLobby}
+          >
+            Quitter
+          </Button>
+        </div>
+      )}
+      
+      {/* Regular exit button for multiplayer */}
+      {!isSoloTestMode && (
+        <div className="absolute top-4 right-4 z-10">
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={handleBackToLobby}
+          >
+            Quitter
+          </Button>
+        </div>
+      )}
       
       {/* Game canvas */}
       <div className="w-full h-full">
