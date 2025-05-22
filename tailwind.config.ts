@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,17 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				game: {
+					'blue': '#3498db',
+					'red': '#e74c3c',
+					'green': '#2ecc71',
+					'yellow': '#f1c40f',
+					'purple': '#9b59b6',
+					'orange': '#e67e22',
+					'cyan': '#1abc9c',
+					'pink': '#fd79a8',
+					'rug': '#8e44ad'
 				}
 			},
 			borderRadius: {
@@ -84,11 +96,21 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				pulse: {
+					'0%, 100%': { transform: 'scale(1)' },
+					'50%': { transform: 'scale(1.05)' },
+				},
+				float: {
+					'0%, 100%': { transform: 'translateY(0)' },
+					'50%': { transform: 'translateY(-10px)' },
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse': 'pulse 2s infinite ease-in-out',
+				'float': 'float 6s infinite ease-in-out',
 			}
 		}
 	},
