@@ -6,10 +6,12 @@ import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import { Button } from "@/components/ui/button";
 import { Gamepad2Icon } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Lobby() {
   const { currentRoom, player, createRoom, joinRoom, setPlayerReady, startGame } = useGame();
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   useEffect(() => {
     // Uniquement rediriger si la salle existe, a le statut playing, 
@@ -24,10 +26,20 @@ export default function Lobby() {
 
   const handleTestGame = async () => {
     if (!player) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez personnaliser votre blob avant de créer une partie test",
+        variant: "destructive"
+      });
       return;
     }
     
     try {
+      toast({
+        title: "Création de la partie test",
+        description: "Préparation du mode solo en cours..."
+      });
+      
       // Créer une salle de test temporaire
       const testRoomName = `Test_${player.name}_${Date.now()}`;
       const roomId = await createRoom(testRoomName, 1);
@@ -41,10 +53,18 @@ export default function Lobby() {
       // Démarrer la partie
       await startGame();
       
-      // Naviguer vers la page du jeu
-      navigate('/game');
+      // Attendre un court instant pour s'assurer que la base de données est mise à jour
+      setTimeout(() => {
+        // Naviguer vers la page du jeu
+        navigate('/game');
+      }, 500);
     } catch (error) {
       console.error("Erreur lors du lancement du mode test:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de démarrer le mode test",
+        variant: "destructive"
+      });
     }
   };
   

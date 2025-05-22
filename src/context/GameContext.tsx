@@ -489,7 +489,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!currentRoom) return;
     
     try {
-      // Update room status to playing
+      // Mettre à jour le statut de la salle à 'playing'
       const { error } = await supabase
         .from('rooms')
         .update({ status: 'playing' })
@@ -497,8 +497,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (error) {
         console.error('Error starting game:', error);
-        return;
+        throw error;
       }
+      
+      // Mise à jour immédiate de l'état local pour une meilleure UX
+      setCurrentRoom(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          status: 'playing'
+        };
+      });
       
       toast({
         title: "Partie commencée !",
@@ -506,6 +515,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     } catch (error) {
       console.error('Error starting game:', error);
+      throw error;
     }
   };
 
