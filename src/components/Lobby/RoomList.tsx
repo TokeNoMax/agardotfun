@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,7 +136,12 @@ export default function RoomList() {
       setGameStarting(true);
       const success = await startGame();
       if (success) {
-        navigate('/game');
+        // Ne pas naviguer automatiquement - attendre que l'utilisateur clique sur "Rejoindre la partie"
+        toast({
+          title: "Partie démarrée",
+          description: "Cliquez sur 'Rejoindre la partie' quand vous êtes prêt",
+          duration: 5000,
+        });
       } else {
         setGameStarting(false);
         toast({
@@ -153,6 +159,11 @@ export default function RoomList() {
         variant: "destructive"
       });
     }
+  };
+
+  const handleJoinGame = () => {
+    // MODIFICATION: Ajout du paramètre join=true pour indiquer une entrée volontaire
+    navigate('/game?join=true');
   };
 
   const handleLeaveRoom = async () => {
@@ -291,7 +302,7 @@ export default function RoomList() {
                   
                   {gameStarting && currentRoom.status === 'playing' ? (
                     <Button 
-                      onClick={() => navigate('/game')}
+                      onClick={handleJoinGame}
                       className="w-full bg-green-600 hover:bg-green-700"
                     >
                       Rejoindre la partie

@@ -72,10 +72,11 @@ export default function Game() {
         return false;
       }
       
-      // Only redirect to lobby if room is not in game mode
-      // Exception: if it's a solo test mode, we accept even if status is not 'playing'
-      const isSoloTestMode = currentRoom.maxPlayers === 1 && currentRoom.players.length === 1;
-      if (currentRoom.status !== 'playing' && !isSoloTestMode) {
+      // MODIFICATION: Ne pas accepter automatiquement une partie qui vient de démarrer
+      // Le joueur doit explicitement cliquer sur "Rejoindre la partie" depuis le lobby
+      const joinFromUrlParam = new URLSearchParams(location.search).get('join') === 'true';
+      
+      if (currentRoom.status !== 'playing' && !joinFromUrlParam) {
         toast({
           title: "Partie non démarrée",
           description: "Cette partie n'est pas encore démarrée. Retour au lobby.",
@@ -98,7 +99,7 @@ export default function Game() {
       navigate('/lobby');
       return false;
     }
-  }, [currentRoom, player, navigate, toast, isLocalMode, hasVerifiedSession, refreshCurrentRoom]);
+  }, [currentRoom, player, navigate, toast, isLocalMode, hasVerifiedSession, refreshCurrentRoom, location.search]);
   
   // Effect to check and restore session if necessary - skipped for local mode
   useEffect(() => {
