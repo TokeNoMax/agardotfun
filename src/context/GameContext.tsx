@@ -13,6 +13,7 @@ interface GameContextType {
   leaveRoom: () => Promise<void>;
   setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
   startGame: () => Promise<void>;
+  setPlayerReady: (isReady: boolean) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -151,7 +152,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           size, 
           x, 
           y, 
-          is_alive, 
+          is_alive,
+          is_ready,
           players (
             id, 
             name, 
@@ -174,6 +176,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         x: rp.x,
         y: rp.y,
         isAlive: rp.is_alive,
+        ready: rp.is_ready || false,
       }));
 
       const formattedRoom: GameRoom = {
@@ -240,6 +243,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const joinRoom = async (roomId: string) => {
+    if (roomId === "") {
+      setCurrentRoom(null);
+      return;
+    }
+    
     if (!player) {
       toast({
         title: "Erreur",
@@ -270,6 +278,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .insert({
             room_id: roomId,
             player_id: player.id,
+            is_ready: false
           });
 
         if (joinError) {
@@ -339,6 +348,39 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     } catch (error) {
       console.error('Error leaving room:', error);
+    }
+  };
+
+  const setPlayerReady = async (isReady: boolean) => {
+    if (!currentRoom || !player) return;
+
+    try {
+      // Update player ready status
+      const { error } = await supabase
+        .from('room_players')
+        .update({ is_ready: isReady })
+        .eq('room_id', currentRoom.id)
+        .eq('player_id', player.id);
+
+      if (error) {
+        console.error('Error updating player ready status:', error);
+        return;
+      }
+
+      // Update local state immediately for better UX
+      setCurrentRoom(prev => {
+        if (!prev) return null;
+        
+        return {
+          ...prev,
+          players: prev.players.map(p => 
+            p.id === player.id ? { ...p, ready: isReady } : p
+          )
+        };
+      });
+
+    } catch (error) {
+      console.error('Error setting player ready status:', error);
     }
   };
 
@@ -426,7 +468,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     joinRoom,
     leaveRoom,
     setPlayerDetails,
-    startGame
+    startGame,
+    setPlayerReady
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

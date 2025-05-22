@@ -9,6 +9,7 @@ export interface Player {
   x: number;
   y: number;
   isAlive: boolean;
+  ready?: boolean;
 }
 
 export interface Food {
