@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface AvailableRoomsProps {
   rooms: GameRoom[];
@@ -45,6 +47,18 @@ export default function AvailableRooms({
     return () => clearTimeout(timer);
   }, [rooms]);
 
+  // Fonction pour formater l'âge d'une salle
+  const formatRoomAge = (createdAt: string) => {
+    try {
+      return formatDistanceToNow(new Date(createdAt), { 
+        addSuffix: true,
+        locale: fr 
+      });
+    } catch (e) {
+      return "Date inconnue";
+    }
+  };
+
   // Show loading state if rooms are empty and still loading
   if (isLoading && stableRooms.length === 0) {
     return (
@@ -60,6 +74,7 @@ export default function AvailableRooms({
   return (
     <div className="mb-4">
       <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
+      <p className="text-sm text-gray-500 mb-2">Les salles inactives depuis plus de 30 minutes sont automatiquement supprimées.</p>
       {stableRooms.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
           <Table>
@@ -68,6 +83,7 @@ export default function AvailableRooms({
                 <TableHead>Nom</TableHead>
                 <TableHead>Joueurs</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Créée</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -96,6 +112,11 @@ export default function AvailableRooms({
                         Terminée
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <span title={new Date(room.createdAt).toLocaleString()}>
+                      {formatRoomAge(room.createdAt)}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button 

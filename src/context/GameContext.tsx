@@ -14,6 +14,7 @@ interface GameContextType {
   startGame: () => Promise<boolean>;
   setPlayerReady: (isReady: boolean) => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
+  cleanupInactiveRooms: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -29,6 +30,9 @@ export const useGame = () => {
 // Local storage key for player
 const PLAYER_STORAGE_KEY = 'blob-battle-player';
 const CURRENT_ROOM_KEY = 'blob-battle-current-room';
+
+// Temps d'inactivité maximal (en minutes) avant de supprimer une salle
+const MAX_ROOM_INACTIVITY_MINUTES = 30;
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
@@ -76,9 +80,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       )
       .subscribe();
       
+    // Nettoyage automatique des salles inactives toutes les minutes
+    const cleanupInterval = setInterval(() => {
+      cleanupInactiveRooms().catch(err => 
+        console.error("Error cleaning up inactive rooms:", err)
+      );
+    }, 60000); // Vérifier chaque minute
+    
     return () => {
       supabase.removeChannel(roomsChannel);
       supabase.removeChannel(roomPlayersChannel);
+      clearInterval(cleanupInterval);
     };
   }, []);
 
@@ -117,6 +129,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           max_players, 
           status, 
           created_at,
+          updated_at,
           room_players (
             player_id
           )
@@ -133,6 +146,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         name: room.name,
         maxPlayers: room.max_players,
         status: room.status as 'waiting' | 'playing' | 'finished',
+        createdAt: room.created_at,
+        updatedAt: room.updated_at || room.created_at,
         players: room.room_players.map((rp: any) => ({ id: rp.player_id })) as Player[],
       }));
 
@@ -152,7 +167,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name, 
           max_players, 
           status, 
-          created_at
+          created_at,
+          updated_at
         `)
         .eq('id', roomId)
         .single();
@@ -202,6 +218,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         name: roomData.name,
         maxPlayers: roomData.max_players,
         status: roomData.status as 'waiting' | 'playing' | 'finished',
+        createdAt: roomData.created_at,
+        updatedAt: roomData.updated_at || roomData.created_at,
         players: formattedPlayers,
       };
 
@@ -217,6 +235,79 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     } catch (error) {
       console.error('Error fetching room details:', error);
+    }
+  };
+
+  const cleanupInactiveRooms = async () => {
+    try {
+      // Calculer la date limite basée sur MAX_ROOM_INACTIVITY_MINUTES
+      const cutoffDate = new Date();
+      cutoffDate.setMinutes(cutoffDate.getMinutes() - MAX_ROOM_INACTIVITY_MINUTES);
+      const cutoffString = cutoffDate.toISOString();
+      
+      console.log(`Cleaning up rooms inactive since ${cutoffString}`);
+      
+      // Récupérer les salles inactives en attente
+      const { data: inactiveRooms, error: fetchError } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('status', 'waiting')
+        .lt('created_at', cutoffString);
+        
+      if (fetchError) {
+        console.error('Error fetching inactive rooms:', fetchError);
+        return;
+      }
+      
+      if (!inactiveRooms || inactiveRooms.length === 0) {
+        console.log('No inactive rooms to clean up');
+        return;
+      }
+      
+      console.log(`Found ${inactiveRooms.length} inactive rooms to clean up`);
+      
+      // Récupérer les IDs des salles inactives
+      const inactiveRoomIds = inactiveRooms.map(room => room.id);
+      
+      // Supprimer d'abord les joueurs des salles
+      const { error: playersError } = await supabase
+        .from('room_players')
+        .delete()
+        .in('room_id', inactiveRoomIds);
+        
+      if (playersError) {
+        console.error('Error removing players from inactive rooms:', playersError);
+        return;
+      }
+      
+      // Ensuite supprimer les salles
+      const { error: roomsError } = await supabase
+        .from('rooms')
+        .delete()
+        .in('id', inactiveRoomIds);
+        
+      if (roomsError) {
+        console.error('Error deleting inactive rooms:', roomsError);
+        return;
+      }
+      
+      console.log(`Successfully cleaned up ${inactiveRoomIds.length} inactive rooms`);
+      
+      // Si l'utilisateur actuel était dans une de ces salles, le sortir
+      if (currentRoom && inactiveRoomIds.includes(currentRoom.id)) {
+        toast({
+          title: "Salle expirée",
+          description: "La salle a été supprimée car elle était inactive depuis trop longtemps.",
+          variant: "default"
+        });
+        setCurrentRoom(null);
+      }
+      
+      // Rafraîchir la liste des salles
+      fetchRooms();
+      
+    } catch (error) {
+      console.error('Error cleaning up inactive rooms:', error);
     }
   };
 
@@ -617,7 +708,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setPlayerDetails,
     startGame,
     setPlayerReady,
-    refreshCurrentRoom
+    refreshCurrentRoom,
+    cleanupInactiveRooms
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
