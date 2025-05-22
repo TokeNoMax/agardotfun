@@ -71,7 +71,16 @@ export default function RoomList() {
               countdownTimerRef.current = null;
             }
             // Lancer la partie automatiquement à la fin du compte à rebours
-            handleStartGame();
+            startGame().then(() => {
+              navigate('/game');
+            }).catch(error => {
+              console.error("Error starting game:", error);
+              toast({
+                title: "Erreur",
+                description: "Impossible de démarrer la partie",
+                variant: "destructive"
+              });
+            });
             return null;
           }
           return prev - 1;
@@ -84,7 +93,7 @@ export default function RoomList() {
         clearInterval(countdownTimerRef.current);
       }
     };
-  }, [countdown]);
+  }, [countdown, navigate]);
 
   const handleCreateRoom = async () => {
     if (!player) {

@@ -10,8 +10,10 @@ export default function Game() {
   
   useEffect(() => {
     // If no active room or room is not playing, redirect to lobby
-    if (!currentRoom || currentRoom.status !== 'playing') {
-      navigate('/');
+    if (!currentRoom) {
+      navigate('/lobby');
+    } else if (currentRoom.status !== 'playing') {
+      navigate('/lobby');
     }
   }, [currentRoom, navigate]);
   
