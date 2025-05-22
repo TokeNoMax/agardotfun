@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import GameUI from "@/components/Game/GameUI";
@@ -11,52 +11,63 @@ export default function Game() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   
-  // Effet pour vérifier et restaurer la session si nécessaire
-  useEffect(() => {
-    const checkGameSession = async () => {
-      setIsLoading(true);
-      
+  // Fonction de vérification de session mise à jour
+  const checkGameSession = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
       // Si pas de salle active, tenter une reconnexion
       if (!currentRoom) {
-        try {
-          await refreshCurrentRoom();
-          
-          // Si toujours pas de salle active après la tentative, rediriger vers le lobby
-          if (!currentRoom) {
-            toast({
-              title: "Session expirée",
-              description: "Votre session de jeu a expiré. Retour au lobby.",
-              variant: "destructive"
-            });
-            navigate('/lobby');
-          }
-        } catch (error) {
-          console.error("Erreur lors de la récupération de la salle:", error);
+        await refreshCurrentRoom();
+        
+        // Si toujours pas de salle active après la tentative, rediriger vers le lobby
+        if (!currentRoom) {
+          toast({
+            title: "Session expirée",
+            description: "Votre session de jeu a expiré. Retour au lobby.",
+            variant: "destructive"
+          });
           navigate('/lobby');
+          return;
         }
       } 
       // Ne redirige vers le lobby que si la salle n'est pas en mode jeu
       else if (currentRoom.status === 'waiting') {
         navigate('/lobby');
+        return;
       }
       
       setIsLoading(false);
-    };
-    
+    } catch (error) {
+      console.error("Erreur lors de la récupération de la salle:", error);
+      toast({
+        title: "Erreur de connexion",
+        description: "Impossible de rejoindre la partie. Retour au lobby.",
+        variant: "destructive"
+      });
+      navigate('/lobby');
+    }
+  }, [currentRoom, navigate, refreshCurrentRoom, toast]);
+  
+  // Effet pour vérifier et restaurer la session si nécessaire
+  useEffect(() => {
     checkGameSession();
-  }, [currentRoom, navigate]);
+  }, [checkGameSession]);
   
   // Rafraîchir périodiquement les informations de la partie
   useEffect(() => {
-    if (!currentRoom || currentRoom.status !== 'playing') return;
+    if (!currentRoom || currentRoom.status !== 'playing' || isLoading) return;
     
-    // Rafraîchir toutes les 3 secondes pour maintenir la synchronisation
+    // Rafraîchir toutes les 5 secondes pour maintenir la synchronisation
+    // Un intervalle plus long réduit les risques d'instabilité
     const refreshInterval = setInterval(() => {
-      refreshCurrentRoom();
-    }, 3000);
+      refreshCurrentRoom().catch(error => {
+        console.error("Erreur lors du rafraîchissement de la salle:", error);
+      });
+    }, 5000);
     
     return () => clearInterval(refreshInterval);
-  }, [currentRoom, refreshCurrentRoom]);
+  }, [currentRoom, refreshCurrentRoom, isLoading]);
   
   // Afficher un écran de chargement pendant la tentative de reconnexion
   if (isLoading || !currentRoom) {

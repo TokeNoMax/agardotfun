@@ -50,14 +50,16 @@ export default function Lobby() {
       // Se mettre prêt
       await setPlayerReady(true);
       
-      // Démarrer la partie
+      // Démarrer la partie après un petit délai pour s'assurer que tout est synchronisé
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       await startGame();
       
-      // Attendre un court instant pour s'assurer que la base de données est mise à jour
+      // Attendre un délai plus long pour s'assurer que la base de données est mise à jour
+      // et que l'état local a bien le temps de se mettre à jour
       setTimeout(() => {
-        // Naviguer vers la page du jeu
         navigate('/game');
-      }, 500);
+      }, 1500);
     } catch (error) {
       console.error("Erreur lors du lancement du mode test:", error);
       toast({

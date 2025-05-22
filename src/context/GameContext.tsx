@@ -47,28 +47,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     fetchRooms();
     
-    // Subscribe to room changes
+    // Subscribe to room changes with improved error handling
     const roomsChannel = supabase
       .channel('public:rooms')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'rooms' }, 
         () => {
-          fetchRooms();
+          fetchRooms().catch(err => console.error("Error fetching rooms:", err));
         }
       )
       .subscribe();
 
-    // Subscribe to room_players changes
+    // Subscribe to room_players changes with improved error handling
     const roomPlayersChannel = supabase
       .channel('public:room_players')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'room_players' }, 
         () => {
           if (currentRoom) {
-            fetchRoomDetails(currentRoom.id);
+            fetchRoomDetails(currentRoom.id).catch(err => console.error("Error fetching room details:", err));
           }
-          // Also refresh the rooms list to update player counts
-          fetchRooms();
+          fetchRooms().catch(err => console.error("Error fetching rooms:", err));
         }
       )
       .subscribe();
@@ -485,10 +484,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Amélioration de la fonction startGame pour être plus robuste
   const startGame = async () => {
     if (!currentRoom) return;
     
     try {
+      // Vérifier que tous les joueurs sont prêts
+      const allPlayersReady = currentRoom.players.every(p => p.ready === true);
+      
+      if (!allPlayersReady) {
+        // En mode test (1 joueur), on force le démarrage
+        const isSinglePlayer = currentRoom.maxPlayers === 1 && currentRoom.players.length === 1;
+        if (!isSinglePlayer) {
+          throw new Error("Tous les joueurs ne sont pas prêts");
+        }
+      }
+      
       // Mettre à jour le statut de la salle à 'playing'
       const { error } = await supabase
         .from('rooms')
@@ -509,10 +520,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
       });
       
-      toast({
-        title: "Partie commencée !",
-        description: "Que la bataille commence !"
-      });
+      // Attendre un court instant pour s'assurer que la mise à jour est propagée
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Rafraîchir les données de la salle une dernière fois
+      await refreshCurrentRoom();
+      
+      return true;
     } catch (error) {
       console.error('Error starting game:', error);
       throw error;
@@ -521,7 +535,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const refreshCurrentRoom = async () => {
     if (currentRoom) {
-      await fetchRoomDetails(currentRoom.id);
+      try {
+        await fetchRoomDetails(currentRoom.id);
+      } catch (error) {
+        console.error('Error refreshing current room:', error);
+        throw error; // Propager l'erreur pour la traiter en amont
+      }
     }
   };
 
