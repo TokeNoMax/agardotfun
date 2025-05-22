@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { Player, Food, Rug, GameRoom, PlayerColor } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 
 interface GameContextType {
   rooms: GameRoom[];
@@ -38,7 +37,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
   
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   // Fetch rooms and subscribe to changes
   useEffect(() => {
@@ -171,7 +169,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const formattedPlayers: Player[] = playersData.map((rp: any) => ({
         id: rp.players.id,
         name: rp.players.name,
-        color: rp.players.color,
+        color: rp.players.color as PlayerColor,
         size: rp.size,
         x: rp.x,
         y: rp.y,
@@ -182,7 +180,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         id: roomData.id,
         name: roomData.name,
         maxPlayers: roomData.max_players,
-        status: roomData.status,
+        status: roomData.status as 'waiting' | 'playing' | 'finished',
         players: formattedPlayers,
       };
 
@@ -195,11 +193,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setRooms(prevRooms => 
         prevRooms.map(r => r.id === roomId ? formattedRoom : r)
       );
-
-      // Navigate to game if the room is now playing
-      if (formattedRoom.status === 'playing' && player && formattedRoom.players.some(p => p.id === player.id)) {
-        navigate('/game');
-      }
 
     } catch (error) {
       console.error('Error fetching room details:', error);
@@ -302,11 +295,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      const room = {
+      const room: GameRoom = {
         id: roomData.id,
         name: roomData.name,
         maxPlayers: roomData.max_players,
-        status: roomData.status,
+        status: roomData.status as 'waiting' | 'playing' | 'finished',
         players: [], // Players will be fetched in useEffect
       };
 
@@ -382,7 +375,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newPlayer: Player = {
           id: data.id,
           name: data.name,
-          color: data.color,
+          color: data.color as PlayerColor,
           size: 30,
           x: 0,
           y: 0,
