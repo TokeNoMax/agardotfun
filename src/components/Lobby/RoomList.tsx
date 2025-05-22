@@ -24,8 +24,9 @@ export default function RoomList() {
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-
-  // Enhanced room filtering with stabilization
+  const previousRoomsRef = useRef<string>("");
+  
+  // Enhanced room filtering with stabilization to prevent flickering
   useEffect(() => {
     if (rooms) {
       const filteredRooms = rooms.filter(room => 
@@ -35,7 +36,12 @@ export default function RoomList() {
         !room.name.toLowerCase().includes('test_max_') // Filter out test rooms
       );
       
-      setStableWaitingRooms(filteredRooms);
+      // Compare serialized room data to avoid unnecessary updates
+      const serializedRooms = JSON.stringify(filteredRooms.map(r => r.id));
+      if (serializedRooms !== previousRoomsRef.current) {
+        previousRoomsRef.current = serializedRooms;
+        setStableWaitingRooms(filteredRooms);
+      }
     }
   }, [rooms, currentRoom]);
 
@@ -135,6 +141,7 @@ export default function RoomList() {
     }
   };
 
+  // Wrap with throttling to prevent too many rapid calls
   const handleJoinRoom = async (roomId: string) => {
     await joinRoom(roomId);
   };
@@ -143,14 +150,7 @@ export default function RoomList() {
     try {
       setGameStarting(true);
       const success = await startGame();
-      if (success) {
-        // Ne pas naviguer automatiquement - attendre que l'utilisateur clique sur "Rejoindre la partie"
-        toast({
-          title: "Partie démarrée",
-          description: "Cliquez sur 'Rejoindre la partie' quand vous êtes prêt",
-          duration: 5000,
-        });
-      } else {
+      if (!success) {
         setGameStarting(false);
         toast({
           title: "Erreur",
@@ -173,10 +173,13 @@ export default function RoomList() {
     navigate('/game?join=true');
   };
 
+  // Debounced leave room to prevent multiple rapid calls
   const handleLeaveRoom = async () => {
     await leaveRoom();
     // Force refresh rooms après avoir quitté
-    await refreshCurrentRoom();
+    setTimeout(() => {
+      refreshCurrentRoom();
+    }, 300);
   };
 
   const handleToggleReady = async () => {

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
@@ -10,39 +9,46 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Lobby() {
-  const { player, refreshCurrentRoom, leaveRoom } = useGame();
+  const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
   
-  // Enhanced clearing of stuck rooms on component mount
+  // Enhanced clearing of stuck rooms on component mount, but only once
   useEffect(() => {
     const clearStuckRoom = async () => {
       try {
-        // Force leave any rooms - this ensures no "test_max_" rooms persist
-        await leaveRoom();
-        
-        // Clear local storage manually to be extra safe
-        localStorage.removeItem('blob-battle-current-room');
-        
-        // Clear any finished game states
-        const finishedGameState = localStorage.getItem('blob-battle-game-state');
-        if (finishedGameState) {
-          const gameState = JSON.parse(finishedGameState);
-          if (gameState.status === 'finished') {
+        // Avoid unnecessary leave actions if we're not in a room
+        if (!hasInitialized) {
+          setHasInitialized(true);
+          
+          // Only leave if we need to cleanup test rooms or finished games
+          const finishedGameState = localStorage.getItem('blob-battle-game-state');
+          const isFinishedGame = finishedGameState && JSON.parse(finishedGameState).status === 'finished';
+          
+          // Clear local storage for finished games
+          if (isFinishedGame) {
             localStorage.removeItem('blob-battle-game-state');
+            
+            // Only call leaveRoom if we were in a finished game
+            if (currentRoom) {
+              await leaveRoom();
+            }
+          }
+          
+          // Clear outdated room references without triggering unnecessary API calls
+          if (!currentRoom) {
+            localStorage.removeItem('blob-battle-current-room');
           }
         }
-        
-        // Refresh rooms list
-        await refreshCurrentRoom();
       } catch (error) {
         console.error("Error clearing room state:", error);
       }
     };
     
     clearStuckRoom();
-  }, [leaveRoom, refreshCurrentRoom]);
+  }, [leaveRoom, refreshCurrentRoom, hasInitialized, currentRoom]);
   
   const handleTestGame = async () => {
     if (!player) {

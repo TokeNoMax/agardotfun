@@ -27,17 +27,20 @@ export default function AvailableRooms({
   selectedRoomId,
   onSelectRoom 
 }: AvailableRoomsProps) {
-  // Add stabilization state to prevent flickering during room updates
+  // Add stabilization state with longer delay to prevent flickering
   const [stableRooms, setStableRooms] = useState<GameRoom[]>(rooms);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Use effect to stabilize room updates
+  // Use effect to stabilize room updates with a longer delay
   useEffect(() => {
-    // Only update the stable rooms after a small delay to prevent flickering
+    // Only update the stable rooms after a longer delay to prevent flickering
     const timer = setTimeout(() => {
-      setStableRooms(rooms);
+      // Filter out rooms that have the same list of players to avoid unnecessary updates
+      if (JSON.stringify(stableRooms.map(r => r.id).sort()) !== JSON.stringify(rooms.map(r => r.id).sort())) {
+        setStableRooms(rooms);
+      }
       setIsLoading(false);
-    }, 100);
+    }, 500); // Longer delay to ensure stability
     
     return () => clearTimeout(timer);
   }, [rooms]);

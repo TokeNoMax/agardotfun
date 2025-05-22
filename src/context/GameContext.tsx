@@ -41,6 +41,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return storedPlayer ? JSON.parse(storedPlayer) : null;
   });
   
+  // Ajout d'un état pour suivre les requêtes en cours et éviter les appels simultanés
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const [isLeavingRoom, setIsLeavingRoom] = useState(false);
+  
   const { toast } = useToast();
 
   // Fetch rooms and subscribe to changes
@@ -82,9 +86,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (currentRoom) {
       fetchRoomDetails(currentRoom.id);
-      
-      // Nous supprimons l'intervalle qui rafraîchit les données toutes les 5 secondes
-      // pour éviter les redémarrages constants du jeu
     }
   }, [currentRoom?.id]);
 
@@ -204,10 +205,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         players: formattedPlayers,
       };
 
-      // Modification: Ne pas essayer de rejoindre automatiquement la salle
-      // si le joueur n'est plus dedans. Ça évite de se reconnecter automatiquement
-      // après avoir quitté volontairement.
-
       // Update current room if we're looking at it
       if (currentRoom?.id === roomId) {
         setCurrentRoom(formattedRoom);
@@ -291,12 +288,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Version améliorée de joinRoom pour éviter les cycles d'entrée/sortie
   const joinRoom = async (roomId: string) => {
+    // Ne rien faire si une opération de jointure ou de départ est déjà en cours
+    if (isJoiningRoom || isLeavingRoom) {
+      console.log('Room operation already in progress, skipping joinRoom');
+      return;
+    }
+    
+    // Si on demande de vider la salle courante
     if (roomId === "") {
       setCurrentRoom(null);
       return;
     }
     
+    // Vérifier que le joueur existe
     if (!player) {
       toast({
         title: "Erreur",
@@ -307,7 +313,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-      // Check if player is already in any room (not just the one they're trying to join)
+      // Marquer le début de l'opération de jointure
+      setIsJoiningRoom(true);
+      
+      // Vérifier que le joueur n'est pas déjà dans une salle
       const { data: existingRooms, error: roomCheckError } = await supabase
         .from('room_players')
         .select('room_id')
@@ -315,21 +324,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
       if (roomCheckError) {
         console.error('Error checking player rooms:', roomCheckError);
+        setIsJoiningRoom(false);
         return;
       }
       
-      // If player is already in a different room, make them leave first
+      // Si le joueur est déjà dans cette salle spécifique, ne rien faire d'autre que mettre à jour l'état
+      if (existingRooms && existingRooms.some(room => room.room_id === roomId)) {
+        console.log('Player already in this room, just updating state');
+        await fetchRoomDetails(roomId);
+        setIsJoiningRoom(false);
+        return;
+      }
+      
+      // Si le joueur est dans d'autres salles, les quitter d'abord
       if (existingRooms && existingRooms.length > 0) {
-        // Check if they're trying to join the same room they're already in
-        const alreadyInTargetRoom = existingRooms.some(room => room.room_id === roomId);
-        
-        if (alreadyInTargetRoom) {
-          // Just update the current room state since they're already in this room
-          await fetchRoomDetails(roomId);
-          return;
-        }
-        
-        // Otherwise, leave all existing rooms
+        // Quitter toutes les salles existantes
         await Promise.all(existingRooms.map(async (room) => {
           await supabase
             .from('room_players')
@@ -338,13 +347,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .eq('player_id', player.id);
         }));
         
-        toast({
-          title: "Changement de salle",
-          description: "Vous avez quitté votre salle précédente"
-        });
+        // Notification unique pour éviter le spam
+        if (currentRoom) {
+          toast({
+            title: "Changement de salle",
+            description: "Vous avez quitté votre salle précédente"
+          });
+        }
       }
 
-      // Now add player to the new room
+      // Maintenant ajouter le joueur à la nouvelle salle
       const { error: joinError } = await supabase
         .from('room_players')
         .insert({
@@ -360,10 +372,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           description: "Impossible de rejoindre la salle",
           variant: "destructive"
         });
+        setIsJoiningRoom(false);
         return;
       }
 
-      // Get room details to update current room
+      // Récupérer les détails de la salle pour mettre à jour la salle courante
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .select('*')
@@ -372,6 +385,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (roomError) {
         console.error('Error fetching room details:', roomError);
+        setIsJoiningRoom(false);
         return;
       }
 
@@ -380,7 +394,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         name: roomData.name,
         maxPlayers: roomData.max_players,
         status: roomData.status as 'waiting' | 'playing' | 'finished',
-        players: [], // Players will be fetched in useEffect
+        players: [], // Les joueurs seront récupérés dans useEffect
       };
 
       setCurrentRoom(room);
@@ -392,14 +406,28 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     } catch (error) {
       console.error('Error joining room:', error);
+    } finally {
+      // Marquer la fin de l'opération de jointure
+      setIsJoiningRoom(false);
     }
   };
 
+  // Version améliorée de leaveRoom pour éviter les conflits
   const leaveRoom = async () => {
+    // Ne rien faire si aucune salle n'est sélectionnée ou si le joueur n'existe pas
     if (!currentRoom || !player) return;
+    
+    // Ne rien faire si une opération de jointure ou de départ est déjà en cours
+    if (isJoiningRoom || isLeavingRoom) {
+      console.log('Room operation already in progress, skipping leaveRoom');
+      return;
+    }
 
     try {
-      // Remove player from room
+      // Marquer le début de l'opération de départ
+      setIsLeavingRoom(true);
+      
+      // Supprimer le joueur de la salle
       const { error } = await supabase
         .from('room_players')
         .delete()
@@ -408,13 +436,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (error) {
         console.error('Error leaving room:', error);
+        setIsLeavingRoom(false);
         return;
       }
 
-      // Explicitly clear all room-related data from local storage
+      // Effacer explicitement toutes les données liées à la salle dans le stockage local
       localStorage.removeItem(CURRENT_ROOM_KEY);
       
-      // Clear the current room state
+      // Effacer l'état de la salle courante
       setCurrentRoom(null);
       
       toast({
@@ -422,11 +451,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: "Vous avez quitté la salle"
       });
       
-      // Force a refresh of available rooms
+      // Forcer une actualisation des salles disponibles
       await fetchRooms();
 
     } catch (error) {
       console.error('Error leaving room:', error);
+    } finally {
+      // Marquer la fin de l'opération de départ
+      setIsLeavingRoom(false);
     }
   };
 
