@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { Player, Food, Rug, GameRoom, PlayerColor } from "@/types/game";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +11,7 @@ interface GameContextType {
   joinRoom: (roomId: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
   setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
-  startGame: () => Promise<boolean>; // Changed from Promise<void> to Promise<boolean>
+  startGame: () => Promise<boolean>;
   setPlayerReady: (isReady: boolean) => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
 }
@@ -235,6 +234,34 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
+      // First, check if player is already in any room
+      const { data: existingRooms, error: roomCheckError } = await supabase
+        .from('room_players')
+        .select('room_id')
+        .eq('player_id', player.id);
+        
+      if (roomCheckError) {
+        console.error('Error checking player rooms:', roomCheckError);
+        throw roomCheckError;
+      }
+      
+      // If player is already in a room, make them leave first
+      if (existingRooms && existingRooms.length > 0) {
+        // Force leave all rooms the player is in
+        await Promise.all(existingRooms.map(async (room) => {
+          await supabase
+            .from('room_players')
+            .delete()
+            .eq('room_id', room.room_id)
+            .eq('player_id', player.id);
+        }));
+        
+        toast({
+          title: "Changement de salle",
+          description: "Vous avez quitté votre salle précédente"
+        });
+      }
+
       // Create room
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
@@ -280,38 +307,60 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-      // Check if player is already in room
-      const { data: existingPlayer, error: checkError } = await supabase
+      // Check if player is already in any room (not just the one they're trying to join)
+      const { data: existingRooms, error: roomCheckError } = await supabase
         .from('room_players')
-        .select('id')
-        .eq('room_id', roomId)
-        .eq('player_id', player.id)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error('Error checking player in room:', checkError);
+        .select('room_id')
+        .eq('player_id', player.id);
+        
+      if (roomCheckError) {
+        console.error('Error checking player rooms:', roomCheckError);
         return;
       }
-
-      if (!existingPlayer) {
-        // Add player to room
-        const { error: joinError } = await supabase
-          .from('room_players')
-          .insert({
-            room_id: roomId,
-            player_id: player.id,
-            is_ready: false
-          });
-
-        if (joinError) {
-          console.error('Error joining room:', joinError);
-          toast({
-            title: "Erreur",
-            description: "Impossible de rejoindre la salle",
-            variant: "destructive"
-          });
+      
+      // If player is already in a different room, make them leave first
+      if (existingRooms && existingRooms.length > 0) {
+        // Check if they're trying to join the same room they're already in
+        const alreadyInTargetRoom = existingRooms.some(room => room.room_id === roomId);
+        
+        if (alreadyInTargetRoom) {
+          // Just update the current room state since they're already in this room
+          await fetchRoomDetails(roomId);
           return;
         }
+        
+        // Otherwise, leave all existing rooms
+        await Promise.all(existingRooms.map(async (room) => {
+          await supabase
+            .from('room_players')
+            .delete()
+            .eq('room_id', room.room_id)
+            .eq('player_id', player.id);
+        }));
+        
+        toast({
+          title: "Changement de salle",
+          description: "Vous avez quitté votre salle précédente"
+        });
+      }
+
+      // Now add player to the new room
+      const { error: joinError } = await supabase
+        .from('room_players')
+        .insert({
+          room_id: roomId,
+          player_id: player.id,
+          is_ready: false
+        });
+
+      if (joinError) {
+        console.error('Error joining room:', joinError);
+        toast({
+          title: "Erreur",
+          description: "Impossible de rejoindre la salle",
+          variant: "destructive"
+        });
+        return;
       }
 
       // Get room details to update current room
