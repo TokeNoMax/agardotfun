@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
@@ -13,26 +12,49 @@ export default function Lobby() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
+  const [redirectBlocked, setRedirectBlocked] = useState(false);
   
   useEffect(() => {
-    // Only redirect to the game if:
-    // 1. The room exists
-    // 2. The game is in "playing" mode
-    // 3. The player exists
-    // 4. The player is in the room
-    if (currentRoom && 
+    // Bloquer l'auto-redirection pendant 1,5 secondes après le chargement de la page
+    // pour éviter les redirections automatiques non désirées
+    setRedirectBlocked(true);
+    const timer = setTimeout(() => {
+      setRedirectBlocked(false);
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  useEffect(() => {
+    // Seulement rediriger vers le jeu si:
+    // 1. Le blocage de redirection n'est pas actif
+    // 2. La salle existe
+    // 3. Le jeu est en mode "playing"
+    // 4. Le joueur existe
+    // 5. Le joueur est dans la salle
+    if (!redirectBlocked && 
+        currentRoom && 
         currentRoom.status === 'playing' && 
         player && 
+        currentRoom.players && 
         currentRoom.players.some(p => p.id === player.id)) {
       
-      // Use a delay to ensure all data is synchronized
+      // Ajouter un journal pour déboguer
+      console.log("Redirection automatique vers le jeu", {
+        redirectBlocked,
+        roomStatus: currentRoom.status,
+        hasPlayer: !!player,
+        playerInRoom: player && currentRoom.players.some(p => p.id === player.id)
+      });
+      
+      // Utiliser un délai pour s'assurer que toutes les données sont synchronisées
       const redirectTimer = setTimeout(() => {
         navigate('/game');
       }, 1000);
       
       return () => clearTimeout(redirectTimer);
     }
-  }, [currentRoom, navigate, player]);
+  }, [currentRoom, navigate, player, redirectBlocked]);
 
   const handleTestGame = async () => {
     if (!player) {

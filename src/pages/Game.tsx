@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
@@ -10,6 +11,7 @@ export default function Game() {
   const location = useLocation();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
+  const [hasVerifiedSession, setHasVerifiedSession] = useState(false);
   
   // Check if we're in local mode
   const isLocalMode = new URLSearchParams(location.search).get('local') === 'true';
@@ -19,21 +21,31 @@ export default function Game() {
     // Skip validation for local mode
     if (isLocalMode) {
       setIsLoading(false);
-      return;
+      setHasVerifiedSession(true);
+      return true;
     }
     
     setIsLoading(true);
     
     try {
+      // Si nous avons déjà vérifié la session et la salle est en jeu, ne pas revérifier
+      if (hasVerifiedSession && currentRoom?.status === 'playing') {
+        setIsLoading(false);
+        return true;
+      }
+      
+      await refreshCurrentRoom();
+      
       // If no active room or player is not defined, redirect to lobby
       if (!currentRoom || !player) {
+        console.log("Pas de salle ou joueur actif, redirection vers le lobby");
         toast({
           title: "Session expirée",
           description: "Aucune partie active. Retour au lobby.",
           variant: "destructive"
         });
         navigate('/lobby');
-        return;
+        return false;
       } 
       
       // Check if players array exists before trying to use it
@@ -45,7 +57,7 @@ export default function Game() {
           variant: "destructive"
         });
         navigate('/lobby');
-        return;
+        return false;
       }
       
       // Check if player is in the room
@@ -57,7 +69,7 @@ export default function Game() {
           variant: "destructive"
         });
         navigate('/lobby');
-        return;
+        return false;
       }
       
       // Only redirect to lobby if room is not in game mode
@@ -70,10 +82,12 @@ export default function Game() {
           variant: "destructive"
         });
         navigate('/lobby');
-        return;
+        return false;
       }
       
       setIsLoading(false);
+      setHasVerifiedSession(true);
+      return true;
     } catch (error) {
       console.error("Erreur lors de la récupération de la salle:", error);
       toast({
@@ -82,17 +96,16 @@ export default function Game() {
         variant: "destructive"
       });
       navigate('/lobby');
+      return false;
     }
-  }, [currentRoom, player, navigate, toast, isLocalMode]);
+  }, [currentRoom, player, navigate, toast, isLocalMode, hasVerifiedSession, refreshCurrentRoom]);
   
   // Effect to check and restore session if necessary - skipped for local mode
   useEffect(() => {
-    if (isLocalMode) {
-      setIsLoading(false);
-    } else {
+    if (!hasVerifiedSession) {
       checkGameSession();
     }
-  }, [checkGameSession, isLocalMode]);
+  }, [checkGameSession, hasVerifiedSession]);
   
   // Show loading screen while connecting
   if (isLoading && !isLocalMode) {

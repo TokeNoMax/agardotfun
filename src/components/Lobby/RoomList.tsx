@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +29,7 @@ export default function RoomList() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [gameStarting, setGameStarting] = useState(false);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -64,7 +64,7 @@ export default function RoomList() {
 
   // Handle countdown with proper cleanup
   useEffect(() => {
-    if (countdown !== null && countdown > 0) {
+    if (countdown !== null && countdown > 0 && !gameStarting) {
       if (countdownTimerRef.current) {
         clearInterval(countdownTimerRef.current);
       }
@@ -76,17 +76,21 @@ export default function RoomList() {
               clearInterval(countdownTimerRef.current);
               countdownTimerRef.current = null;
             }
-            // Launch game automatically at the end of countdown
-            startGame().then(() => {
-              navigate('/game');
-            }).catch(error => {
+            
+            // Marquer le jeu comme démarrant mais ne pas naviguer automatiquement
+            setGameStarting(true);
+            
+            // Launch game at the end of countdown, but require explicit user action
+            startGame().catch(error => {
               console.error("Error starting game:", error);
+              setGameStarting(false);
               toast({
                 title: "Erreur",
                 description: "Impossible de démarrer la partie",
                 variant: "destructive"
               });
             });
+            
             return null;
           }
           return prev - 1;
@@ -99,7 +103,7 @@ export default function RoomList() {
         clearInterval(countdownTimerRef.current);
       }
     };
-  }, [countdown, navigate, startGame, toast]);
+  }, [countdown, startGame, toast, gameStarting]);
 
   const handleCreateRoom = async () => {
     if (!player) {
@@ -128,10 +132,21 @@ export default function RoomList() {
 
   const handleStartGame = async () => {
     try {
-      await startGame();
-      navigate('/game');
+      setGameStarting(true);
+      const success = await startGame();
+      if (success) {
+        navigate('/game');
+      } else {
+        setGameStarting(false);
+        toast({
+          title: "Erreur",
+          description: "Impossible de démarrer la partie",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error("Error starting game:", error);
+      setGameStarting(false);
       toast({
         title: "Erreur",
         description: "Impossible de démarrer la partie",
@@ -243,6 +258,11 @@ export default function RoomList() {
                   Démarrage dans {countdown} secondes...
                 </p>
               )}
+              {gameStarting && currentRoom.status === 'playing' && (
+                <p className="text-lg font-bold text-green-600 mt-2">
+                  La partie est prête ! Cliquez sur "Rejoindre la partie" pour commencer.
+                </p>
+              )}
               <div className="mt-2">
                 <p className="text-sm font-medium">Joueurs:</p>
                 <div className="flex flex-wrap gap-2 mt-1">
@@ -264,20 +284,33 @@ export default function RoomList() {
                     onClick={handleToggleReady}
                     className="w-full"
                     variant={isCurrentPlayerReady() ? "outline" : "default"}
+                    disabled={gameStarting}
                   >
                     {isCurrentPlayerReady() ? "Annuler prêt" : "Je suis prêt"}
                   </Button>
-                  <Button 
-                    onClick={handleStartGame}
-                    disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady()}
-                    className="w-full"
-                  >
-                    Démarrer la partie
-                  </Button>
+                  
+                  {gameStarting && currentRoom.status === 'playing' ? (
+                    <Button 
+                      onClick={() => navigate('/game')}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      Rejoindre la partie
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={handleStartGame}
+                      disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
+                      className="w-full"
+                    >
+                      Démarrer la partie
+                    </Button>
+                  )}
+                  
                   <Button 
                     variant="outline" 
                     onClick={handleLeaveRoom}
                     className="w-full"
+                    disabled={gameStarting}
                   >
                     Quitter la salle
                   </Button>
