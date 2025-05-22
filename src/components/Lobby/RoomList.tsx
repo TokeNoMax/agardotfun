@@ -217,7 +217,7 @@ export default function RoomList() {
           
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button disabled={!player || currentRoom !== null}>Créer une salle</Button>
+              <Button disabled={!player}>Créer une salle</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>

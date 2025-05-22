@@ -10,13 +10,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Lobby() {
-  const { currentRoom, player, createRoom, joinRoom, setPlayerReady, startGame } = useGame();
+  const { player } = useGame();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
-  
-  // IMPORTANT: Suppression complète de la logique de redirection automatique
-  // Cela évite que le jeu se lance tout seul
   
   const handleTestGame = async () => {
     if (!player) {
