@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -34,8 +33,7 @@ export default function RoomList() {
         room.status === 'waiting' && 
         (!currentRoom || room.id !== currentRoom.id) && 
         room.maxPlayers > 1 && // Filter out solo rooms
-        !room.name.toLowerCase().includes('test_max_') && // Filter out test rooms
-        room.status !== 'finished' // Explicitly filter out finished rooms
+        !room.name.toLowerCase().includes('test_max_') // Filter out test rooms
       );
       
       // Compare serialized room data to avoid unnecessary updates
