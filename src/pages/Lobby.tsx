@@ -1,12 +1,13 @@
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import { Button } from "@/components/ui/button";
-import { Gamepad2Icon } from "lucide-react";
+import { Gamepad2Icon, Users, User } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Lobby() {
   const { currentRoom, player, createRoom, joinRoom, setPlayerReady, startGame } = useGame();
@@ -33,43 +34,6 @@ export default function Lobby() {
     try {
       setIsCreatingTestGame(true);
       
-      // For online test mode
-      const onlineTestMode = async () => {
-        toast({
-          title: "Création de la partie test",
-          description: "Préparation du mode test en cours..."
-        });
-        
-        // Create a test room with a unique name
-        const testRoomName = `Test_${player.name}_${Date.now()}`;
-        const roomId = await createRoom(testRoomName, 1);
-        
-        // Join the room
-        await joinRoom(roomId);
-        
-        // Set player ready
-        await setPlayerReady(true);
-        
-        // Start the game after a short delay to ensure synchronization
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const success = await startGame();
-        
-        if (success) {
-          // Wait a longer delay to ensure the database is updated
-          setTimeout(() => {
-            navigate('/game');
-          }, 1500);
-        } else {
-          setIsCreatingTestGame(false);
-          toast({
-            title: "Erreur",
-            description: "Impossible de démarrer le mode test",
-            variant: "destructive"
-          });
-        }
-      };
-
       // For local test mode
       const localTestMode = () => {
         toast({
@@ -118,39 +82,70 @@ export default function Lobby() {
           Blob Battle Royale
         </h1>
         
-        <div className="flex flex-col md:flex-row gap-8 items-start justify-center">
-          {!player && <PlayerCustomization />}
-          <RoomList />
-        </div>
+        {!player && (
+          <div className="mb-8">
+            <PlayerCustomization />
+          </div>
+        )}
         
         {player && (
-          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
-              onClick={handleTestGame}
-              disabled={isCreatingTestGame}
-              className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 text-lg"
-            >
-              {isCreatingTestGame ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  Création...
-                </>
-              ) : (
-                <>
-                  <Gamepad2Icon className="mr-2" />
-                  Mode Test (solo)
-                </>
-              )}
-            </Button>
+          <Tabs defaultValue="multiplayer" className="w-full max-w-5xl mx-auto">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="multiplayer" className="text-lg py-3">
+                <Users className="mr-2" /> Mode Multijoueur
+              </TabsTrigger>
+              <TabsTrigger value="solo" className="text-lg py-3">
+                <User className="mr-2" /> Mode Solo
+              </TabsTrigger>
+            </TabsList>
             
-            <Button 
-              onClick={handleLocalGame}
-              className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-lg"
-            >
-              <Gamepad2Icon className="mr-2" />
-              Mode Local (sans réseau)
-            </Button>
-          </div>
+            <TabsContent value="multiplayer" className="space-y-8">
+              <div className="bg-white/80 backdrop-blur rounded-lg p-6 shadow-lg">
+                <h2 className="text-xl font-semibold mb-4">Mode Multijoueur</h2>
+                <p className="text-gray-600 mb-4">
+                  Créez une salle et invitez d'autres joueurs ou rejoignez une salle existante 
+                  pour affronter d'autres adversaires en ligne.
+                </p>
+                <RoomList />
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="solo" className="space-y-8">
+              <div className="bg-white/80 backdrop-blur rounded-lg p-6 shadow-lg">
+                <h2 className="text-xl font-semibold mb-4">Mode Solo</h2>
+                <p className="text-gray-600 mb-4">
+                  Jouez une partie rapide en solo, sans avoir à attendre d'autres joueurs.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+                  <Button 
+                    onClick={handleTestGame}
+                    disabled={isCreatingTestGame}
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 text-lg"
+                  >
+                    {isCreatingTestGame ? (
+                      <>
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        Création...
+                      </>
+                    ) : (
+                      <>
+                        <Gamepad2Icon className="mr-2" />
+                        Mode Test (solo)
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleLocalGame}
+                    className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-lg"
+                  >
+                    <Gamepad2Icon className="mr-2" />
+                    Mode Local (sans réseau)
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         )}
         
         <div className="mt-10 max-w-2xl mx-auto bg-white/80 backdrop-blur rounded-lg p-6 shadow-lg">
