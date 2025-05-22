@@ -11,7 +11,7 @@ interface GameContextType {
   joinRoom: (roomId: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
   setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
-  startGame: () => Promise<void>;
+  startGame: () => Promise<boolean>; // Changed from Promise<void> to Promise<boolean>
   setPlayerReady: (isReady: boolean) => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
 }
@@ -486,7 +486,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Amélioration de la fonction startGame pour être plus robuste
   const startGame = async () => {
-    if (!currentRoom) return;
+    if (!currentRoom) return false; // Return false if no room
     
     try {
       // Vérifier que tous les joueurs sont prêts
