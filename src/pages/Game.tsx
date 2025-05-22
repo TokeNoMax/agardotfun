@@ -6,7 +6,7 @@ import GameUI from "@/components/Game/GameUI";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function Game() {
-  const { currentRoom, refreshCurrentRoom } = useGame();
+  const { currentRoom, player, refreshCurrentRoom } = useGame();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -16,23 +16,36 @@ export default function Game() {
     setIsLoading(true);
     
     try {
-      // Si pas de salle active, tenter une reconnexion
-      if (!currentRoom) {
-        await refreshCurrentRoom();
-        
-        // Si toujours pas de salle active après la tentative, rediriger vers le lobby
-        if (!currentRoom) {
-          toast({
-            title: "Session expirée",
-            description: "Votre session de jeu a expiré. Retour au lobby.",
-            variant: "destructive"
-          });
-          navigate('/lobby');
-          return;
-        }
+      // Si pas de salle active ou le joueur n'est pas défini, rediriger vers le lobby
+      if (!currentRoom || !player) {
+        toast({
+          title: "Session expirée",
+          description: "Aucune partie active. Retour au lobby.",
+          variant: "destructive"
+        });
+        navigate('/lobby');
+        return;
       } 
+      
+      // Vérifier que le joueur est dans la salle
+      const isPlayerInRoom = currentRoom.players.some(p => p.id === player.id);
+      if (!isPlayerInRoom) {
+        toast({
+          title: "Session expirée",
+          description: "Vous n'êtes plus dans cette partie. Retour au lobby.",
+          variant: "destructive"
+        });
+        navigate('/lobby');
+        return;
+      }
+      
       // Ne redirige vers le lobby que si la salle n'est pas en mode jeu
-      else if (currentRoom.status === 'waiting') {
+      if (currentRoom.status !== 'playing') {
+        toast({
+          title: "Partie non démarrée",
+          description: "Cette partie n'est pas encore démarrée. Retour au lobby.",
+          variant: "destructive"
+        });
         navigate('/lobby');
         return;
       }
@@ -47,24 +60,24 @@ export default function Game() {
       });
       navigate('/lobby');
     }
-  }, [currentRoom, navigate, refreshCurrentRoom, toast]);
+  }, [currentRoom, player, navigate, toast]);
   
   // Effet pour vérifier et restaurer la session si nécessaire
   useEffect(() => {
     checkGameSession();
   }, [checkGameSession]);
   
-  // Rafraîchir périodiquement les informations de la partie
+  // Rafraîchir périodiquement les informations de la partie, mais moins souvent
+  // pour éviter les problèmes de clignotement
   useEffect(() => {
     if (!currentRoom || currentRoom.status !== 'playing' || isLoading) return;
     
-    // Rafraîchir toutes les 5 secondes pour maintenir la synchronisation
-    // Un intervalle plus long réduit les risques d'instabilité
+    // Rafraîchir toutes les 10 secondes au lieu de 5 pour réduire les risques d'instabilité
     const refreshInterval = setInterval(() => {
       refreshCurrentRoom().catch(error => {
         console.error("Erreur lors du rafraîchissement de la salle:", error);
       });
-    }, 5000);
+    }, 10000);
     
     return () => clearInterval(refreshInterval);
   }, [currentRoom, refreshCurrentRoom, isLoading]);

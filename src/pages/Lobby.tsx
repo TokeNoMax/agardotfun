@@ -20,7 +20,10 @@ export default function Lobby() {
         currentRoom.status === 'playing' && 
         player && 
         currentRoom.players.some(p => p.id === player.id)) {
-      navigate('/game');
+      // Ajout d'un délai pour s'assurer que toutes les données sont synchronisées
+      setTimeout(() => {
+        navigate('/game');
+      }, 1000);
     }
   }, [currentRoom, navigate, player]);
 
@@ -53,13 +56,21 @@ export default function Lobby() {
       // Démarrer la partie après un petit délai pour s'assurer que tout est synchronisé
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      await startGame();
+      const success = await startGame();
       
-      // Attendre un délai plus long pour s'assurer que la base de données est mise à jour
-      // et que l'état local a bien le temps de se mettre à jour
-      setTimeout(() => {
-        navigate('/game');
-      }, 1500);
+      if (success) {
+        // Attendre un délai plus long pour s'assurer que la base de données est mise à jour
+        // et que l'état local a bien le temps de se mettre à jour
+        setTimeout(() => {
+          navigate('/game');
+        }, 1500);
+      } else {
+        toast({
+          title: "Erreur",
+          description: "Impossible de démarrer le mode test",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error("Erreur lors du lancement du mode test:", error);
       toast({
