@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,11 +24,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 
 export default function RoomList() {
-  const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady } = useGame();
+  const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
   const [roomName, setRoomName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState("4");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -150,10 +152,21 @@ export default function RoomList() {
     }
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshCurrentRoom();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
   const isCurrentPlayerReady = () => {
     if (!currentRoom || !player) return false;
     const currentPlayer = currentRoom.players.find(p => p.id === player.id);
     return !!currentPlayer?.ready;
+  };
+
+  const isCurrentPlayerInRoom = () => {
+    if (!currentRoom || !player) return false;
+    return currentRoom.players.some(p => p.id === player.id);
   };
 
   return (
@@ -161,44 +174,56 @@ export default function RoomList() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Salles de jeu</h2>
         
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button disabled={!player || currentRoom !== null}>Créer une salle</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Créer une nouvelle salle</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Nom de la salle</Label>
-                <Input
-                  id="name"
-                  placeholder="Entrer le nom de la salle"
-                  value={roomName}
-                  onChange={(e) => setRoomName(e.target.value)}
-                />
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            className={`${isRefreshing ? 'animate-spin' : ''}`}
+            title="Rafraîchir les salles"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button disabled={!player || currentRoom !== null}>Créer une salle</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Créer une nouvelle salle</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nom de la salle</Label>
+                  <Input
+                    id="name"
+                    placeholder="Entrer le nom de la salle"
+                    value={roomName}
+                    onChange={(e) => setRoomName(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="players">Joueurs maximum</Label>
+                  <Select value={maxPlayers} onValueChange={setMaxPlayers}>
+                    <SelectTrigger id="players">
+                      <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">2 Joueurs</SelectItem>
+                      <SelectItem value="4">4 Joueurs</SelectItem>
+                      <SelectItem value="6">6 Joueurs</SelectItem>
+                      <SelectItem value="8">8 Joueurs</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="players">Joueurs maximum</Label>
-                <Select value={maxPlayers} onValueChange={setMaxPlayers}>
-                  <SelectTrigger id="players">
-                    <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2">2 Joueurs</SelectItem>
-                    <SelectItem value="4">4 Joueurs</SelectItem>
-                    <SelectItem value="6">6 Joueurs</SelectItem>
-                    <SelectItem value="8">8 Joueurs</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreateRoom}>Créer</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button onClick={handleCreateRoom}>Créer</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
       
       {currentRoom ? (
@@ -229,27 +254,39 @@ export default function RoomList() {
               </div>
             </div>
             <div className="space-y-2">
-              <Button 
-                onClick={handleToggleReady}
-                className="w-full"
-                variant={isCurrentPlayerReady() ? "outline" : "default"}
-              >
-                {isCurrentPlayerReady() ? "Annuler prêt" : "Je suis prêt"}
-              </Button>
-              <Button 
-                onClick={handleStartGame}
-                disabled={currentRoom.status !== 'waiting' || currentRoom.players.length < 2 || !isCurrentPlayerReady()}
-                className="w-full"
-              >
-                Démarrer la partie
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleLeaveRoom}
-                className="w-full"
-              >
-                Quitter la salle
-              </Button>
+              {isCurrentPlayerInRoom() ? (
+                <>
+                  <Button 
+                    onClick={handleToggleReady}
+                    className="w-full"
+                    variant={isCurrentPlayerReady() ? "outline" : "default"}
+                  >
+                    {isCurrentPlayerReady() ? "Annuler prêt" : "Je suis prêt"}
+                  </Button>
+                  <Button 
+                    onClick={handleStartGame}
+                    disabled={currentRoom.status !== 'waiting' || currentRoom.players.length < 2 || !isCurrentPlayerReady()}
+                    className="w-full"
+                  >
+                    Démarrer la partie
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleLeaveRoom}
+                    className="w-full"
+                  >
+                    Quitter la salle
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  onClick={() => handleJoinRoom(currentRoom.id)}
+                  disabled={currentRoom.players.length >= currentRoom.maxPlayers}
+                  className="w-full"
+                >
+                  Rejoindre la salle
+                </Button>
+              )}
             </div>
           </div>
         </div>

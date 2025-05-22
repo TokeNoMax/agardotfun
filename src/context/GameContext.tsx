@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { Player, Food, Rug, GameRoom, PlayerColor } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
@@ -14,6 +13,7 @@ interface GameContextType {
   setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
   startGame: () => Promise<void>;
   setPlayerReady: (isReady: boolean) => Promise<void>;
+  refreshCurrentRoom: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -28,10 +28,14 @@ export const useGame = () => {
 
 // Local storage key for player
 const PLAYER_STORAGE_KEY = 'blob-battle-player';
+const CURRENT_ROOM_KEY = 'blob-battle-current-room';
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(() => {
+    const storedRoom = localStorage.getItem(CURRENT_ROOM_KEY);
+    return storedRoom ? JSON.parse(storedRoom) : null;
+  });
   const [player, setPlayer] = useState<Player | null>(() => {
     const storedPlayer = localStorage.getItem(PLAYER_STORAGE_KEY);
     return storedPlayer ? JSON.parse(storedPlayer) : null;
@@ -63,6 +67,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (currentRoom) {
             fetchRoomDetails(currentRoom.id);
           }
+          // Also refresh the rooms list to update player counts
+          fetchRooms();
         }
       )
       .subscribe();
@@ -73,10 +79,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  // Fetch current room details when it changes
+  // Fetch current room details when it changes or on interval
   useEffect(() => {
     if (currentRoom) {
       fetchRoomDetails(currentRoom.id);
+      
+      // Set up interval to refresh room details
+      const refreshInterval = setInterval(() => {
+        fetchRoomDetails(currentRoom.id);
+      }, 5000); // Every 5 seconds
+      
+      return () => clearInterval(refreshInterval);
     }
   }, [currentRoom?.id]);
 
@@ -88,6 +101,15 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.removeItem(PLAYER_STORAGE_KEY);
     }
   }, [player]);
+  
+  // Update localStorage when currentRoom changes
+  useEffect(() => {
+    if (currentRoom) {
+      localStorage.setItem(CURRENT_ROOM_KEY, JSON.stringify({ id: currentRoom.id, name: currentRoom.name }));
+    } else {
+      localStorage.removeItem(CURRENT_ROOM_KEY);
+    }
+  }, [currentRoom]);
 
   const fetchRooms = async () => {
     try {
@@ -186,6 +208,33 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         status: roomData.status as 'waiting' | 'playing' | 'finished',
         players: formattedPlayers,
       };
+
+      // Check if current player is still in the room
+      if (player && !formattedPlayers.some(p => p.id === player.id)) {
+        // Player is no longer in room, but room data exists in localStorage
+        // This indicates the player refreshed the page while in a room
+        // Let's attempt to rejoin the room automatically
+        try {
+          await supabase
+            .from('room_players')
+            .insert({
+              room_id: roomId,
+              player_id: player.id,
+              is_ready: false
+            });
+            
+          toast({
+            title: "Reconnexion",
+            description: "Vous avez été reconnecté à la salle"
+          });
+          
+          // Update room data after rejoining
+          await fetchRoomDetails(roomId);
+          return;
+        } catch (error) {
+          console.error('Error rejoining room:', error);
+        }
+      }
 
       // Update current room if we're looking at it
       if (currentRoom?.id === roomId) {
@@ -460,6 +509,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const refreshCurrentRoom = async () => {
+    if (currentRoom) {
+      await fetchRoomDetails(currentRoom.id);
+    }
+  };
+
   const value = {
     rooms,
     currentRoom,
@@ -469,7 +524,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     leaveRoom,
     setPlayerDetails,
     startGame,
-    setPlayerReady
+    setPlayerReady,
+    refreshCurrentRoom
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
