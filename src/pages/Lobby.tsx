@@ -4,9 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
+import { Button } from "@/components/ui/button";
+import { Gamepad2Icon } from "lucide-react";
 
 export default function Lobby() {
-  const { currentRoom, player } = useGame();
+  const { currentRoom, player, createRoom, joinRoom, setPlayerReady, startGame } = useGame();
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -19,6 +21,32 @@ export default function Lobby() {
       navigate('/game');
     }
   }, [currentRoom, navigate, player]);
+
+  const handleTestGame = async () => {
+    if (!player) {
+      return;
+    }
+    
+    try {
+      // Créer une salle de test temporaire
+      const testRoomName = `Test_${player.name}_${Date.now()}`;
+      const roomId = await createRoom(testRoomName, 1);
+      
+      // Rejoindre la salle
+      await joinRoom(roomId);
+      
+      // Se mettre prêt
+      await setPlayerReady(true);
+      
+      // Démarrer la partie
+      await startGame();
+      
+      // Naviguer vers la page du jeu
+      navigate('/game');
+    } catch (error) {
+      console.error("Erreur lors du lancement du mode test:", error);
+    }
+  };
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -31,6 +59,18 @@ export default function Lobby() {
           {!player && <PlayerCustomization />}
           <RoomList />
         </div>
+        
+        {player && (
+          <div className="mt-8 flex justify-center">
+            <Button 
+              onClick={handleTestGame}
+              className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 text-lg"
+            >
+              <Gamepad2Icon className="mr-2" />
+              Mode Test (solo)
+            </Button>
+          </div>
+        )}
         
         <div className="mt-10 max-w-2xl mx-auto bg-white/80 backdrop-blur rounded-lg p-6 shadow-lg">
           <h2 className="text-xl font-bold mb-4">Comment jouer</h2>
