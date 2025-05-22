@@ -67,20 +67,12 @@ export default function Game() {
     checkGameSession();
   }, [checkGameSession]);
   
-  // Rafraîchir périodiquement les informations de la partie, mais moins souvent
+  // Désactive complètement le rafraîchissement périodique pendant le jeu actif
   // pour éviter les problèmes de clignotement
   useEffect(() => {
-    if (!currentRoom || currentRoom.status !== 'playing' || isLoading) return;
-    
-    // Rafraîchir toutes les 10 secondes au lieu de 5 pour réduire les risques d'instabilité
-    const refreshInterval = setInterval(() => {
-      refreshCurrentRoom().catch(error => {
-        console.error("Erreur lors du rafraîchissement de la salle:", error);
-      });
-    }, 10000);
-    
-    return () => clearInterval(refreshInterval);
-  }, [currentRoom, refreshCurrentRoom, isLoading]);
+    // Aucun rafraîchissement périodique pendant le jeu
+    // Ce commentaire est intentionnel pour montrer qu'on a désactivé le refresh
+  }, [currentRoom]);
   
   // Afficher un écran de chargement pendant la tentative de reconnexion
   if (isLoading || !currentRoom) {

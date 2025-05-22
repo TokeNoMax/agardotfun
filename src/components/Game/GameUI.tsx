@@ -14,6 +14,7 @@ export default function GameUI() {
   const [alivePlayers, setAlivePlayers] = useState<number>(0);
   const navigate = useNavigate();
   
+  // Calculate alive players only when currentRoom changes
   useEffect(() => {
     if (currentRoom) {
       const alive = currentRoom.players.filter(p => p.isAlive).length;
@@ -21,10 +22,15 @@ export default function GameUI() {
     }
   }, [currentRoom]);
 
-  // Vérification que le joueur actuel existe et est dans la salle
+  // Vérification que le joueur actuel existe et est dans la salle - exécutée une seule fois
   useEffect(() => {
     if (!currentRoom || !player || !currentRoom.players.some(p => p.id === player.id)) {
-      navigate('/lobby');
+      // On met un petit délai pour éviter les redirections trop rapides en cas de latence réseau
+      const timer = setTimeout(() => {
+        navigate('/lobby');
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
   }, [currentRoom, player, navigate]);
 
@@ -45,8 +51,18 @@ export default function GameUI() {
     navigate('/lobby');
   };
   
+  // Protection against null currentRoom
   if (!currentRoom) {
-    return null;
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-medium mb-4">Problème de connexion à la salle de jeu</p>
+          <Button onClick={() => navigate('/lobby')}>
+            Retour au lobby
+          </Button>
+        </div>
+      </div>
+    );
   }
   
   return (

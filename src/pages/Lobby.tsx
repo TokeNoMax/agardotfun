@@ -1,5 +1,5 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
@@ -12,18 +12,25 @@ export default function Lobby() {
   const { currentRoom, player, createRoom, joinRoom, setPlayerReady, startGame } = useGame();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   
   useEffect(() => {
-    // Uniquement rediriger si la salle existe, a le statut playing, 
-    // et que le joueur est dans cette salle
+    // Seulement rediriger vers la partie si:
+    // 1. La salle existe
+    // 2. La partie est en mode "playing"
+    // 3. Le joueur existe
+    // 4. Le joueur est dans la salle
     if (currentRoom && 
         currentRoom.status === 'playing' && 
         player && 
         currentRoom.players.some(p => p.id === player.id)) {
-      // Ajout d'un délai pour s'assurer que toutes les données sont synchronisées
-      setTimeout(() => {
+      
+      // On utilise un délai pour s'assurer que toutes les données sont synchronisées
+      const redirectTimer = setTimeout(() => {
         navigate('/game');
       }, 1000);
+      
+      return () => clearTimeout(redirectTimer);
     }
   }, [currentRoom, navigate, player]);
 
@@ -37,13 +44,18 @@ export default function Lobby() {
       return;
     }
     
+    // Empêcher les clics multiples
+    if (isCreatingTestGame) return;
+    
     try {
+      setIsCreatingTestGame(true);
+      
       toast({
         title: "Création de la partie test",
         description: "Préparation du mode solo en cours..."
       });
       
-      // Créer une salle de test temporaire
+      // Créer une salle de test temporaire avec un nom unique
       const testRoomName = `Test_${player.name}_${Date.now()}`;
       const roomId = await createRoom(testRoomName, 1);
       
@@ -60,11 +72,11 @@ export default function Lobby() {
       
       if (success) {
         // Attendre un délai plus long pour s'assurer que la base de données est mise à jour
-        // et que l'état local a bien le temps de se mettre à jour
         setTimeout(() => {
           navigate('/game');
         }, 1500);
       } else {
+        setIsCreatingTestGame(false);
         toast({
           title: "Erreur",
           description: "Impossible de démarrer le mode test",
@@ -72,6 +84,7 @@ export default function Lobby() {
         });
       }
     } catch (error) {
+      setIsCreatingTestGame(false);
       console.error("Erreur lors du lancement du mode test:", error);
       toast({
         title: "Erreur",
@@ -97,10 +110,20 @@ export default function Lobby() {
           <div className="mt-8 flex justify-center">
             <Button 
               onClick={handleTestGame}
+              disabled={isCreatingTestGame}
               className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 text-lg"
             >
-              <Gamepad2Icon className="mr-2" />
-              Mode Test (solo)
+              {isCreatingTestGame ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  Création...
+                </>
+              ) : (
+                <>
+                  <Gamepad2Icon className="mr-2" />
+                  Mode Test (solo)
+                </>
+              )}
             </Button>
           </div>
         )}

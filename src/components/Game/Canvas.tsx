@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player } from "@/types/game";
@@ -13,6 +14,7 @@ const FOOD_SIZE = 5;
 const RUG_SIZE = 40;
 const FOOD_VALUE = 1;
 const RUG_PENALTY = 5;
+const SUPABASE_UPDATE_INTERVAL = 250; // Less frequent updates to reduce flickering
 
 interface CanvasProps {
   onGameOver: (winner: Player | null) => void;
@@ -32,10 +34,13 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
   const playerRef = useRef(currentPlayer);
   const gameLoopRef = useRef<number | null>(null);
   const gameIdRef = useRef<string | null>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
+  const isInitializedRef = useRef<boolean>(false);
 
-  // Initialize game
+  // Initialize game only once
   useEffect(() => {
-    if (!currentRoom || currentRoom?.status !== 'playing' || !currentPlayer) return;
+    if (!currentRoom || currentRoom?.status !== 'playing' || !currentPlayer || isInitializedRef.current) return;
+    isInitializedRef.current = true;
     
     // Initialize players with random positions
     const initialPlayers = currentRoom.players.map(p => ({
@@ -98,11 +103,13 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     });
 
     return () => {
+      isInitializedRef.current = false;
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
+        gameLoopRef.current = null;
       }
       
-      if (gameIdRef.current) {
+      if (channel) {
         supabase.removeChannel(channel);
       }
     };
@@ -126,7 +133,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
   };
 
   const updatePlayerPosition = async (roomId: string, player: Player) => {
-    if (!player) return;
+    if (!player || !roomId) return;
     
     try {
       await supabase
@@ -163,22 +170,20 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     };
   }, []);
 
-  // Game loop
+  // Game loop with optimized rendering and updates
   useEffect(() => {
     if (!currentRoom || !currentPlayer || currentRoom?.status !== 'playing') return;
     
     const ourPlayer = players.find(p => p.id === currentPlayer.id);
     if (!ourPlayer || !ourPlayer.isAlive) return;
     
-    let lastUpdateTime = 0;
-    
     const gameLoop = (timestamp: number) => {
-      // Throttle Supabase updates to every 100ms
-      const shouldUpdate = timestamp - lastUpdateTime > 100;
+      // Throttle Supabase updates to reduce network traffic and flickering
+      const shouldUpdate = timestamp - lastUpdateTimeRef.current > SUPABASE_UPDATE_INTERVAL;
       
       setPlayers(prevPlayers => {
-        // Only update if we have enough players
-        if (prevPlayers.length <= 1) return prevPlayers;
+        // Only update if we have players
+        if (prevPlayers.length === 0) return prevPlayers;
         
         // Update our player's position toward mouse
         const ourPlayerIndex = prevPlayers.findIndex(p => p.id === currentPlayer.id);
@@ -315,7 +320,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
         
         // Send player position to Supabase if enough time has passed
         if (shouldUpdate && currentRoom) {
-          lastUpdateTime = timestamp;
+          lastUpdateTimeRef.current = timestamp;
           updatePlayerPosition(currentRoom.id, me);
         }
         
@@ -349,11 +354,12 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     return () => {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
+        gameLoopRef.current = null;
       }
     };
   }, [currentRoom, currentPlayer, cameraZoom, cameraPosition, mousePosition, players, onGameOver, toast]);
 
-  // Draw game
+  // Draw game - optimized to prevent unnecessary re-renders
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -365,107 +371,121 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver }) => {
     const context = canvas.getContext('2d');
     if (!context) return;
     
-    // Clear canvas
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Transform for camera position and zoom
-    context.save();
-    context.translate(canvas.width / 2, canvas.height / 2);
-    context.scale(cameraZoom, cameraZoom);
-    context.translate(-cameraPosition.x, -cameraPosition.y);
-    
-    // Draw grid
-    context.beginPath();
-    context.strokeStyle = '#eee';
-    context.lineWidth = 1 / cameraZoom;
-    
-    const gridSize = 50;
-    const startX = Math.floor((cameraPosition.x - canvas.width / (2 * cameraZoom)) / gridSize) * gridSize;
-    const endX = Math.ceil((cameraPosition.x + canvas.width / (2 * cameraZoom)) / gridSize) * gridSize;
-    const startY = Math.floor((cameraPosition.y - canvas.height / (2 * cameraZoom)) / gridSize) * gridSize;
-    const endY = Math.ceil((cameraPosition.y + canvas.height / (2 * cameraZoom)) / gridSize) * gridSize;
-    
-    for (let x = startX; x <= endX; x += gridSize) {
-      context.moveTo(x, startY);
-      context.lineTo(x, endY);
-    }
-    
-    for (let y = startY; y <= endY; y += gridSize) {
-      context.moveTo(startX, y);
-      context.lineTo(endX, y);
-    }
-    
-    context.stroke();
-    
-    // Draw game bounds
-    context.beginPath();
-    context.strokeStyle = '#000';
-    context.lineWidth = 2 / cameraZoom;
-    context.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    
-    // Draw food
-    foods.forEach(food => {
-      context.beginPath();
-      context.fillStyle = '#2ecc71';
-      context.arc(food.x, food.y, food.size, 0, Math.PI * 2);
-      context.fill();
-    });
-    
-    // Draw rugs
-    rugs.forEach(rug => {
-      context.beginPath();
-      context.fillStyle = '#8e44ad';
-      context.arc(rug.x, rug.y, rug.size, 0, Math.PI * 2);
-      context.fill();
+    // Create a render function that can be called in the animation frame
+    const renderCanvas = () => {
+      // Clear canvas
+      context.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw small spikes
-      for (let i = 0; i < 8; i++) {
-        const angle = (Math.PI * 2 * i) / 8;
-        const innerRadius = rug.size;
-        const outerRadius = rug.size * 1.3;
-        
-        context.beginPath();
-        context.strokeStyle = '#6c3483';
-        context.lineWidth = 3 / cameraZoom;
-        context.moveTo(
-          rug.x + innerRadius * Math.cos(angle),
-          rug.y + innerRadius * Math.sin(angle)
-        );
-        context.lineTo(
-          rug.x + outerRadius * Math.cos(angle),
-          rug.y + outerRadius * Math.sin(angle)
-        );
-        context.stroke();
+      // Transform for camera position and zoom
+      context.save();
+      context.translate(canvas.width / 2, canvas.height / 2);
+      context.scale(cameraZoom, cameraZoom);
+      context.translate(-cameraPosition.x, -cameraPosition.y);
+      
+      // Draw grid
+      context.beginPath();
+      context.strokeStyle = '#eee';
+      context.lineWidth = 1 / cameraZoom;
+      
+      const gridSize = 50;
+      const startX = Math.floor((cameraPosition.x - canvas.width / (2 * cameraZoom)) / gridSize) * gridSize;
+      const endX = Math.ceil((cameraPosition.x + canvas.width / (2 * cameraZoom)) / gridSize) * gridSize;
+      const startY = Math.floor((cameraPosition.y - canvas.height / (2 * cameraZoom)) / gridSize) * gridSize;
+      const endY = Math.ceil((cameraPosition.y + canvas.height / (2 * cameraZoom)) / gridSize) * gridSize;
+      
+      for (let x = startX; x <= endX; x += gridSize) {
+        context.moveTo(x, startY);
+        context.lineTo(x, endY);
       }
-    });
-    
-    // Draw players
-    players.forEach(player => {
-      if (!player.isAlive) return;
       
-      // Draw blob
-      context.beginPath();
-      context.fillStyle = `#${getColorHex(player.color)}`;
-      context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-      context.fill();
+      for (let y = startY; y <= endY; y += gridSize) {
+        context.moveTo(startX, y);
+        context.lineTo(endX, y);
+      }
       
-      // Draw outline
-      context.beginPath();
-      context.strokeStyle = '#fff';
-      context.lineWidth = 2 / cameraZoom;
-      context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
       context.stroke();
       
-      // Draw player name
-      context.font = `${15 / cameraZoom}px Arial`;
-      context.fillStyle = '#fff';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText(player.name, player.x, player.y);
-    });
+      // Draw game bounds
+      context.beginPath();
+      context.strokeStyle = '#000';
+      context.lineWidth = 2 / cameraZoom;
+      context.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      
+      // Draw food
+      foods.forEach(food => {
+        context.beginPath();
+        context.fillStyle = '#2ecc71';
+        context.arc(food.x, food.y, food.size, 0, Math.PI * 2);
+        context.fill();
+      });
+      
+      // Draw rugs
+      rugs.forEach(rug => {
+        context.beginPath();
+        context.fillStyle = '#8e44ad';
+        context.arc(rug.x, rug.y, rug.size, 0, Math.PI * 2);
+        context.fill();
+        
+        // Draw small spikes
+        for (let i = 0; i < 8; i++) {
+          const angle = (Math.PI * 2 * i) / 8;
+          const innerRadius = rug.size;
+          const outerRadius = rug.size * 1.3;
+          
+          context.beginPath();
+          context.strokeStyle = '#6c3483';
+          context.lineWidth = 3 / cameraZoom;
+          context.moveTo(
+            rug.x + innerRadius * Math.cos(angle),
+            rug.y + innerRadius * Math.sin(angle)
+          );
+          context.lineTo(
+            rug.x + outerRadius * Math.cos(angle),
+            rug.y + outerRadius * Math.sin(angle)
+          );
+          context.stroke();
+        }
+      });
+      
+      // Draw players
+      players.forEach(player => {
+        if (!player.isAlive) return;
+        
+        // Draw blob
+        context.beginPath();
+        context.fillStyle = `#${getColorHex(player.color)}`;
+        context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+        context.fill();
+        
+        // Draw outline
+        context.beginPath();
+        context.strokeStyle = '#fff';
+        context.lineWidth = 2 / cameraZoom;
+        context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+        context.stroke();
+        
+        // Draw player name
+        context.font = `${15 / cameraZoom}px Arial`;
+        context.fillStyle = '#fff';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(player.name, player.x, player.y);
+      });
+      
+      // Restore context
+      context.restore();
+    };
     
-    // Restore context
-    context.restore();
+    // Call render function immediately
+    renderCanvas();
+    
+    // Set up animation frame for continuous rendering
+    const animationId = requestAnimationFrame(renderCanvas);
+    
+    // Clean up
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
   }, [players, foods, rugs, cameraPosition, cameraZoom]);
 
   // Helper function to get color hex
