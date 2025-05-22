@@ -25,7 +25,9 @@ export default function Game() {
           navigate('/lobby');
         }
       });
-    } else if (currentRoom.status !== 'playing') {
+    } 
+    // Ne redirige vers le lobby que si la salle n'est pas en mode jeu ou terminée
+    else if (currentRoom.status === 'waiting') {
       navigate('/lobby');
     }
   }, [currentRoom, navigate]);
@@ -38,7 +40,7 @@ export default function Game() {
     }, 3000);
     
     return () => clearInterval(refreshInterval);
-  }, []);
+  }, [refreshCurrentRoom]);
   
   // Afficher un écran de chargement pendant la tentative de reconnexion
   if (!currentRoom) {

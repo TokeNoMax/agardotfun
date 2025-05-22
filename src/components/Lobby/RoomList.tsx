@@ -120,6 +120,12 @@ export default function RoomList() {
 
   const handleJoinRoom = async (roomId: string) => {
     await joinRoom(roomId);
+    
+    // Si la salle est en cours, rediriger directement vers la page de jeu
+    const roomToJoin = rooms.find(room => room.id === roomId);
+    if (roomToJoin && roomToJoin.status === 'playing') {
+      navigate('/game');
+    }
   };
 
   const handleStartGame = async () => {
@@ -310,9 +316,9 @@ export default function RoomList() {
               </div>
               <Button 
                 onClick={() => handleJoinRoom(room.id)}
-                disabled={!player || room.players.length >= room.maxPlayers || room.status !== 'waiting'}
+                disabled={!player || room.players.length >= room.maxPlayers}
               >
-                {room.status === 'waiting' ? 'Rejoindre' : 'En cours'}
+                {room.status === 'waiting' ? 'Rejoindre' : 'Rejoindre en cours'}
               </Button>
             </div>
           ))}
