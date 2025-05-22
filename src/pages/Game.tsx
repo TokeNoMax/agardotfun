@@ -1,9 +1,8 @@
-
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import GameUI from "@/components/Game/GameUI";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Game() {
   const { currentRoom, player, refreshCurrentRoom } = useGame();
