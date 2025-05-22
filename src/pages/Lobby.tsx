@@ -15,7 +15,7 @@ export default function Lobby() {
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   
-  // Improved clearing of stuck rooms on component mount
+  // Enhanced clearing of stuck rooms on component mount
   useEffect(() => {
     const clearStuckRoom = async () => {
       try {
@@ -24,6 +24,15 @@ export default function Lobby() {
         
         // Clear local storage manually to be extra safe
         localStorage.removeItem('blob-battle-current-room');
+        
+        // Clear any finished game states
+        const finishedGameState = localStorage.getItem('blob-battle-game-state');
+        if (finishedGameState) {
+          const gameState = JSON.parse(finishedGameState);
+          if (gameState.status === 'finished') {
+            localStorage.removeItem('blob-battle-game-state');
+          }
+        }
         
         // Refresh rooms list
         await refreshCurrentRoom();
@@ -113,11 +122,6 @@ export default function Lobby() {
             
             <TabsContent value="multiplayer" className="space-y-8">
               <div className="bg-white/80 backdrop-blur rounded-lg p-6 shadow-lg">
-                <h2 className="text-xl font-semibold mb-4">Mode Multijoueur</h2>
-                <p className="text-gray-600 mb-4">
-                  Créez une salle et invitez d'autres joueurs ou rejoignez une salle existante 
-                  pour affronter d'autres adversaires en ligne.
-                </p>
                 <RoomList />
               </div>
             </TabsContent>

@@ -64,6 +64,15 @@ export default function GameUI() {
   const handleGameOver = (winner: Player | null) => {
     setWinner(winner);
     setIsGameOver(true);
+    
+    // Store game result in localStorage
+    if (currentRoom) {
+      localStorage.setItem('blob-battle-game-state', JSON.stringify({
+        status: 'finished',
+        roomId: currentRoom.id,
+        winner: winner ? winner.name : 'Nobody'
+      }));
+    }
   };
   
   const handlePlayAgain = async () => {
@@ -71,6 +80,9 @@ export default function GameUI() {
       // For local mode, just reset the game
       window.location.reload();
     } else {
+      // Clean up the game state
+      localStorage.removeItem('blob-battle-game-state');
+      
       // Online mode - leave room and go back to lobby
       await leaveRoom();
       setIsGameOver(false);
@@ -79,6 +91,9 @@ export default function GameUI() {
   };
   
   const handleBackToLobby = async () => {
+    // Clean up the game state
+    localStorage.removeItem('blob-battle-game-state');
+    
     if (localMode) {
       // Just navigate back without API calls
       navigate('/lobby');

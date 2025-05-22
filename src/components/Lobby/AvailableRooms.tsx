@@ -16,9 +16,17 @@ interface AvailableRoomsProps {
   rooms: GameRoom[];
   handleJoinRoom: (roomId: string) => Promise<void>;
   playerExists: boolean;
+  selectedRoomId: string | null;
+  onSelectRoom: (roomId: string) => void;
 }
 
-export default function AvailableRooms({ rooms, handleJoinRoom, playerExists }: AvailableRoomsProps) {
+export default function AvailableRooms({ 
+  rooms, 
+  handleJoinRoom, 
+  playerExists, 
+  selectedRoomId,
+  onSelectRoom 
+}: AvailableRoomsProps) {
   // Add stabilization state to prevent flickering during room updates
   const [stableRooms, setStableRooms] = useState<GameRoom[]>(rooms);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +70,11 @@ export default function AvailableRooms({ rooms, handleJoinRoom, playerExists }: 
             </TableHeader>
             <TableBody>
               {stableRooms.map((room) => (
-                <TableRow key={room.id}>
+                <TableRow 
+                  key={room.id} 
+                  className={selectedRoomId === room.id ? "bg-indigo-50 hover:bg-indigo-100" : ""}
+                  onClick={() => onSelectRoom(room.id)}
+                >
                   <TableCell className="font-medium">{room.name}</TableCell>
                   <TableCell>
                     {room.players && room.players.length}/{room.maxPlayers}
@@ -75,7 +87,10 @@ export default function AvailableRooms({ rooms, handleJoinRoom, playerExists }: 
                   <TableCell className="text-right">
                     <Button 
                       size="sm"
-                      onClick={() => handleJoinRoom(room.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJoinRoom(room.id);
+                      }}
                       disabled={!playerExists || (room.players && room.players.length >= room.maxPlayers)}
                     >
                       Rejoindre

@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, PlusCircle } from "lucide-react";
 import { useGame } from "@/context/GameContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import CreateRoomDialog from "./CreateRoomDialog";
 import CurrentRoom from "./CurrentRoom";
 import AvailableRooms from "./AvailableRooms";
 import { GameRoom } from "@/types/game";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function RoomList() {
   const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
@@ -19,6 +20,7 @@ export default function RoomList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [gameStarting, setGameStarting] = useState(false);
   const [stableWaitingRooms, setStableWaitingRooms] = useState<GameRoom[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -36,6 +38,13 @@ export default function RoomList() {
       setStableWaitingRooms(filteredRooms);
     }
   }, [rooms, currentRoom]);
+
+  // Clear selection when currentRoom changes
+  useEffect(() => {
+    if (currentRoom) {
+      setSelectedRoomId(null);
+    }
+  }, [currentRoom]);
 
   // Check if all players are ready with proper null checks
   useEffect(() => {
@@ -188,6 +197,10 @@ export default function RoomList() {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
+  const handleSelectRoom = (roomId: string) => {
+    setSelectedRoomId(prev => prev === roomId ? null : roomId);
+  };
+
   const isCurrentPlayerReady = () => {
     if (!currentRoom || !player || !currentRoom.players) return false;
     const currentPlayer = currentRoom.players.find(p => p.id === player.id);
@@ -198,10 +211,13 @@ export default function RoomList() {
     if (!currentRoom || !player || !currentRoom.players) return false;
     return currentRoom.players.some(p => p.id === player.id);
   };
+  
+  // Get the selected room details
+  const selectedRoom = selectedRoomId ? rooms.find(r => r.id === selectedRoomId) : null;
 
   return (
-    <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg">
+      <div className="flex justify-between items-center p-6 border-b">
         <h2 className="text-2xl font-bold">Salles de jeu</h2>
         
         <div className="flex space-x-2">
@@ -228,26 +244,82 @@ export default function RoomList() {
         </div>
       </div>
       
-      {currentRoom ? (
-        <CurrentRoom 
-          currentRoom={currentRoom}
-          countdown={countdown}
-          gameStarting={gameStarting}
-          handleToggleReady={handleToggleReady}
-          handleStartGame={handleStartGame}
-          handleLeaveRoom={handleLeaveRoom}
-          handleJoinGame={handleJoinGame}
+      <div className="p-6">
+        {/* Current room panel */}
+        {currentRoom ? (
+          <CurrentRoom 
+            currentRoom={currentRoom}
+            countdown={countdown}
+            gameStarting={gameStarting}
+            handleToggleReady={handleToggleReady}
+            handleStartGame={handleStartGame}
+            handleLeaveRoom={handleLeaveRoom}
+            handleJoinGame={handleJoinGame}
+            handleJoinRoom={handleJoinRoom}
+            isCurrentPlayerReady={isCurrentPlayerReady}
+            isCurrentPlayerInRoom={isCurrentPlayerInRoom}
+          />
+        ) : selectedRoom ? (
+          <Card className="mb-6 border-2 border-indigo-300">
+            <CardHeader className="pb-2">
+              <CardTitle>{selectedRoom.name}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <p className="text-gray-600">
+                    {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} joueurs • En attente
+                  </p>
+                  {selectedRoom.players && selectedRoom.players.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium mb-1">Joueurs:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedRoom.players.map(player => (
+                          <span 
+                            key={player.id} 
+                            className="px-2 py-1 rounded text-sm bg-gray-100"
+                          >
+                            {player.name} {player.ready ? '✓' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  className="w-full" 
+                  onClick={() => handleJoinRoom(selectedRoom.id)}
+                  disabled={!player || (selectedRoom.players && selectedRoom.players.length >= selectedRoom.maxPlayers)}
+                >
+                  Rejoindre cette salle
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+        
+        {/* Available rooms list */}
+        <AvailableRooms 
+          rooms={stableWaitingRooms}
           handleJoinRoom={handleJoinRoom}
-          isCurrentPlayerReady={isCurrentPlayerReady}
-          isCurrentPlayerInRoom={isCurrentPlayerInRoom}
+          playerExists={!!player}
+          selectedRoomId={selectedRoomId}
+          onSelectRoom={handleSelectRoom}
         />
-      ) : null}
+      </div>
       
-      <AvailableRooms 
-        rooms={stableWaitingRooms}
-        handleJoinRoom={handleJoinRoom}
-        playerExists={!!player}
-      />
+      {/* Create room button - more visible at the bottom */}
+      {!currentRoom && (
+        <div className="p-6 pt-0">
+          <Button 
+            className="w-full py-6 text-lg" 
+            onClick={() => setCreateDialogOpen(true)}
+            disabled={!player}
+          >
+            <PlusCircle className="mr-2 h-5 w-5" /> Créer une nouvelle salle
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,6 @@
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
-import { useNavigate } from "react-router-dom";
 import { GameRoom } from "@/types/game";
 
 interface CurrentRoomProps {
@@ -32,15 +30,15 @@ export default function CurrentRoom({
 }: CurrentRoomProps) {
   
   return (
-    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
-      <div className="flex justify-between items-center">
+    <div className="bg-indigo-50 border-2 border-indigo-300 rounded-lg p-6 mb-6 shadow-md">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h3 className="text-xl font-semibold">{currentRoom.name}</h3>
+          <h3 className="text-2xl font-semibold text-indigo-800">{currentRoom.name}</h3>
           <p className="text-gray-600">
             {currentRoom.players && currentRoom.players.length}/{currentRoom.maxPlayers} joueurs • {currentRoom.status === 'waiting' ? 'En attente' : currentRoom.status === 'playing' ? 'En cours' : 'Terminé'}
           </p>
           {countdown !== null && (
-            <p className="text-lg font-bold text-green-600 mt-2">
+            <p className="text-lg font-bold text-green-600 mt-2 animate-pulse">
               Démarrage dans {countdown} secondes...
             </p>
           )}
@@ -49,13 +47,20 @@ export default function CurrentRoom({
               La partie est prête ! Cliquez sur "Rejoindre la partie" pour commencer.
             </p>
           )}
-          <div className="mt-2">
+          <div className="mt-3">
             <p className="text-sm font-medium">Joueurs:</p>
             <div className="flex flex-wrap gap-2 mt-1">
               {currentRoom.players && currentRoom.players.map(player => (
                 <span 
                   key={player.id} 
-                  className={`px-2 py-1 rounded text-sm ${player.ready ? 'bg-green-100 text-green-800' : 'bg-white'}`}
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    player.ready 
+                      ? 'bg-green-100 text-green-800 border border-green-300' 
+                      : 'bg-white border border-gray-200'
+                  }`}
+                  style={{
+                    boxShadow: player.ready ? '0 0 0 1px rgba(34, 197, 94, 0.1)' : 'none'
+                  }}
                 >
                   {player.name} {player.ready ? '✓' : ''}
                 </span>
@@ -63,7 +68,7 @@ export default function CurrentRoom({
             </div>
           </div>
         </div>
-        <div className="space-y-2">
+        <div className="flex flex-col gap-3 min-w-[200px]">
           {isCurrentPlayerInRoom() ? (
             <>
               <Button 
