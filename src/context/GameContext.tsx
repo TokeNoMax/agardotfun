@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { Player, Food, Rug, GameRoom, PlayerColor } from "@/types/game";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -24,11 +24,63 @@ export const useGame = () => {
   return context;
 };
 
+// Local storage keys for game state
+const ROOMS_STORAGE_KEY = 'blob-battle-rooms';
+const CURRENT_ROOM_STORAGE_KEY = 'blob-battle-current-room';
+const PLAYER_STORAGE_KEY = 'blob-battle-player';
+
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [rooms, setRooms] = useState<GameRoom[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
-  const [player, setPlayer] = useState<Player | null>(null);
+  const [rooms, setRooms] = useState<GameRoom[]>(() => {
+    const storedRooms = localStorage.getItem(ROOMS_STORAGE_KEY);
+    return storedRooms ? JSON.parse(storedRooms) : [];
+  });
+  
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(() => {
+    const storedRoom = localStorage.getItem(CURRENT_ROOM_STORAGE_KEY);
+    return storedRoom ? JSON.parse(storedRoom) : null;
+  });
+  
+  const [player, setPlayer] = useState<Player | null>(() => {
+    const storedPlayer = localStorage.getItem(PLAYER_STORAGE_KEY);
+    return storedPlayer ? JSON.parse(storedPlayer) : null;
+  });
+  
   const { toast } = useToast();
+
+  // Effect to handle storage events from other tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === ROOMS_STORAGE_KEY && e.newValue) {
+        setRooms(JSON.parse(e.newValue));
+      } else if (e.key === CURRENT_ROOM_STORAGE_KEY) {
+        setCurrentRoom(e.newValue ? JSON.parse(e.newValue) : null);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Update localStorage when state changes
+  useEffect(() => {
+    localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms));
+  }, [rooms]);
+
+  useEffect(() => {
+    if (currentRoom) {
+      localStorage.setItem(CURRENT_ROOM_STORAGE_KEY, JSON.stringify(currentRoom));
+    } else {
+      localStorage.removeItem(CURRENT_ROOM_STORAGE_KEY);
+    }
+  }, [currentRoom]);
+
+  useEffect(() => {
+    if (player) {
+      localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify(player));
+    } else {
+      localStorage.removeItem(PLAYER_STORAGE_KEY);
+    }
+  }, [player]);
 
   const createRoom = (name: string, maxPlayers: number) => {
     const roomId = Math.random().toString(36).substring(2, 9);
@@ -39,7 +91,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       players: [],
       status: 'waiting'
     };
-    setRooms([...rooms, newRoom]);
+    setRooms(prevRooms => {
+      const updatedRooms = [...prevRooms, newRoom];
+      return updatedRooms;
+    });
     toast({
       title: "Room created",
       description: `Room "${name}" has been created`
@@ -76,14 +131,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
+    // Check if player is already in room
+    if (room.players.some(p => p.id === player.id)) {
+      setCurrentRoom(room);
+      toast({
+        title: "Rejoined room",
+        description: `You have rejoined "${room.name}"`
+      });
+      return;
+    }
+
     // Add player to room
     const updatedRoom = {
       ...room,
       players: [...room.players, player]
     };
 
-    setRooms(rooms.map(r => r.id === roomId ? updatedRoom : r));
+    setRooms(prevRooms => 
+      prevRooms.map(r => r.id === roomId ? updatedRoom : r)
+    );
     setCurrentRoom(updatedRoom);
+    
     toast({
       title: "Joined room",
       description: `You have joined "${room.name}"`
@@ -91,7 +159,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Check if room is full to start the game
     if (updatedRoom.players.length === updatedRoom.maxPlayers) {
-      startGame();
+      setTimeout(() => startGame(), 500);
     }
   };
 
@@ -103,7 +171,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       players: currentRoom.players.filter(p => p.id !== player.id)
     };
 
-    setRooms(rooms.map(r => r.id === currentRoom.id ? updatedRoom : r));
+    setRooms(prevRooms => 
+      prevRooms.map(r => r.id === currentRoom.id ? updatedRoom : r)
+    );
     setCurrentRoom(null);
     toast({
       title: "Left room",
@@ -136,7 +206,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       status: 'playing' as const
     };
     
-    setRooms(rooms.map(r => r.id === currentRoom.id ? updatedRoom : r));
+    setRooms(prevRooms => 
+      prevRooms.map(r => r.id === currentRoom.id ? updatedRoom : r)
+    );
     setCurrentRoom(updatedRoom);
     
     toast({
