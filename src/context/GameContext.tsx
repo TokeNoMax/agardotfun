@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { Player, Food, Rug, GameRoom, PlayerColor } from "@/types/game";
 import { useToast } from "@/hooks/use-toast";
@@ -204,32 +205,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         players: formattedPlayers,
       };
 
-      // Check if current player is still in the room
-      if (player && !formattedPlayers.some(p => p.id === player.id)) {
-        // Player is no longer in room, but room data exists in localStorage
-        // This indicates the player refreshed the page while in a room
-        // Let's attempt to rejoin the room automatically
-        try {
-          await supabase
-            .from('room_players')
-            .insert({
-              room_id: roomId,
-              player_id: player.id,
-              is_ready: false
-            });
-            
-          toast({
-            title: "Reconnexion",
-            description: "Vous avez été reconnecté à la salle"
-          });
-          
-          // Update room data after rejoining
-          await fetchRoomDetails(roomId);
-          return;
-        } catch (error) {
-          console.error('Error rejoining room:', error);
-        }
-      }
+      // Modification: Ne pas essayer de rejoindre automatiquement la salle
+      // si le joueur n'est plus dedans. Ça évite de se reconnecter automatiquement
+      // après avoir quitté volontairement.
 
       // Update current room if we're looking at it
       if (currentRoom?.id === roomId) {
@@ -384,7 +362,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
+      // Modification: Effacer explicitement la référence à la salle actuelle
+      // dans le local storage pour éviter les reconnexions automatiques
+      localStorage.removeItem(CURRENT_ROOM_KEY);
       setCurrentRoom(null);
+      
       toast({
         title: "Salle quittée",
         description: "Vous avez quitté la salle"
