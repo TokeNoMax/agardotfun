@@ -362,15 +362,19 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      // Modification: Effacer explicitement la référence à la salle actuelle
-      // dans le local storage pour éviter les reconnexions automatiques
+      // Explicitly clear all room-related data from local storage
       localStorage.removeItem(CURRENT_ROOM_KEY);
+      
+      // Clear the current room state
       setCurrentRoom(null);
       
       toast({
         title: "Salle quittée",
         description: "Vous avez quitté la salle"
       });
+      
+      // Force a refresh of available rooms
+      await fetchRooms();
 
     } catch (error) {
       console.error('Error leaving room:', error);

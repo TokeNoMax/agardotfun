@@ -10,15 +10,21 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Lobby() {
-  const { player, refreshCurrentRoom } = useGame();
+  const { player, refreshCurrentRoom, leaveRoom } = useGame();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   
-  // Ajout d'un effet pour rafraîchir les salles au chargement de la page
+  // Clear any potentially stuck room on component mount
   useEffect(() => {
-    refreshCurrentRoom().catch(error => console.error("Error refreshing rooms:", error));
-  }, [refreshCurrentRoom]);
+    const clearStuckRoom = async () => {
+      // Check if we need to leave any rooms on page load to prevent auto-reconnection
+      await leaveRoom();
+      await refreshCurrentRoom();
+    };
+    
+    clearStuckRoom().catch(error => console.error("Error clearing room state:", error));
+  }, [leaveRoom, refreshCurrentRoom]);
   
   const handleTestGame = async () => {
     if (!player) {
