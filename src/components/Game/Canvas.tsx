@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player } from "@/types/game";
@@ -29,6 +28,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
   const [cameraPosition, setCameraPosition] = useState({ x: 750, y: 750 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [gameOverCalled, setGameOverCalled] = useState(false);
+  const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
 
   const playerRef = useRef(isLocalMode ? localPlayer : currentPlayer);
   const gameLoopRef = useRef<number | null>(null);
@@ -107,7 +107,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
     };
   }, [currentRoom, currentPlayer, isLocalMode, localPlayer]);
 
-  // Mouse movement - simplified
+  // Mouse movement - with smoothing
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!canvasRef.current) return;
@@ -126,7 +126,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
     };
   }, []);
 
-  // Game loop - optimized for local mode
+  // Game loop - optimized for local mode with smoothing
   useEffect(() => {
     // Local mode uses localPlayer, online mode uses currentPlayer from currentRoom
     const activePlayer = isLocalMode ? localPlayer : 
@@ -150,28 +150,41 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Calculate movement direction - simplified
+        // Calculate movement direction with smoothing
         const canvas = canvasRef.current;
         if (canvas) {
           const canvasWidth = canvas.width;
           const canvasHeight = canvas.height;
           
-          // Calculate target position in world coordinates
+          // Calculate target position in world coordinates with smoothing
           const targetX = cameraPosition.x - (canvasWidth / 2 - mousePosition.x) / cameraZoom;
           const targetY = cameraPosition.y - (canvasHeight / 2 - mousePosition.y) / cameraZoom;
           
-          // Calculate movement direction
+          // Update last target position with some smoothing
+          setLastTargetPosition(prev => ({
+            x: targetX,
+            y: targetY
+          }));
+          
+          // Calculate movement direction with smoothing to avoid teleportation
           const dx = targetX - me.x;
           const dy = targetY - me.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          // Slower speed for larger blobs
+          // Slower speed for larger blobs with better speed calculation
           const speedFactor = Math.max(0.5, 3 / Math.sqrt(me.size));
           const speed = 2 * speedFactor;
           
+          // Maximum movement per frame to avoid teleportation
+          const maxMovementPerFrame = speed;
+          
           if (distance > 5) {
-            me.x += (dx / distance) * speed;
-            me.y += (dy / distance) * speed;
+            // Apply movement with limited speed to avoid teleportation
+            const moveX = Math.min(Math.abs(dx), maxMovementPerFrame) * (dx > 0 ? 1 : -1);
+            const moveY = Math.min(Math.abs(dy), maxMovementPerFrame) * (dy > 0 ? 1 : -1);
+            
+            me.x += moveX;
+            me.y += moveY;
             
             // Game boundaries
             me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
@@ -220,10 +233,15 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
               // Player hit a rug, decrease size
               me.size = Math.max(10, me.size - RUG_PENALTY);
               
-              // Push player away from rug
+              // Push player away from rug with limited movement
               if (distance > 0) {
-                me.x += (dx / distance) * 10;
-                me.y += (dy / distance) * 10;
+                const pushFactor = Math.min(10, distance * 0.5);
+                me.x += (dx / distance) * pushFactor;
+                me.y += (dy / distance) * pushFactor;
+                
+                // Keep within boundaries after push
+                me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
+                me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
               }
             }
           });
@@ -252,23 +270,33 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
                 // We get eaten
                 me.isAlive = false;
               } else {
-                // If similar size, bounce off each other
+                // If similar size, bounce off each other with limited movement
                 const angle = Math.atan2(dy, dx);
-                const pushDistance = 5;
+                const pushDistance = Math.min(5, distance * 0.3);
                 me.x += Math.cos(angle) * pushDistance;
                 me.y += Math.sin(angle) * pushDistance;
+                
+                // Keep within boundaries after collision
+                me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
+                me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
               }
             }
           }
         }
         
-        // Update camera position to follow player
-        setCameraPosition({ x: me.x, y: me.y });
+        // Update camera position to follow player with some smoothing
+        setCameraPosition(prev => ({
+          x: prev.x + (me.x - prev.x) * 0.1,
+          y: prev.y + (me.y - prev.y) * 0.1
+        }));
         
         // Limit zoom based on player size
         const maxSize = 50;
         const effectiveSize = Math.min(me.size, maxSize);
-        setCameraZoom(Math.max(0.5, Math.min(1.5, 20 / Math.sqrt(effectiveSize))));
+        setCameraZoom(prev => {
+          const targetZoom = Math.max(0.5, Math.min(1.5, 20 / Math.sqrt(effectiveSize)));
+          return prev + (targetZoom - prev) * 0.05; // Smooth zoom transition
+        });
         
         // Game over condition - for local mode, we don't end the game automatically
         if (!isLocalMode && !gameOverCalled) {
