@@ -34,37 +34,36 @@ export default function AvailableRooms({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
 
-  // Fonction de rafraîchissement simplifiée
   const handleRefresh = async () => {
-    if (refreshRooms && !isRefreshing) {
-      setIsRefreshing(true);
-      
-      try {
-        await refreshRooms();
-        console.log("Salles rafraîchies:", rooms.length);
-        
-        toast({
-          title: "Rafraîchissement terminé",
-          description: `${rooms.length} salles trouvées.`
-        });
-      } catch (error) {
-        console.error("Erreur lors du rafraîchissement:", error);
-        
-        toast({
-          title: "Erreur",
-          description: "Impossible de rafraîchir les salles.",
-          variant: "destructive"
-        });
-      } finally {
-        setIsRefreshing(false);
-      }
+    if (!refreshRooms || isRefreshing) return;
+    
+    setIsRefreshing(true);
+    
+    try {
+      await refreshRooms();
+      toast({
+        title: "Rafraîchissement terminé",
+        description: `${rooms.length} salles disponibles.`
+      });
+    } catch (error) {
+      console.error("Erreur de rafraîchissement:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de rafraîchir les salles.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
     }
   };
+
+  // Ensure rooms is always treated as an array
+  const roomsToDisplay = Array.isArray(rooms) ? rooms : [];
 
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-lg font-medium">Salles disponibles ({rooms.length})</h3>
+        <h3 className="text-lg font-medium">Salles disponibles ({roomsToDisplay.length})</h3>
         <Button
           variant="outline"
           size="icon"
@@ -76,7 +75,7 @@ export default function AvailableRooms({
         </Button>
       </div>
       
-      {rooms && rooms.length > 0 ? (
+      {roomsToDisplay.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
@@ -88,15 +87,15 @@ export default function AvailableRooms({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rooms.map((room) => (
+              {roomsToDisplay.map((room) => (
                 <TableRow 
                   key={room.id} 
                   className={selectedRoomId === room.id ? "bg-indigo-50 hover:bg-indigo-100" : ""}
                   onClick={() => onSelectRoom(room.id)}
                 >
-                  <TableCell className="font-medium">{room.name}</TableCell>
+                  <TableCell className="font-medium">{room.name || "Salle sans nom"}</TableCell>
                   <TableCell>
-                    {room.players?.length || 0}/{room.maxPlayers}
+                    {(room.players?.length || 0)}/{room.maxPlayers || 4}
                   </TableCell>
                   <TableCell>
                     {room.status === 'waiting' ? (
@@ -120,7 +119,7 @@ export default function AvailableRooms({
                         e.stopPropagation();
                         handleJoinRoom(room.id);
                       }}
-                      disabled={!playerExists || (room.players && room.players.length >= room.maxPlayers) || room.status !== 'waiting'}
+                      disabled={!playerExists || (room.players && room.players.length >= (room.maxPlayers || 4)) || room.status !== 'waiting'}
                     >
                       Rejoindre
                     </Button>
