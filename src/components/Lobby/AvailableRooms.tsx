@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,17 +33,32 @@ export default function AvailableRooms({
 }: AvailableRoomsProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
+  
+  // Afficher les salles dans la console à chaque fois que rooms change
+  useEffect(() => {
+    console.log("AvailableRooms - Rooms actualisées:", rooms);
+    if (Array.isArray(rooms)) {
+      console.log(`Nombre de salles: ${rooms.length}`);
+      if (rooms.length > 0) {
+        console.log("Première salle:", rooms[0]);
+      }
+    } else {
+      console.log("rooms n'est pas un tableau:", rooms);
+    }
+  }, [rooms]);
 
   const handleRefresh = async () => {
     if (!refreshRooms || isRefreshing) return;
     
+    console.log("Début du rafraîchissement manuel des salles");
     setIsRefreshing(true);
     
     try {
       await refreshRooms();
+      console.log("Rafraîchissement terminé, salles:", rooms);
       toast({
         title: "Rafraîchissement terminé",
-        description: `${rooms.length} salles disponibles.`
+        description: `${Array.isArray(rooms) ? rooms.length : 0} salles disponibles.`
       });
     } catch (error) {
       console.error("Erreur de rafraîchissement:", error);
@@ -57,8 +72,10 @@ export default function AvailableRooms({
     }
   };
 
-  // Ensure rooms is always treated as an array
+  // Garantir que rooms est toujours traité comme un tableau
   const roomsToDisplay = Array.isArray(rooms) ? rooms : [];
+  
+  console.log("Rendu de AvailableRooms avec", roomsToDisplay.length, "salles");
 
   return (
     <div className="mb-4">

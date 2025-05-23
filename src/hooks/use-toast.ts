@@ -6,8 +6,9 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 15
-const TOAST_REMOVE_DELAY = 1000 * 8
+// Augmenté pour une meilleure visibilité et permettre plus de notifications
+const TOAST_LIMIT = 20
+const TOAST_REMOVE_DELAY = 1000 * 10
 
 type ToasterToast = ToastProps & {
   id: string
@@ -136,6 +137,8 @@ function dispatch(action: Action) {
   })
 }
 
+type Toast = Omit<ToasterToast, "id">
+
 export interface ToastReturn {
   id: string
   dismiss: () => void
@@ -170,8 +173,6 @@ function toast(props: Toast): ToastReturn {
     update,
   }
 }
-
-type Toast = Omit<ToasterToast, "id">
 
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
