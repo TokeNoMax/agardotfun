@@ -11,6 +11,11 @@ import { v4 as uuidv4 } from "uuid";
 import { Player, PlayerColor, GameRoom } from "@/types/game";
 import { useToast } from "@/hooks/use-toast";
 
+// Define a type for the meme categories
+type MemeCategories = {
+  [key: string]: boolean;
+};
+
 interface GameContextType {
   player: Player | null;
   setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
@@ -23,6 +28,9 @@ interface GameContextType {
   setPlayerReady: (ready: boolean) => Promise<void>;
   socket: Socket | null;
   refreshCurrentRoom: () => Promise<void>;
+  // Add the new meme categories properties
+  memeCategories: MemeCategories;
+  setMemeCategories: (categories: MemeCategories | ((prev: MemeCategories) => MemeCategories)) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -42,10 +50,28 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     return storedRoom ? JSON.parse(storedRoom) : null;
   });
   const [socket, setSocket] = useState<Socket | null>(null);
+  // Initialize meme categories with default values
+  const [memeCategories, setMemeCategories] = useState<MemeCategories>(() => {
+    const storedCategories = localStorage.getItem("blob-battle-meme-categories");
+    return storedCategories 
+      ? JSON.parse(storedCategories) 
+      : {
+          web3: true,
+          crypto: true,
+          nft: true,
+          blockchain: true,
+          defi: true
+        };
+  });
   const navigate = useNavigate();
   const { toast } = useToast();
   
   const backendURL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+  // Save meme categories to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem("blob-battle-meme-categories", JSON.stringify(memeCategories));
+  }, [memeCategories]);
 
   useEffect(() => {
     const newSocket = io(backendURL);
@@ -275,6 +301,9 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         setPlayerReady,
         socket,
         refreshCurrentRoom,
+        // Add the new meme categories properties to the provider value
+        memeCategories,
+        setMemeCategories,
       }}
     >
       {children}
