@@ -35,11 +35,13 @@ export default function AvailableRooms({
   const [stableRooms, setStableRooms] = useState<GameRoom[]>(rooms);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
   // Force refresh on mount pour s'assurer que les salles sont à jour
   useEffect(() => {
     if (refreshRooms) {
       refreshRooms();
+      setLastRefresh(new Date());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -63,12 +65,22 @@ export default function AvailableRooms({
     }
   };
 
-  // Fonction de rafraîchissement manuel
+  // Fonction de rafraîchissement manuel avec une séquence de requêtes
   const handleManualRefresh = async () => {
     if (refreshRooms && !isRefreshing) {
       setIsRefreshing(true);
+      
+      // Premier rafraîchissement
       await refreshRooms();
-      setTimeout(() => setIsRefreshing(false), 500);
+      
+      // Attendre un peu puis faire un second rafraîchissement pour s'assurer d'avoir les dernières données
+      setTimeout(async () => {
+        if (refreshRooms) {
+          await refreshRooms();
+          setLastRefresh(new Date());
+          setIsRefreshing(false);
+        }
+      }, 1000);
     }
   };
 
@@ -95,23 +107,32 @@ export default function AvailableRooms({
     );
   }
 
-  // Filter out any remaining 'finished' rooms before displaying
-  const displayRooms = stableRooms.filter(room => room.status !== 'finished');
+  // Filter out any remaining 'finished' rooms and test rooms before displaying
+  const displayRooms = stableRooms.filter(room => 
+    room.status !== 'finished' && 
+    !room.name.toLowerCase().includes('test_') &&
+    new Date(room.createdAt).getTime() > Date.now() - 30 * 60 * 1000 // Filtrer les salles créées il y a plus de 30 minutes
+  );
 
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-lg font-medium">Salles disponibles</h3>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleManualRefresh}
-          disabled={isRefreshing}
-          title="Rafraîchir les salles"
-          className="flex-shrink-0"
-        >
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">
+            Dernier rafraîchissement: {formatDistanceToNow(lastRefresh, {locale: fr, addSuffix: true})}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            title="Rafraîchir les salles"
+            className="flex-shrink-0"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
       </div>
       <p className="text-sm text-gray-500 mb-2">Les salles inactives depuis plus de 30 minutes sont automatiquement supprimées.</p>
       {displayRooms.length > 0 ? (
@@ -177,6 +198,23 @@ export default function AvailableRooms({
       ) : (
         <div className="text-center py-8 border rounded-md bg-gray-50">
           <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
+          <Button 
+            className="mt-4" 
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Rafraîchissement...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Rafraîchir
+              </>
+            )}
+          </Button>
         </div>
       )}
     </div>

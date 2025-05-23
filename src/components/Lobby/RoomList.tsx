@@ -33,7 +33,7 @@ export default function RoomList() {
         room.status === 'waiting' && 
         (!currentRoom || room.id !== currentRoom.id) && 
         room.maxPlayers > 1 && // Filter out solo rooms
-        !room.name.toLowerCase().includes('test_max_') // Filter out test rooms
+        !room.name.toLowerCase().includes('test_') // Filter out test rooms
       );
       
       // Mettre à jour immédiatement sans comparaison pour s'assurer que les nouvelles salles apparaissent
@@ -132,14 +132,31 @@ export default function RoomList() {
         const roomId = await createRoom(roomName, parseInt(maxPlayers));
         setCreateDialogOpen(false);
         
-        // Force refresh pour s'assurer que la nouvelle salle apparaît
-        setTimeout(() => {
-          refreshCurrentRoom();
-        }, 300);
-        
-        await joinRoom(roomId);
+        // Série de rafraîchissements pour s'assurer que la salle apparaît
+        setTimeout(async () => {
+          await refreshCurrentRoom();
+          
+          // Tenter de rejoindre la salle après un court délai
+          setTimeout(async () => {
+            try {
+              await joinRoom(roomId);
+              
+              // Rafraîchir à nouveau après avoir rejoint
+              setTimeout(() => {
+                refreshCurrentRoom();
+              }, 500);
+            } catch (error) {
+              console.error("Erreur lors de la tentative de rejoindre la salle:", error);
+            }
+          }, 500);
+        }, 1000);
       } catch (error) {
         console.error("Error creating room:", error);
+        toast({
+          title: "Erreur lors de la création",
+          description: "Impossible de créer la salle. Veuillez réessayer.",
+          variant: "destructive"
+        });
       }
     }
   };
@@ -197,11 +214,23 @@ export default function RoomList() {
     }
   };
 
-  // Fonction de rafraîchissement avec un délai plus court
+  // Fonction de rafraîchissement avec une série de requêtes
   const handleRefresh = async () => {
     setIsRefreshing(true);
+    
+    // Premier rafraîchissement
     await refreshCurrentRoom();
-    setTimeout(() => setIsRefreshing(false), 300);
+    
+    // Second rafraîchissement après un court délai
+    setTimeout(async () => {
+      await refreshCurrentRoom();
+      setIsRefreshing(false);
+      
+      toast({
+        title: "Rafraîchissement terminé",
+        description: "La liste des salles a été mise à jour.",
+      });
+    }, 1000);
   };
 
   const handleSelectRoom = (roomId: string) => {

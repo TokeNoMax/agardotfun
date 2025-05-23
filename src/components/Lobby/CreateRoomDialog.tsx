@@ -67,18 +67,24 @@ export default function CreateRoomDialog({
       await handleCreateRoom();
       
       // Force refresh après création pour garantir que la salle apparaît
-      // Augmentation du délai pour donner plus de temps au serveur
+      // Augmentation du délai pour donner plus de temps au serveur (de 800ms à 1500ms)
       setTimeout(() => {
         refreshCurrentRoom();
-      }, 800);
+        // Second refresh après un délai supplémentaire pour s'assurer que la salle apparaît
+        setTimeout(() => {
+          refreshCurrentRoom();
+        }, 1000);
+      }, 1500);
       
       toast({
         title: "Salle créée",
         description: "Votre salle a été créée avec succès.",
       });
       
-      // Fermer la modal immédiatement après création réussie
-      onOpenChange(false);
+      // Fermer la modal avec un délai pour laisser le temps au serveur de traiter la création
+      setTimeout(() => {
+        onOpenChange(false);
+      }, 500);
     } catch (error) {
       console.error("Erreur lors de la création de la salle:", error);
       toast({
