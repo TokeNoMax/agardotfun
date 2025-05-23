@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import Canvas from "./Canvas";
 import GameOverModal from "./GameOverModal";
+import Leaderboard from "./Leaderboard";
 import { Player } from "@/types/game";
 import { useNavigate } from "react-router-dom";
 
@@ -143,6 +144,14 @@ export default function GameUI() {
         >
           Quitter
         </Button>
+      </div>
+      
+      {/* Leaderboard - New component added */}
+      <div className="absolute top-4 right-20 z-10">
+        <Leaderboard 
+          players={localMode ? (localPlayer ? [localPlayer] : []) : (currentRoom ? currentRoom.players : [])} 
+          currentPlayerId={localMode ? localPlayer?.id : player?.id}
+        />
       </div>
       
       {/* Game canvas */}
