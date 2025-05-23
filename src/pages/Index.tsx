@@ -35,11 +35,20 @@ import {
   MenubarSeparator,
   MenubarTrigger,
 } from "@/components/ui/menubar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Form, FormItem, FormLabel, FormControl } from "@/components/ui/form";
 
 export default function Index() {
   const navigate = useNavigate();
   const { setMemeCategories, memeCategories } = useGame();
   const [showSettings, setShowSettings] = useState(false);
+  const [isCollapsible, setIsCollapsible] = useState(true);
   
   // Options pour les catégories de mèmes
   const availableMemeCategories = [
@@ -78,6 +87,7 @@ export default function Index() {
               </SheetHeader>
               
               <div className="py-6 space-y-6">
+                {/* Section catégories de mèmes */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Références de mèmes</h3>
                   <p className="text-sm text-muted-foreground">
@@ -99,6 +109,76 @@ export default function Index() {
                     ))}
                   </div>
                 </div>
+                
+                {/* Section aperçu des phrases par catégorie */}
+                <Collapsible 
+                  open={isCollapsible} 
+                  onOpenChange={setIsCollapsible}
+                  className="border rounded-md p-3 bg-background/30"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium">Aperçu des phrases</h3>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        {isCollapsible ? "Masquer" : "Voir"}
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                  
+                  <CollapsibleContent className="mt-4 space-y-4">
+                    <div className="grid gap-4">
+                      {/* Web3 phrases */}
+                      <div className="border rounded p-3 bg-background/30">
+                        <h4 className="font-semibold">Web3</h4>
+                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
+                          <li>[Joueur] s'est fait Web3-isé! 🌐</li>
+                          <li>[Joueur] est parti dans le metaverse! 🌐</li>
+                          <li>[Joueur] a rejoint la DAO! 🌐</li>
+                        </ul>
+                      </div>
+                      
+                      {/* Crypto phrases */}
+                      <div className="border rounded p-3 bg-background/30">
+                        <h4 className="font-semibold">Crypto</h4>
+                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
+                          <li>[Joueur] a été liquidé comme un altcoin! 📉</li>
+                          <li>[Joueur] a fait un bad trade! 📊</li>
+                          <li>HODL raté pour [Joueur]! 💎</li>
+                        </ul>
+                      </div>
+                      
+                      {/* NFT phrases */}
+                      <div className="border rounded p-3 bg-background/30">
+                        <h4 className="font-semibold">NFT</h4>
+                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
+                          <li>[Joueur] s'est fait NFTiser! 🖼️</li>
+                          <li>[Joueur] a été mintable! 🔮</li>
+                          <li>[Joueur] est devenu un JPG à 100 ETH! 🖼️</li>
+                        </ul>
+                      </div>
+                      
+                      {/* Blockchain phrases */}
+                      <div className="border rounded p-3 bg-background/30">
+                        <h4 className="font-semibold">Blockchain</h4>
+                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
+                          <li>[Joueur] est parti sur la blockchain! 🔗</li>
+                          <li>[Joueur] a été forké! 🍴</li>
+                          <li>[Joueur] a dépensé tout son gas! ⛽</li>
+                        </ul>
+                      </div>
+                      
+                      {/* DeFi phrases */}
+                      <div className="border rounded p-3 bg-background/30">
+                        <h4 className="font-semibold">DeFi</h4>
+                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
+                          <li>[Joueur] a été rugged! 💸</li>
+                          <li>[Joueur] est devenu un memecoin! 🪙</li>
+                          <li>[Joueur] a perdu sa liquidité! 💦</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
               
               <SheetFooter>
