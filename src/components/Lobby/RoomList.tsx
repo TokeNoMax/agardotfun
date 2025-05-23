@@ -28,7 +28,7 @@ export default function RoomList() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const previousRoomsRef = useRef<string>("");
-  
+
   // Premier chargement forcé au montage du composant
   useEffect(() => {
     const initialLoad = async () => {
@@ -147,6 +147,7 @@ export default function RoomList() {
     };
   }, [countdown, startGame, toast, gameStarting]);
 
+  // Mise à jour de la fonction handleCreateRoom pour utiliser correctement toast
   const handleCreateRoom = async () => {
     if (!player) {
       toast({
@@ -160,7 +161,7 @@ export default function RoomList() {
     if (roomName.trim()) {
       try {
         // Notification de début de création
-        const creationToast = toast({
+        toast({
           title: "Création en cours",
           description: "Création de votre salle en cours..."
         });
@@ -293,14 +294,14 @@ export default function RoomList() {
     }
   };
 
-  // Fonction de rafraîchissement avec une série de requêtes et notifications
+  // Mise à jour de la fonction handleRefresh pour utiliser correctement toast
   const handleRefresh = async () => {
     if (isRefreshing) return;
     
     setIsRefreshing(true);
     
     // Notification de début de rafraîchissement
-    const refreshToast = toast({
+    toast({
       title: "Rafraîchissement",
       description: "Recherche des salles disponibles..."
     });

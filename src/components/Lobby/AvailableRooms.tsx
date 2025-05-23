@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -84,7 +85,7 @@ export default function AvailableRooms({
       console.log("Rafraîchissement manuel - démarré");
       
       // Notification de début
-      const toastResult = toast({
+      toast({
         title: "Rafraîchissement",
         description: "Recherche des salles en cours..."
       });
