@@ -11,6 +11,7 @@ import {
   DialogTrigger,
   DialogFooter,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -50,7 +51,7 @@ export default function CreateRoomDialog({
   // Vérifier si le formulaire est valide pour activer le bouton
   const isFormValid = roomName.trim() !== "" && maxPlayers !== "";
   
-  // Gérer la création de salle avec validation et séquence de rafraîchissement améliorée
+  // Gérer la création de salle avec validation et protection contre les doubles clics
   const handleCreateRoomWithValidation = async () => {
     if (!isFormValid) {
       toast({
@@ -61,20 +62,31 @@ export default function CreateRoomDialog({
       return;
     }
     
+    if (isCreating) {
+      console.log("Création déjà en cours, évite le double-clic");
+      return;
+    }
+    
     setIsCreating(true);
     
     try {
-      console.log("Starting room creation process");
-      await handleCreateRoom();
+      console.log("Début du processus de création de salle");
+      console.log(`Nom: ${roomName}, Max Joueurs: ${maxPlayers}`);
       
-      // Notification immédiate
+      await handleCreateRoom();
+      console.log("Création de salle terminée avec succès");
+      
+      // Notification immédiate de succès
       toast({
         title: "Salle créée",
         description: "Votre salle a été créée avec succès.",
       });
       
-      // Nous laissons maintenant le RoomList component gérer les rafraîchissements
-      // pour éviter les conflits ou la duplication des requêtes
+      // Un timeout pour s'assurer que le dialog se ferme même si onOpenChange n'est pas appelé
+      setTimeout(() => {
+        console.log("Fermeture forcée du dialog après 1 seconde");
+        setIsCreating(false);
+      }, 1000);
       
     } catch (error) {
       console.error("Erreur lors de la création de la salle:", error);
@@ -84,17 +96,19 @@ export default function CreateRoomDialog({
         variant: "destructive"
       });
       
-      // En cas d'erreur, nous essayons quand même de rafraîchir
-      setTimeout(() => {
-        refreshCurrentRoom();
-      }, 1000);
-      
       setIsCreating(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(state) => {
+      // Ne permet pas de fermer le dialog pendant la création
+      if (isCreating && !state) {
+        console.log("Tentative de fermeture pendant la création bloquée");
+        return;
+      }
+      onOpenChange(state);
+    }}>
       <DialogTrigger asChild>
         <Button disabled={!playerExists}>Créer une salle</Button>
       </DialogTrigger>
@@ -139,21 +153,22 @@ export default function CreateRoomDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button 
-            onClick={handleCreateRoomWithValidation} 
-            disabled={!isFormValid || isCreating}
-            className="relative"
-          >
-            {isCreating ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Création...
-              </>
-            ) : "Créer"}
-          </Button>
+          {isCreating ? (
+            <Button disabled className="relative">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Création en cours...
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleCreateRoomWithValidation} 
+              disabled={!isFormValid}
+            >
+              Créer
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

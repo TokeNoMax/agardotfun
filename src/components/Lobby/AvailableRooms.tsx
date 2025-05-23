@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Info } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface AvailableRoomsProps {
   rooms: GameRoom[];
@@ -36,6 +37,8 @@ export default function AvailableRooms({
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [showDebug, setShowDebug] = useState(false);
+  const { toast } = useToast();
   
   // Force refresh on mount pour s'assurer que les salles sont à jour
   useEffect(() => {
@@ -44,7 +47,7 @@ export default function AvailableRooms({
         // Premier chargement
         await refreshRooms();
         
-        // Second chargement après un court délai pour s'assurer d'avoir les dernières données
+        // Second chargement après un court délai
         setTimeout(async () => {
           await refreshRooms();
           setLastRefresh(new Date());
@@ -75,31 +78,50 @@ export default function AvailableRooms({
     }
   };
 
-  // Fonction de rafraîchissement manuel plus intensive
+  // Fonction de rafraîchissement manuel
   const handleManualRefresh = async () => {
     if (refreshRooms && !isRefreshing) {
       setIsRefreshing(true);
-      console.log("Manuel refresh - started");
+      console.log("Rafraîchissement manuel - démarré");
       
-      // Premier rafraîchissement
-      await refreshRooms();
+      // Notification de début
+      const toastId = toast({
+        title: "Rafraîchissement",
+        description: "Recherche des salles en cours..."
+      }).id;
       
-      // Second rafraîchissement après un court délai
-      setTimeout(async () => {
-        if (refreshRooms) {
-          await refreshRooms();
-          
-          // Troisième rafraîchissement pour s'assurer d'avoir les dernières données
-          setTimeout(async () => {
-            if (refreshRooms) {
-              await refreshRooms();
-              setLastRefresh(new Date());
-              setIsRefreshing(false);
-              console.log("Manuel refresh - completed");
-            }
-          }, 800);
-        }
-      }, 800);
+      try {
+        // Premier rafraîchissement
+        await refreshRooms();
+        
+        // Second rafraîchissement après un court délai
+        setTimeout(async () => {
+          if (refreshRooms) {
+            await refreshRooms();
+            setLastRefresh(new Date());
+            setIsRefreshing(false);
+            console.log("Rafraîchissement manuel - terminé");
+            
+            // Mettre à jour la notification
+            toast({
+              id: toastId,
+              title: "Rafraîchissement terminé",
+              description: `${rooms.length} salles trouvées.`
+            });
+          }
+        }, 1000);
+      } catch (error) {
+        console.error("Erreur lors du rafraîchissement:", error);
+        setIsRefreshing(false);
+        
+        // Notification d'erreur
+        toast({
+          id: toastId,
+          title: "Erreur",
+          description: "Impossible de rafraîchir les salles.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -126,14 +148,21 @@ export default function AvailableRooms({
     );
   }
 
-  // IMPORTANT: Afficher TOUTES les salles sans filtrer par statut ou nom
-  // Cela nous permet de voir si les salles sont bien créées mais filtrées incorrectement
-  const displayRooms = stableRooms;
-
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-lg font-medium">Salles disponibles ({displayRooms.length})</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-medium">Salles disponibles ({stableRooms.length})</h3>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowDebug(!showDebug)}
+            title="Afficher/cacher les informations de débogage"
+            className="h-6 w-6"
+          >
+            <Info className="h-4 w-4" />
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">
             Dernier rafraîchissement: {formatDistanceToNow(lastRefresh, {locale: fr, addSuffix: true})}
@@ -150,8 +179,7 @@ export default function AvailableRooms({
           </Button>
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-2">Affichage de toutes les salles pour diagnostic.</p>
-      {displayRooms.length > 0 ? (
+      {stableRooms.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
@@ -159,13 +187,13 @@ export default function AvailableRooms({
                 <TableHead>Nom</TableHead>
                 <TableHead>Joueurs</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead>ID</TableHead>
+                {showDebug && <TableHead>ID</TableHead>}
                 <TableHead>Créée</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayRooms.map((room) => (
+              {stableRooms.map((room) => (
                 <TableRow 
                   key={room.id} 
                   className={selectedRoomId === room.id ? "bg-indigo-50 hover:bg-indigo-100" : ""}
@@ -190,9 +218,11 @@ export default function AvailableRooms({
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-xs text-gray-500">
-                    <span title={room.id}>{room.id.substring(0, 6)}...</span>
-                  </TableCell>
+                  {showDebug && (
+                    <TableCell className="text-xs text-gray-500">
+                      <span title={room.id}>{room.id.substring(0, 6)}...</span>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <span title={new Date(room.createdAt).toLocaleString()}>
                       {formatRoomAge(room.createdAt)}

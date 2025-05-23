@@ -191,7 +191,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const createRoom = useCallback(
     async (roomName: string, maxPlayers: number) => {
       if (!socket || !player) {
-        console.error("Socket or player not initialized");
+        console.error("Socket ou player non initialisé");
         return "";
       }
 
@@ -209,26 +209,34 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         createdAt: new Date().toISOString(),
       };
 
-      console.log("Creating new room:", newRoom);
+      console.log("Création d'une nouvelle salle:", JSON.stringify(newRoom, null, 2));
       
       return new Promise<string>((resolve) => {
+        // Définir un timeout pour la résolution après 5 secondes si pas de réponse du serveur
+        const timeoutId = setTimeout(() => {
+          console.warn("Timeout lors de la création de salle après 5 secondes, on renvoie l'ID quand même");
+          resolve(roomId);
+        }, 5000);
+        
         // Emit event to create room on the server
         socket.emit("createGameRoom", newRoom, (success: boolean) => {
+          clearTimeout(timeoutId); // Annuler le timeout
+        
           if (success) {
-            console.log("Room created successfully on server:", roomId);
+            console.log("Salle créée avec succès sur le serveur:", roomId);
             
             // Demander immédiatement une mise à jour des salles
             socket.emit("getGameRooms", (allRooms: GameRoom[]) => {
               if (allRooms && Array.isArray(allRooms)) {
-                console.log("Refreshed rooms after creation:", allRooms.length);
+                console.log("Salles actualisées après création:", allRooms.length);
                 setRooms(allRooms);
               }
             });
             
             resolve(roomId);
           } else {
-            console.error("Failed to create room on server");
-            resolve("");
+            console.error("Échec de la création de salle sur le serveur");
+            resolve(""); // Retourner une chaîne vide en cas d'échec
           }
         });
       });
@@ -239,10 +247,11 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const joinRoom = useCallback(
     async (roomId: string) => {
       if (!socket || !player) {
-        console.error("Socket or player not initialized");
+        console.error("Socket ou player non initialisé");
         return;
       }
 
+      console.log(`Tentative de rejoindre la salle: ${roomId}`);
       socket.emit("joinGameRoom", { roomId, player });
     },
     [socket, player]
@@ -303,15 +312,27 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   
   const refreshCurrentRoom = useCallback(async () => {
     if (!socket) {
-      console.warn("Socket not initialized, skipping refresh");
+      console.warn("Socket non initialisé, rafraîchissement ignoré");
       return;
     }
     
+    console.log("Début du rafraîchissement des salles");
+    
     return new Promise<void>((resolve) => {
+      // Définir un timeout si le serveur ne répond pas après 4 secondes
+      const timeoutId = setTimeout(() => {
+        console.warn("Timeout lors du rafraîchissement des salles");
+        resolve();
+      }, 4000);
+      
       // Demander la liste de toutes les salles disponibles avec un callback
       socket.emit("getGameRooms", (allRooms: GameRoom[]) => {
+        clearTimeout(timeoutId); // Annuler le timeout
+        
         if (allRooms && Array.isArray(allRooms)) {
-          console.log("Refreshed all rooms:", allRooms.length);
+          console.log("Salles rafraîchies:", allRooms.length, 
+            "IDs:", allRooms.map(r => `${r.id.substring(0, 6)}... (${r.name})`).join(', '));
+          
           setRooms(allRooms);
           
           // Si nous sommes dans une salle, vérifier si elle existe toujours dans la liste
@@ -319,20 +340,17 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
             const updatedCurrentRoom = allRooms.find(r => r.id === currentRoom.id);
             
             if (updatedCurrentRoom) {
-              console.log("Current room found in refreshed rooms:", updatedCurrentRoom.id);
+              console.log("Salle actuelle trouvée dans les salles rafraîchies:", updatedCurrentRoom.id);
               setCurrentRoom(updatedCurrentRoom);
               localStorage.setItem("blob-battle-current-room", JSON.stringify(updatedCurrentRoom));
               localStorage.setItem('blob-battle-game-state', JSON.stringify(updatedCurrentRoom));
             } else {
-              console.warn("Current room not found in refreshed rooms, may have been deleted");
-              // Si on ne trouve plus la salle, on nettoie l'état
-              setCurrentRoom(null);
-              localStorage.removeItem("blob-battle-current-room");
-              localStorage.removeItem('blob-battle-game-state');
+              console.warn("Salle actuelle non trouvée dans les salles rafraîchies");
+              // On ne nettoie pas automatiquement l'état, peut-être encore valide
             }
           }
         } else {
-          console.warn("Received invalid rooms data during refresh:", allRooms);
+          console.warn("Données de salles invalides pendant le rafraîchissement:", allRooms);
         }
         
         resolve();
