@@ -8,7 +8,7 @@ import type {
 
 // Augmenté pour une meilleure visibilité et permettre plus de notifications
 const TOAST_LIMIT = 20
-const TOAST_REMOVE_DELAY = 1000 * 10
+const TOAST_REMOVE_DELAY = 1000 * 15 // Augmenté à 15 secondes pour donner plus de temps de lecture
 
 type ToasterToast = ToastProps & {
   id: string

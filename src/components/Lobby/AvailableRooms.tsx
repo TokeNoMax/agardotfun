@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, AlertCircle, WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface AvailableRoomsProps {
   rooms: GameRoom[];
@@ -32,6 +33,7 @@ export default function AvailableRooms({
   refreshRooms
 }: AvailableRoomsProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const { toast } = useToast();
   
   // Afficher les salles dans la console à chaque fois que rooms change
@@ -41,6 +43,8 @@ export default function AvailableRooms({
       console.log(`Nombre de salles: ${rooms.length}`);
       if (rooms.length > 0) {
         console.log("Première salle:", rooms[0]);
+        // Si nous recevons des salles valides, réinitialiser l'état d'erreur de connexion
+        setConnectionError(false);
       }
     } else {
       console.log("rooms n'est pas un tableau:", rooms);
@@ -52,6 +56,7 @@ export default function AvailableRooms({
     
     console.log("Début du rafraîchissement manuel des salles");
     setIsRefreshing(true);
+    setConnectionError(false);
     
     try {
       await refreshRooms();
@@ -62,9 +67,10 @@ export default function AvailableRooms({
       });
     } catch (error) {
       console.error("Erreur de rafraîchissement:", error);
+      setConnectionError(true);
       toast({
-        title: "Erreur",
-        description: "Impossible de rafraîchir les salles.",
+        title: "Erreur de connexion",
+        description: "Impossible de se connecter au serveur de jeu. Veuillez réessayer plus tard.",
         variant: "destructive"
       });
     } finally {
@@ -91,6 +97,22 @@ export default function AvailableRooms({
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
+      
+      {/* Afficher une alerte en cas d'erreur de connexion */}
+      {connectionError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Problème de connexion</AlertTitle>
+          <AlertDescription>
+            Impossible de se connecter au serveur de jeu. Cela peut être dû à:
+            <ul className="list-disc pl-5 mt-2">
+              <li>Un problème temporaire de serveur</li>
+              <li>Une interruption de votre connexion internet</li>
+              <li>Un problème d'hébergement</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
       
       {roomsToDisplay.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
@@ -148,24 +170,51 @@ export default function AvailableRooms({
         </div>
       ) : (
         <div className="text-center py-8 border rounded-md bg-gray-50">
-          <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
-          <Button 
-            className="mt-4" 
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            {isRefreshing ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Rafraîchissement...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Rafraîchir
-              </>
-            )}
-          </Button>
+          {connectionError ? (
+            <div className="flex flex-col items-center justify-center">
+              <WifiOff className="h-12 w-12 text-red-500 mb-4" />
+              <p className="text-gray-700 font-medium">Problème de connexion au serveur</p>
+              <p className="text-gray-500 mt-2">Impossible de récupérer les salles disponibles.</p>
+              <Button 
+                className="mt-4" 
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Nouvelle tentative...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Réessayer
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <>
+              <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
+              <Button 
+                className="mt-4" 
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Rafraîchissement...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Rafraîchir
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       )}
     </div>
