@@ -59,6 +59,7 @@ export default function AvailableRooms({
   
   // Réagir immédiatement aux changements de rooms pour éviter les décalages
   useEffect(() => {
+    console.log("AvailableRooms - rooms updated:", rooms.length);
     setStableRooms(rooms);
   }, [rooms]);
 
@@ -78,6 +79,7 @@ export default function AvailableRooms({
   const handleManualRefresh = async () => {
     if (refreshRooms && !isRefreshing) {
       setIsRefreshing(true);
+      console.log("Manuel refresh - started");
       
       // Premier rafraîchissement
       await refreshRooms();
@@ -93,6 +95,7 @@ export default function AvailableRooms({
               await refreshRooms();
               setLastRefresh(new Date());
               setIsRefreshing(false);
+              console.log("Manuel refresh - completed");
             }
           }, 800);
         }
@@ -123,17 +126,14 @@ export default function AvailableRooms({
     );
   }
 
-  // Filtrer les salles pertinentes - les salles en attente et récemment créées
-  const displayRooms = stableRooms.filter(room => 
-    room.status !== 'finished' && 
-    !room.name.toLowerCase().includes('test_') &&
-    new Date(room.createdAt).getTime() > Date.now() - 30 * 60 * 1000 // Filtrer les salles créées il y a plus de 30 minutes
-  );
+  // IMPORTANT: Afficher TOUTES les salles sans filtrer par statut ou nom
+  // Cela nous permet de voir si les salles sont bien créées mais filtrées incorrectement
+  const displayRooms = stableRooms;
 
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-lg font-medium">Salles disponibles</h3>
+        <h3 className="text-lg font-medium">Salles disponibles ({displayRooms.length})</h3>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">
             Dernier rafraîchissement: {formatDistanceToNow(lastRefresh, {locale: fr, addSuffix: true})}
@@ -150,7 +150,7 @@ export default function AvailableRooms({
           </Button>
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-2">Les salles inactives depuis plus de 30 minutes sont automatiquement supprimées.</p>
+      <p className="text-sm text-gray-500 mb-2">Affichage de toutes les salles pour diagnostic.</p>
       {displayRooms.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
           <Table>
@@ -159,6 +159,7 @@ export default function AvailableRooms({
                 <TableHead>Nom</TableHead>
                 <TableHead>Joueurs</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>ID</TableHead>
                 <TableHead>Créée</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
@@ -188,6 +189,9 @@ export default function AvailableRooms({
                         Terminée
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell className="text-xs text-gray-500">
+                    <span title={room.id}>{room.id.substring(0, 6)}...</span>
                   </TableCell>
                   <TableCell>
                     <span title={new Date(room.createdAt).toLocaleString()}>

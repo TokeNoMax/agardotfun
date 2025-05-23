@@ -64,43 +64,17 @@ export default function CreateRoomDialog({
     setIsCreating(true);
     
     try {
+      console.log("Starting room creation process");
       await handleCreateRoom();
       
       // Notification immédiate
       toast({
         title: "Salle créée",
-        description: "Votre salle a été créée avec succès. Rafraîchissement en cours...",
+        description: "Votre salle a été créée avec succès.",
       });
       
-      // Séquence intensive de rafraîchissement pour garantir que la salle apparaît
-      // Premier rafraîchissement rapide
-      refreshCurrentRoom();
-      
-      // Séquence de rafraîchissements multiples avec intervalles courts
-      setTimeout(() => {
-        refreshCurrentRoom();
-        
-        // Second rafraîchissement après un délai
-        setTimeout(() => {
-          refreshCurrentRoom();
-          
-          // Troisième rafraîchissement après un délai supplémentaire
-          setTimeout(() => {
-            refreshCurrentRoom();
-            
-            // Fermer la modal avec un délai suffisant
-            setTimeout(() => {
-              onOpenChange(false);
-              
-              // Notification de confirmation
-              toast({
-                title: "Liste mise à jour",
-                description: "La liste des salles a été rafraîchie.",
-              });
-            }, 300);
-          }, 1000);
-        }, 1000);
-      }, 1000);
+      // Nous laissons maintenant le RoomList component gérer les rafraîchissements
+      // pour éviter les conflits ou la duplication des requêtes
       
     } catch (error) {
       console.error("Erreur lors de la création de la salle:", error);
@@ -109,11 +83,13 @@ export default function CreateRoomDialog({
         description: "Impossible de créer la salle. Veuillez réessayer.",
         variant: "destructive"
       });
-    } finally {
-      // Ne pas réinitialiser isCreating trop tôt pour empêcher les clics multiples
+      
+      // En cas d'erreur, nous essayons quand même de rafraîchir
       setTimeout(() => {
-        setIsCreating(false);
-      }, 3000);
+        refreshCurrentRoom();
+      }, 1000);
+      
+      setIsCreating(false);
     }
   };
 

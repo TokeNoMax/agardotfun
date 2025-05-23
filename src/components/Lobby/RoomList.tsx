@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -22,6 +21,7 @@ export default function RoomList() {
   const [gameStarting, setGameStarting] = useState(false);
   const [stableWaitingRooms, setStableWaitingRooms] = useState<GameRoom[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [lastCreatedRoomId, setLastCreatedRoomId] = useState<string | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -40,19 +40,15 @@ export default function RoomList() {
   
   // Enhanced room filtering with stabilization to prevent flickering
   useEffect(() => {
-    if (rooms) {
-      const filteredRooms = rooms.filter(room => 
-        room.status === 'waiting' && 
-        (!currentRoom || room.id !== currentRoom.id) && 
-        room.maxPlayers > 1 && // Filter out solo rooms
-        !room.name.toLowerCase().includes('test_') // Filter out test rooms
-      );
-      
-      // Mettre à jour immédiatement sans comparaison pour s'assurer que les nouvelles salles apparaissent
-      setStableWaitingRooms(filteredRooms);
-      previousRoomsRef.current = JSON.stringify(filteredRooms.map(r => r.id));
+    console.log("Rooms updated:", rooms.length);
+    if (rooms && rooms.length > 0) {
+      console.log("Room IDs:", rooms.map(r => `${r.id} (${r.name}) - ${r.status}`).join(", "));
+
+      // Nous conservons toutes les salles sans filtrage pour débogage
+      setStableWaitingRooms(rooms);
+      previousRoomsRef.current = JSON.stringify(rooms.map(r => r.id));
     }
-  }, [rooms, currentRoom]);
+  }, [rooms]);
 
   // Clear selection when currentRoom changes
   useEffect(() => {
@@ -148,10 +144,12 @@ export default function RoomList() {
         });
         
         const roomId = await createRoom(roomName, parseInt(maxPlayers));
+        setLastCreatedRoomId(roomId);
+        console.log("Room created successfully, ID:", roomId);
         setCreateDialogOpen(false);
         
         // Séquence intensive de rafraîchissement
-        console.log("Room created, ID:", roomId);
+        console.log("Refreshing to show new room...");
         
         // Premier rafraîchissement immédiat
         await refreshCurrentRoom();
@@ -162,7 +160,7 @@ export default function RoomList() {
           await refreshCurrentRoom();
           console.log("Second refresh completed");
           
-          // Tentative de rejoindre la salle créée
+          // Simulation d'un clic sur le bouton pour rejoindre la salle
           try {
             console.log("Attempting to join room:", roomId);
             await joinRoom(roomId);
@@ -180,6 +178,13 @@ export default function RoomList() {
             }, 500);
           } catch (error) {
             console.error("Erreur lors de la tentative de rejoindre la salle:", error);
+            
+            // Notification d'échec
+            toast({
+              title: "Création réussie, mais erreur de connexion",
+              description: "La salle a été créée mais nous n'avons pas pu vous y connecter automatiquement. Essayez de rejoindre manuellement.",
+              variant: "destructive"
+            });
             
             // Continuer à rafraîchir même en cas d'erreur pour tenter de récupérer
             setTimeout(async () => {
@@ -201,6 +206,7 @@ export default function RoomList() {
 
   // Wrap with throttling to prevent too many rapid calls
   const handleJoinRoom = async (roomId: string) => {
+    console.log("Joining room:", roomId);
     await joinRoom(roomId);
   };
 
@@ -305,6 +311,10 @@ export default function RoomList() {
   // Get the selected room details
   const selectedRoom = selectedRoomId ? rooms.find(r => r.id === selectedRoomId) : null;
 
+  // Vérifier si une salle a été créée mais n'apparaît pas dans la liste
+  const isLastCreatedRoomMissing = lastCreatedRoomId !== null && 
+                                  !rooms.some(r => r.id === lastCreatedRoomId);
+
   return (
     <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg">
       <div className="flex justify-between items-center p-6 border-b">
@@ -335,6 +345,24 @@ export default function RoomList() {
       </div>
       
       <div className="p-6">
+        {/* Message de débogage si la salle créée est manquante */}
+        {isLastCreatedRoomMissing && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-md">
+            <p className="text-amber-800 text-sm">
+              <strong>Note de débogage:</strong> La dernière salle créée (ID: {lastCreatedRoomId?.substring(0, 8)}...) n'apparaît pas dans la liste.
+              Cela peut indiquer qu'elle a été supprimée automatiquement ou qu'il y a un problème de synchronisation.
+            </p>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="mt-2" 
+              onClick={handleRefresh}
+            >
+              Rafraîchir maintenant
+            </Button>
+          </div>
+        )}
+      
         {/* Current room panel */}
         {currentRoom ? (
           <CurrentRoom 
@@ -374,6 +402,9 @@ export default function RoomList() {
                 <div>
                   <p className="text-gray-600">
                     {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} joueurs
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    ID: {selectedRoom.id}
                   </p>
                   {selectedRoom.players && selectedRoom.players.length > 0 && (
                     <div className="mt-2">
