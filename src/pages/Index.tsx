@@ -2,14 +2,114 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
-import { GlobeIcon, Users, PlayIcon } from "lucide-react";
+import { GlobeIcon, Users, PlayIcon, Settings } from "lucide-react";
+import { useState } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose
+} from "@/components/ui/sheet";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+} from "@/components/ui/navigation-menu";
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarTrigger,
+} from "@/components/ui/menubar";
 
 export default function Index() {
   const navigate = useNavigate();
+  const { setMemeCategories, memeCategories } = useGame();
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // Options pour les catégories de mèmes
+  const availableMemeCategories = [
+    { id: "web3", name: "Web3", enabled: true },
+    { id: "crypto", name: "Crypto", enabled: true },
+    { id: "nft", name: "NFT", enabled: true },
+    { id: "blockchain", name: "Blockchain", enabled: true },
+    { id: "defi", name: "DeFi", enabled: true }
+  ];
+
+  const toggleMemeCategory = (categoryId: string) => {
+    setMemeCategories(prev => {
+      const newCategories = { ...prev };
+      newCategories[categoryId] = !newCategories[categoryId];
+      return newCategories;
+    });
+  };
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-5xl mx-auto">
+      <div className="w-full max-w-5xl mx-auto relative">
+        {/* Bouton de paramètres discret */}
+        <div className="absolute top-2 right-2">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-white opacity-60 hover:opacity-100 hover:bg-white/20">
+                <Settings className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[300px] sm:w-[400px]">
+              <SheetHeader>
+                <SheetTitle>Configuration du jeu</SheetTitle>
+                <SheetDescription>
+                  Personnalisez les références et autres paramètres du jeu
+                </SheetDescription>
+              </SheetHeader>
+              
+              <div className="py-6 space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Références de mèmes</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Choisissez les catégories de mèmes qui apparaîtront quand un joueur est mangé
+                  </p>
+                  
+                  <div className="space-y-2">
+                    {availableMemeCategories.map(category => (
+                      <div key={category.id} className="flex items-center justify-between">
+                        <span>{category.name}</span>
+                        <Button 
+                          variant={memeCategories?.[category.id] ? "default" : "outline"}
+                          onClick={() => toggleMemeCategory(category.id)}
+                          className={memeCategories?.[category.id] ? "bg-green-600 hover:bg-green-700" : ""}
+                        >
+                          {memeCategories?.[category.id] ? "Activé" : "Désactivé"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <SheetFooter>
+                <SheetClose asChild>
+                  <Button className="w-full">Fermer</Button>
+                </SheetClose>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        </div>
+
         {/* Hero section */}
         <div className="text-center mb-16">
           <div className="flex justify-center items-center mb-6">
