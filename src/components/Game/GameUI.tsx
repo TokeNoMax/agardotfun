@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -7,6 +6,7 @@ import GameOverModal from "./GameOverModal";
 import Leaderboard from "./Leaderboard";
 import { Player } from "@/types/game";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 export default function GameUI() {
   const { currentRoom, leaveRoom, player } = useGame();
@@ -16,6 +16,7 @@ export default function GameUI() {
   const [localMode, setLocalMode] = useState<boolean>(false);
   const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   // Check if we're in local mode based on URL parameters - seulement une fois au chargement
   useEffect(() => {
@@ -106,6 +107,13 @@ export default function GameUI() {
     }
   };
   
+  // Handle player eaten event - show toast with meme
+  const handlePlayerEaten = (eatenPlayer: Player, eaterPlayer: Player) => {
+    // We already handle this in the Leaderboard component with animated toasts
+    // This is just a hook for future functionality if needed
+    console.log(`${eatenPlayer.name} was eaten by ${eaterPlayer.name}`);
+  };
+  
   // Show loading if not in local mode and no room
   if (!localMode && !currentRoom) {
     return (
@@ -146,11 +154,12 @@ export default function GameUI() {
         </Button>
       </div>
       
-      {/* Leaderboard - New component added */}
+      {/* Leaderboard - with player eaten callback */}
       <div className="absolute top-4 right-20 z-10">
         <Leaderboard 
           players={localMode ? (localPlayer ? [localPlayer] : []) : (currentRoom ? currentRoom.players : [])} 
           currentPlayerId={localMode ? localPlayer?.id : player?.id}
+          onPlayerEaten={handlePlayerEaten}
         />
       </div>
       
