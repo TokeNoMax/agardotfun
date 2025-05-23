@@ -10,9 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState, useEffect } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,29 +32,16 @@ export default function AvailableRooms({
   refreshRooms
 }: AvailableRoomsProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const { toast } = useToast();
-  
-  // Fonction pour formater l'âge d'une salle
-  const formatRoomAge = (createdAt: string) => {
-    try {
-      return formatDistanceToNow(new Date(createdAt), { 
-        addSuffix: true,
-        locale: fr 
-      });
-    } catch (e) {
-      return "Date inconnue";
-    }
-  };
 
-  // Fonction de rafraîchissement manuel simplifiée
-  const handleManualRefresh = async () => {
+  // Fonction de rafraîchissement simplifiée
+  const handleRefresh = async () => {
     if (refreshRooms && !isRefreshing) {
       setIsRefreshing(true);
       
       try {
         await refreshRooms();
-        setLastRefresh(new Date());
+        console.log("Salles rafraîchies:", rooms.length);
         
         toast({
           title: "Rafraîchissement terminé",
@@ -80,23 +65,18 @@ export default function AvailableRooms({
     <div className="mb-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-lg font-medium">Salles disponibles ({rooms.length})</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">
-            Dernier rafraîchissement: {formatDistanceToNow(lastRefresh, {locale: fr, addSuffix: true})}
-          </span>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleManualRefresh}
-            disabled={isRefreshing}
-            title="Rafraîchir les salles"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          title="Rafraîchir les salles"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </Button>
       </div>
       
-      {rooms.length > 0 ? (
+      {rooms && rooms.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
@@ -104,7 +84,6 @@ export default function AvailableRooms({
                 <TableHead>Nom</TableHead>
                 <TableHead>Joueurs</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead>Créée</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -117,7 +96,7 @@ export default function AvailableRooms({
                 >
                   <TableCell className="font-medium">{room.name}</TableCell>
                   <TableCell>
-                    {room.players && room.players.length}/{room.maxPlayers}
+                    {room.players?.length || 0}/{room.maxPlayers}
                   </TableCell>
                   <TableCell>
                     {room.status === 'waiting' ? (
@@ -133,11 +112,6 @@ export default function AvailableRooms({
                         Terminée
                       </Badge>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <span title={new Date(room.createdAt).toLocaleString()}>
-                      {formatRoomAge(room.createdAt)}
-                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button 
@@ -161,7 +135,7 @@ export default function AvailableRooms({
           <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
           <Button 
             className="mt-4" 
-            onClick={handleManualRefresh}
+            onClick={handleRefresh}
             disabled={isRefreshing}
           >
             {isRefreshing ? (

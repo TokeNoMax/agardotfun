@@ -6,8 +6,8 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 5000
+const TOAST_LIMIT = 10
+const TOAST_REMOVE_DELAY = 1000 * 5
 
 type ToasterToast = ToastProps & {
   id: string
@@ -138,14 +138,12 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-// Définition de l'interface pour la valeur de retour de toast
 export interface ToastReturn {
   id: string
   dismiss: () => void
   update: (props: ToasterToast) => void
 }
 
-// Mise à jour de la fonction toast pour utiliser l'interface correcte
 function toast(props: Toast): ToastReturn {
   const id = genId()
 
