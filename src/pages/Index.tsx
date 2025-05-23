@@ -1,7 +1,6 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useGame, defaultMemePhrases } from "@/context/GameContext";
+import { useGame, defaultPhrases } from "@/context/GameContext";
 import { GlobeIcon, Users, PlayIcon, Settings, Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -14,68 +13,19 @@ import {
   SheetFooter,
   SheetClose
 } from "@/components/ui/sheet";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
-import {
-  Menubar,
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarTrigger,
-} from "@/components/ui/menubar";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger
-} from "@/components/ui/collapsible";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Form, FormItem, FormLabel, FormControl } from "@/components/ui/form";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Index() {
   const navigate = useNavigate();
-  const { setMemeCategories, memeCategories, memePhrases, setMemePhrases } = useGame();
-  const [showSettings, setShowSettings] = useState(false);
-  const [isCollapsible, setIsCollapsible] = useState(true);
-  const [activeCategory, setActiveCategory] = useState("web3");
-  const [editedPhrases, setEditedPhrases] = useState<{ [category: string]: string[] }>({ ...memePhrases });
+  const { customPhrases, setCustomPhrases } = useGame();
+  const [editedPhrases, setEditedPhrases] = useState<string[]>([...customPhrases]);
   const [newPhrase, setNewPhrase] = useState("");
   const { toast } = useToast();
   
-  // Options pour les catégories de mèmes
-  const availableMemeCategories = [
-    { id: "web3", name: "Web3", enabled: true },
-    { id: "crypto", name: "Crypto", enabled: true },
-    { id: "nft", name: "NFT", enabled: true },
-    { id: "blockchain", name: "Blockchain", enabled: true },
-    { id: "defi", name: "DeFi", enabled: true }
-  ];
-
-  const toggleMemeCategory = (categoryId: string) => {
-    setMemeCategories(prev => {
-      const newCategories = { ...prev };
-      newCategories[categoryId] = !newCategories[categoryId];
-      return newCategories;
-    });
-  };
-  
   const handleSavePhrases = () => {
-    setMemePhrases(editedPhrases);
+    setCustomPhrases(editedPhrases);
     toast({
       title: "Modifications enregistrées",
       description: "Vos phrases personnalisées ont été sauvegardées",
@@ -85,31 +35,28 @@ export default function Index() {
 
   const handleAddPhrase = () => {
     if (newPhrase.trim()) {
-      setEditedPhrases(prev => ({
-        ...prev,
-        [activeCategory]: [...(prev[activeCategory] || []), newPhrase]
-      }));
+      setEditedPhrases(prev => [...prev, newPhrase]);
       setNewPhrase("");
     }
   };
 
-  const handleDeletePhrase = (category: string, index: number) => {
-    setEditedPhrases(prev => ({
-      ...prev,
-      [category]: prev[category].filter((_, i) => i !== index)
-    }));
+  const handleDeletePhrase = (index: number) => {
+    setEditedPhrases(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleResetToDefault = (category: string) => {
-    setEditedPhrases(prev => ({
-      ...prev,
-      [category]: [...defaultMemePhrases[category]]
-    }));
+  const handleResetToDefault = () => {
+    setEditedPhrases([...defaultPhrases]);
     toast({
       title: "Phrases réinitialisées",
-      description: `Les phrases de la catégorie ${category} ont été restaurées`,
+      description: "Les phrases ont été restaurées aux valeurs par défaut",
       duration: 2000,
     });
+  };
+  
+  const handleBulkEdit = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    // Split by new lines and filter out empty lines
+    const phrases = e.target.value.split('\n').filter(line => line.trim() !== '');
+    setEditedPhrases(phrases);
   };
   
   return (
@@ -125,116 +72,75 @@ export default function Index() {
             </SheetTrigger>
             <SheetContent className="w-[80%] sm:w-[500px] max-w-full overflow-y-auto">
               <SheetHeader>
-                <SheetTitle>Configuration du jeu</SheetTitle>
+                <SheetTitle>Messages personnalisés</SheetTitle>
                 <SheetDescription>
-                  Personnalisez les références et autres paramètres du jeu
+                  Personnalisez les messages qui apparaissent quand un joueur est mangé. Utilisez {"{playerName}"} pour insérer le nom du joueur.
                 </SheetDescription>
               </SheetHeader>
               
-              <div className="py-6">
-                <Tabs defaultValue="categories" className="w-full">
-                  <TabsList className="w-full mb-4">
-                    <TabsTrigger value="categories" className="flex-1">Catégories</TabsTrigger>
-                    <TabsTrigger value="phrases" className="flex-1">Phrases personnalisées</TabsTrigger>
-                  </TabsList>
+              <div className="py-6 space-y-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Personnaliser les messages</h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleResetToDefault}
+                    >
+                      Réinitialiser
+                    </Button>
+                  </div>
                   
-                  <TabsContent value="categories">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Activer/Désactiver les catégories</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Choisissez les catégories de mèmes qui apparaîtront quand un joueur est mangé
-                      </p>
-                      
-                      <div className="space-y-2">
-                        {availableMemeCategories.map(category => (
-                          <div key={category.id} className="flex items-center justify-between">
-                            <span>{category.name}</span>
-                            <Button 
-                              variant={memeCategories?.[category.id] ? "default" : "outline"}
-                              onClick={() => toggleMemeCategory(category.id)}
-                              className={memeCategories?.[category.id] ? "bg-green-600 hover:bg-green-700" : ""}
-                            >
-                              {memeCategories?.[category.id] ? "Activé" : "Désactivé"}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="phrases">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Personnaliser les phrases</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Modifiez les phrases qui apparaissent par catégorie. Utilisez {"{playerName}"} pour insérer le nom du joueur.
-                      </p>
-                      
-                      <div className="flex flex-col gap-6">
-                        <div className="grid grid-cols-5 gap-2">
-                          {availableMemeCategories.map(category => (
-                            <Button
-                              key={category.id}
-                              variant={activeCategory === category.id ? "default" : "outline"}
-                              onClick={() => setActiveCategory(category.id)}
-                              className={activeCategory === category.id ? "bg-primary" : ""}
-                            >
-                              {category.name}
-                            </Button>
-                          ))}
-                        </div>
-                        
-                        <div className="border rounded-md p-4 bg-background/10 space-y-4">
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-semibold">Phrases: {activeCategory.toUpperCase()}</h4>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleResetToDefault(activeCategory)}
-                            >
-                              Réinitialiser
-                            </Button>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            {editedPhrases[activeCategory]?.map((phrase, index) => (
-                              <div key={index} className="flex items-center justify-between bg-background/20 p-2 rounded">
-                                <span className="flex-1 mr-2">{phrase}</span>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => handleDeletePhrase(activeCategory, index)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                          
-                          <div className="flex gap-2">
-                            <Input 
-                              placeholder="Nouvelle phrase avec {playerName}"
-                              value={newPhrase}
-                              onChange={(e) => setNewPhrase(e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button onClick={handleAddPhrase} className="shrink-0">
-                              <Plus className="h-4 w-4 mr-1" />
-                              Ajouter
-                            </Button>
-                          </div>
-                        </div>
-                        
+                  <div className="space-y-2">
+                    {editedPhrases.map((phrase, index) => (
+                      <div key={index} className="flex items-center justify-between bg-background/20 p-2 rounded">
+                        <span className="flex-1 mr-2">{phrase}</span>
                         <Button 
-                          className="w-full bg-green-600 hover:bg-green-700" 
-                          onClick={handleSavePhrases}
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDeletePhrase(index)}
                         >
-                          <Save className="h-4 w-4 mr-2" />
-                          Enregistrer les modifications
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Nouveau message avec {playerName}"
+                      value={newPhrase}
+                      onChange={(e) => setNewPhrase(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button onClick={handleAddPhrase} className="shrink-0">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium">Édition en bloc</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Vous pouvez aussi éditer toutes les phrases en bloc, une phrase par ligne.
+                  </p>
+                  <Textarea 
+                    value={editedPhrases.join('\n')}
+                    onChange={handleBulkEdit}
+                    rows={10}
+                    className="font-mono text-sm"
+                    placeholder="Une phrase par ligne. Utilisez {playerName} pour le nom du joueur."
+                  />
+                </div>
+                
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700" 
+                  onClick={handleSavePhrases}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Enregistrer les modifications
+                </Button>
               </div>
               
               <SheetFooter>

@@ -11,15 +11,19 @@ import { v4 as uuidv4 } from "uuid";
 import { Player, PlayerColor, GameRoom } from "@/types/game";
 import { useToast } from "@/hooks/use-toast";
 
-// Define a type for the meme categories
-type MemeCategories = {
-  [key: string]: boolean;
-};
-
-// New type for meme phrases
-type MemePhrases = {
-  [category: string]: string[];
-};
+// Default custom phrases
+const defaultPhrases: string[] = [
+  "{playerName} s'est fait éliminer !",
+  "{playerName} a été mangé !",
+  "{playerName} a rejoint le paradis des blobs !",
+  "On ne verra plus {playerName} de sitôt !",
+  "{playerName} a disparu de la carte !",
+  "Adieu {playerName} !",
+  "{playerName} n'était pas assez gros !",
+  "{playerName} a servi de goûter !",
+  "Le blob {playerName} est maintenant digéré !",
+  "{playerName} est hors-jeu !"
+];
 
 interface GameContextType {
   player: Player | null;
@@ -33,12 +37,9 @@ interface GameContextType {
   setPlayerReady: (ready: boolean) => Promise<void>;
   socket: Socket | null;
   refreshCurrentRoom: () => Promise<void>;
-  // Meme categories properties
-  memeCategories: MemeCategories;
-  setMemeCategories: (categories: MemeCategories | ((prev: MemeCategories) => MemeCategories)) => void;
-  // New properties for custom phrases
-  memePhrases: MemePhrases;
-  setMemePhrases: (phrases: MemePhrases | ((prev: MemePhrases) => MemePhrases)) => void;
+  // Simplified phrases property
+  customPhrases: string[];
+  setCustomPhrases: (phrases: string[] | ((prev: string[]) => string[])) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -46,35 +47,6 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 interface GameProviderProps {
   children: React.ReactNode;
 }
-
-// Default meme phrases
-const defaultMemePhrases: MemePhrases = {
-  web3: [
-    "{playerName} s'est fait Web3-isé! 🌐",
-    "{playerName} est parti dans le metaverse! 🌐",
-    "{playerName} a rejoint la DAO! 🌐"
-  ],
-  crypto: [
-    "{playerName} a été liquidé comme un altcoin! 📉",
-    "{playerName} a fait un bad trade! 📊",
-    "HODL raté pour {playerName}! 💎"
-  ],
-  nft: [
-    "{playerName} s'est fait NFTiser! 🖼️",
-    "{playerName} a été mintable! 🔮",
-    "{playerName} est devenu un JPG à 100 ETH! 🖼️"
-  ],
-  blockchain: [
-    "{playerName} est parti sur la blockchain! 🔗",
-    "{playerName} a été forké! 🍴",
-    "{playerName} a dépensé tout son gas! ⛽"
-  ],
-  defi: [
-    "{playerName} a été rugged! 💸",
-    "{playerName} est devenu un memecoin! 🪙",
-    "{playerName} a perdu sa liquidité! 💦"
-  ]
-};
 
 const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const [player, setPlayer] = useState<Player | null>(() => {
@@ -87,23 +59,10 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     return storedRoom ? JSON.parse(storedRoom) : null;
   });
   const [socket, setSocket] = useState<Socket | null>(null);
-  // Meme categories state
-  const [memeCategories, setMemeCategories] = useState<MemeCategories>(() => {
-    const storedCategories = localStorage.getItem("blob-battle-meme-categories");
-    return storedCategories 
-      ? JSON.parse(storedCategories) 
-      : {
-          web3: true,
-          crypto: true,
-          nft: true,
-          blockchain: true,
-          defi: true
-        };
-  });
-  // New state for meme phrases
-  const [memePhrases, setMemePhrases] = useState<MemePhrases>(() => {
-    const storedPhrases = localStorage.getItem("blob-battle-meme-phrases");
-    return storedPhrases ? JSON.parse(storedPhrases) : defaultMemePhrases;
+  // Simplified phrases state
+  const [customPhrases, setCustomPhrases] = useState<string[]>(() => {
+    const storedPhrases = localStorage.getItem("blob-battle-custom-phrases");
+    return storedPhrases ? JSON.parse(storedPhrases) : defaultPhrases;
   });
   
   const navigate = useNavigate();
@@ -111,15 +70,10 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   
   const backendURL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
-  // Save meme categories to localStorage whenever they change
+  // Save custom phrases to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem("blob-battle-meme-categories", JSON.stringify(memeCategories));
-  }, [memeCategories]);
-
-  // Save meme phrases to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem("blob-battle-meme-phrases", JSON.stringify(memePhrases));
-  }, [memePhrases]);
+    localStorage.setItem("blob-battle-custom-phrases", JSON.stringify(customPhrases));
+  }, [customPhrases]);
 
   useEffect(() => {
     const newSocket = io(backendURL);
@@ -349,12 +303,9 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         setPlayerReady,
         socket,
         refreshCurrentRoom,
-        // Add the meme categories properties to the provider value
-        memeCategories,
-        setMemeCategories,
-        // Add the new meme phrases properties to the provider value
-        memePhrases,
-        setMemePhrases,
+        // Simplified phrases properties
+        customPhrases,
+        setCustomPhrases,
       }}
     >
       {children}
@@ -370,4 +321,4 @@ const useGame = (): GameContextType => {
   return context;
 };
 
-export { GameProvider, useGame, defaultMemePhrases };
+export { GameProvider, useGame, defaultPhrases };

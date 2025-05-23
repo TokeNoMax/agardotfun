@@ -20,7 +20,7 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
   const [sortedPlayers, setSortedPlayers] = useState<Player[]>([]);
   const [memeToasts, setMemeToasts] = useState<MemeToast[]>([]);
   const [previousPlayers, setPreviousPlayers] = useState<Player[]>([]);
-  const { memeCategories, memePhrases } = useGame();
+  const { customPhrases } = useGame();
 
   // Sort players by size in descending order
   useEffect(() => {
@@ -58,25 +58,11 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
 
   // Function to add a new meme toast
   const addMemeToast = useCallback((playerName: string) => {
-    // Get available meme categories that are enabled
-    const availableCategories = Object.entries(memeCategories)
-      .filter(([_, isEnabled]) => isEnabled)
-      .map(([category]) => category);
-
-    // If no categories are enabled, don't show any toasts
-    if (availableCategories.length === 0) return;
-
-    // Select a random enabled category
-    const randomCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+    // If no phrases are defined, don't show a toast
+    if (!customPhrases || customPhrases.length === 0) return;
     
-    // Get phrases for the selected category or use empty array as fallback
-    const phrases = memePhrases[randomCategory] || [];
-    
-    // If no phrases are defined for this category, don't show a toast
-    if (phrases.length === 0) return;
-    
-    // Choose a random phrase from the selected category
-    const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+    // Choose a random phrase from available phrases
+    const randomPhrase = customPhrases[Math.floor(Math.random() * customPhrases.length)];
     
     // Replace {playerName} with the actual player name
     const formattedMessage = randomPhrase.replace(/{playerName}/g, playerName);
@@ -93,7 +79,7 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
     setTimeout(() => {
       setMemeToasts(prev => prev.filter(toast => toast.id !== newToast.id));
     }, 3000);
-  }, [memeCategories, memePhrases]);
+  }, [customPhrases]);
 
   if (!players || players.length === 0) {
     return null;
