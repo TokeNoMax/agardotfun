@@ -1,8 +1,8 @@
 
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useGame } from "@/context/GameContext";
-import { GlobeIcon, Users, PlayIcon, Settings } from "lucide-react";
+import { useGame, defaultMemePhrases } from "@/context/GameContext";
+import { GlobeIcon, Users, PlayIcon, Settings, Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   Sheet,
@@ -43,12 +43,19 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Form, FormItem, FormLabel, FormControl } from "@/components/ui/form";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Index() {
   const navigate = useNavigate();
-  const { setMemeCategories, memeCategories } = useGame();
+  const { setMemeCategories, memeCategories, memePhrases, setMemePhrases } = useGame();
   const [showSettings, setShowSettings] = useState(false);
   const [isCollapsible, setIsCollapsible] = useState(true);
+  const [activeCategory, setActiveCategory] = useState("web3");
+  const [editedPhrases, setEditedPhrases] = useState<{ [category: string]: string[] }>({ ...memePhrases });
+  const [newPhrase, setNewPhrase] = useState("");
+  const { toast } = useToast();
   
   // Options pour les catégories de mèmes
   const availableMemeCategories = [
@@ -67,6 +74,44 @@ export default function Index() {
     });
   };
   
+  const handleSavePhrases = () => {
+    setMemePhrases(editedPhrases);
+    toast({
+      title: "Modifications enregistrées",
+      description: "Vos phrases personnalisées ont été sauvegardées",
+      duration: 2000,
+    });
+  };
+
+  const handleAddPhrase = () => {
+    if (newPhrase.trim()) {
+      setEditedPhrases(prev => ({
+        ...prev,
+        [activeCategory]: [...(prev[activeCategory] || []), newPhrase]
+      }));
+      setNewPhrase("");
+    }
+  };
+
+  const handleDeletePhrase = (category: string, index: number) => {
+    setEditedPhrases(prev => ({
+      ...prev,
+      [category]: prev[category].filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleResetToDefault = (category: string) => {
+    setEditedPhrases(prev => ({
+      ...prev,
+      [category]: [...defaultMemePhrases[category]]
+    }));
+    toast({
+      title: "Phrases réinitialisées",
+      description: `Les phrases de la catégorie ${category} ont été restaurées`,
+      duration: 2000,
+    });
+  };
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-5xl mx-auto relative">
@@ -78,7 +123,7 @@ export default function Index() {
                 <Settings className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-[300px] sm:w-[400px]">
+            <SheetContent className="w-[80%] sm:w-[500px] max-w-full overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>Configuration du jeu</SheetTitle>
                 <SheetDescription>
@@ -86,99 +131,110 @@ export default function Index() {
                 </SheetDescription>
               </SheetHeader>
               
-              <div className="py-6 space-y-6">
-                {/* Section catégories de mèmes */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Références de mèmes</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Choisissez les catégories de mèmes qui apparaîtront quand un joueur est mangé
-                  </p>
+              <div className="py-6">
+                <Tabs defaultValue="categories" className="w-full">
+                  <TabsList className="w-full mb-4">
+                    <TabsTrigger value="categories" className="flex-1">Catégories</TabsTrigger>
+                    <TabsTrigger value="phrases" className="flex-1">Phrases personnalisées</TabsTrigger>
+                  </TabsList>
                   
-                  <div className="space-y-2">
-                    {availableMemeCategories.map(category => (
-                      <div key={category.id} className="flex items-center justify-between">
-                        <span>{category.name}</span>
-                        <Button 
-                          variant={memeCategories?.[category.id] ? "default" : "outline"}
-                          onClick={() => toggleMemeCategory(category.id)}
-                          className={memeCategories?.[category.id] ? "bg-green-600 hover:bg-green-700" : ""}
-                        >
-                          {memeCategories?.[category.id] ? "Activé" : "Désactivé"}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Section aperçu des phrases par catégorie */}
-                <Collapsible 
-                  open={isCollapsible} 
-                  onOpenChange={setIsCollapsible}
-                  className="border rounded-md p-3 bg-background/30"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium">Aperçu des phrases</h3>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        {isCollapsible ? "Masquer" : "Voir"}
-                      </Button>
-                    </CollapsibleTrigger>
-                  </div>
-                  
-                  <CollapsibleContent className="mt-4 space-y-4">
-                    <div className="grid gap-4">
-                      {/* Web3 phrases */}
-                      <div className="border rounded p-3 bg-background/30">
-                        <h4 className="font-semibold">Web3</h4>
-                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
-                          <li>[Joueur] s'est fait Web3-isé! 🌐</li>
-                          <li>[Joueur] est parti dans le metaverse! 🌐</li>
-                          <li>[Joueur] a rejoint la DAO! 🌐</li>
-                        </ul>
-                      </div>
+                  <TabsContent value="categories">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Activer/Désactiver les catégories</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Choisissez les catégories de mèmes qui apparaîtront quand un joueur est mangé
+                      </p>
                       
-                      {/* Crypto phrases */}
-                      <div className="border rounded p-3 bg-background/30">
-                        <h4 className="font-semibold">Crypto</h4>
-                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
-                          <li>[Joueur] a été liquidé comme un altcoin! 📉</li>
-                          <li>[Joueur] a fait un bad trade! 📊</li>
-                          <li>HODL raté pour [Joueur]! 💎</li>
-                        </ul>
-                      </div>
-                      
-                      {/* NFT phrases */}
-                      <div className="border rounded p-3 bg-background/30">
-                        <h4 className="font-semibold">NFT</h4>
-                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
-                          <li>[Joueur] s'est fait NFTiser! 🖼️</li>
-                          <li>[Joueur] a été mintable! 🔮</li>
-                          <li>[Joueur] est devenu un JPG à 100 ETH! 🖼️</li>
-                        </ul>
-                      </div>
-                      
-                      {/* Blockchain phrases */}
-                      <div className="border rounded p-3 bg-background/30">
-                        <h4 className="font-semibold">Blockchain</h4>
-                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
-                          <li>[Joueur] est parti sur la blockchain! 🔗</li>
-                          <li>[Joueur] a été forké! 🍴</li>
-                          <li>[Joueur] a dépensé tout son gas! ⛽</li>
-                        </ul>
-                      </div>
-                      
-                      {/* DeFi phrases */}
-                      <div className="border rounded p-3 bg-background/30">
-                        <h4 className="font-semibold">DeFi</h4>
-                        <ul className="text-sm ml-4 list-disc space-y-1 mt-2">
-                          <li>[Joueur] a été rugged! 💸</li>
-                          <li>[Joueur] est devenu un memecoin! 🪙</li>
-                          <li>[Joueur] a perdu sa liquidité! 💦</li>
-                        </ul>
+                      <div className="space-y-2">
+                        {availableMemeCategories.map(category => (
+                          <div key={category.id} className="flex items-center justify-between">
+                            <span>{category.name}</span>
+                            <Button 
+                              variant={memeCategories?.[category.id] ? "default" : "outline"}
+                              onClick={() => toggleMemeCategory(category.id)}
+                              className={memeCategories?.[category.id] ? "bg-green-600 hover:bg-green-700" : ""}
+                            >
+                              {memeCategories?.[category.id] ? "Activé" : "Désactivé"}
+                            </Button>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                  </TabsContent>
+                  
+                  <TabsContent value="phrases">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Personnaliser les phrases</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Modifiez les phrases qui apparaissent par catégorie. Utilisez {"{playerName}"} pour insérer le nom du joueur.
+                      </p>
+                      
+                      <div className="flex flex-col gap-6">
+                        <div className="grid grid-cols-5 gap-2">
+                          {availableMemeCategories.map(category => (
+                            <Button
+                              key={category.id}
+                              variant={activeCategory === category.id ? "default" : "outline"}
+                              onClick={() => setActiveCategory(category.id)}
+                              className={activeCategory === category.id ? "bg-primary" : ""}
+                            >
+                              {category.name}
+                            </Button>
+                          ))}
+                        </div>
+                        
+                        <div className="border rounded-md p-4 bg-background/10 space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-semibold">Phrases: {activeCategory.toUpperCase()}</h4>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleResetToDefault(activeCategory)}
+                            >
+                              Réinitialiser
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {editedPhrases[activeCategory]?.map((phrase, index) => (
+                              <div key={index} className="flex items-center justify-between bg-background/20 p-2 rounded">
+                                <span className="flex-1 mr-2">{phrase}</span>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleDeletePhrase(activeCategory, index)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <Input 
+                              placeholder="Nouvelle phrase avec {playerName}"
+                              value={newPhrase}
+                              onChange={(e) => setNewPhrase(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button onClick={handleAddPhrase} className="shrink-0">
+                              <Plus className="h-4 w-4 mr-1" />
+                              Ajouter
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <Button 
+                          className="w-full bg-green-600 hover:bg-green-700" 
+                          onClick={handleSavePhrases}
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Enregistrer les modifications
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
               
               <SheetFooter>

@@ -16,6 +16,11 @@ type MemeCategories = {
   [key: string]: boolean;
 };
 
+// New type for meme phrases
+type MemePhrases = {
+  [category: string]: string[];
+};
+
 interface GameContextType {
   player: Player | null;
   setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
@@ -28,9 +33,12 @@ interface GameContextType {
   setPlayerReady: (ready: boolean) => Promise<void>;
   socket: Socket | null;
   refreshCurrentRoom: () => Promise<void>;
-  // Add the new meme categories properties
+  // Meme categories properties
   memeCategories: MemeCategories;
   setMemeCategories: (categories: MemeCategories | ((prev: MemeCategories) => MemeCategories)) => void;
+  // New properties for custom phrases
+  memePhrases: MemePhrases;
+  setMemePhrases: (phrases: MemePhrases | ((prev: MemePhrases) => MemePhrases)) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -38,6 +46,35 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 interface GameProviderProps {
   children: React.ReactNode;
 }
+
+// Default meme phrases
+const defaultMemePhrases: MemePhrases = {
+  web3: [
+    "{playerName} s'est fait Web3-isé! 🌐",
+    "{playerName} est parti dans le metaverse! 🌐",
+    "{playerName} a rejoint la DAO! 🌐"
+  ],
+  crypto: [
+    "{playerName} a été liquidé comme un altcoin! 📉",
+    "{playerName} a fait un bad trade! 📊",
+    "HODL raté pour {playerName}! 💎"
+  ],
+  nft: [
+    "{playerName} s'est fait NFTiser! 🖼️",
+    "{playerName} a été mintable! 🔮",
+    "{playerName} est devenu un JPG à 100 ETH! 🖼️"
+  ],
+  blockchain: [
+    "{playerName} est parti sur la blockchain! 🔗",
+    "{playerName} a été forké! 🍴",
+    "{playerName} a dépensé tout son gas! ⛽"
+  ],
+  defi: [
+    "{playerName} a été rugged! 💸",
+    "{playerName} est devenu un memecoin! 🪙",
+    "{playerName} a perdu sa liquidité! 💦"
+  ]
+};
 
 const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const [player, setPlayer] = useState<Player | null>(() => {
@@ -50,7 +87,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     return storedRoom ? JSON.parse(storedRoom) : null;
   });
   const [socket, setSocket] = useState<Socket | null>(null);
-  // Initialize meme categories with default values
+  // Meme categories state
   const [memeCategories, setMemeCategories] = useState<MemeCategories>(() => {
     const storedCategories = localStorage.getItem("blob-battle-meme-categories");
     return storedCategories 
@@ -63,6 +100,12 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
           defi: true
         };
   });
+  // New state for meme phrases
+  const [memePhrases, setMemePhrases] = useState<MemePhrases>(() => {
+    const storedPhrases = localStorage.getItem("blob-battle-meme-phrases");
+    return storedPhrases ? JSON.parse(storedPhrases) : defaultMemePhrases;
+  });
+  
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -72,6 +115,11 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   useEffect(() => {
     localStorage.setItem("blob-battle-meme-categories", JSON.stringify(memeCategories));
   }, [memeCategories]);
+
+  // Save meme phrases to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem("blob-battle-meme-phrases", JSON.stringify(memePhrases));
+  }, [memePhrases]);
 
   useEffect(() => {
     const newSocket = io(backendURL);
@@ -301,9 +349,12 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         setPlayerReady,
         socket,
         refreshCurrentRoom,
-        // Add the new meme categories properties to the provider value
+        // Add the meme categories properties to the provider value
         memeCategories,
         setMemeCategories,
+        // Add the new meme phrases properties to the provider value
+        memePhrases,
+        setMemePhrases,
       }}
     >
       {children}
@@ -319,4 +370,4 @@ const useGame = (): GameContextType => {
   return context;
 };
 
-export { GameProvider, useGame };
+export { GameProvider, useGame, defaultMemePhrases };

@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useCallback } from "react";
 import { Player } from "@/types/game";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +20,7 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
   const [sortedPlayers, setSortedPlayers] = useState<Player[]>([]);
   const [memeToasts, setMemeToasts] = useState<MemeToast[]>([]);
   const [previousPlayers, setPreviousPlayers] = useState<Player[]>([]);
-  const { memeCategories } = useGame();
+  const { memeCategories, memePhrases } = useGame();
 
   // Sort players by size in descending order
   useEffect(() => {
@@ -70,48 +69,21 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
     // Select a random enabled category
     const randomCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
     
-    // Define meme phrases based on category
-    const categoryPhrases: Record<string, string[]> = {
-      web3: [
-        `${playerName} s'est fait Web3-isé! 🌐`,
-        `${playerName} est parti dans le metaverse! 🌐`,
-        `${playerName} a rejoint la DAO! 🌐`
-      ],
-      crypto: [
-        `${playerName} a été liquidé comme un altcoin! 📉`,
-        `${playerName} a fait un bad trade! 📊`,
-        `HODL raté pour ${playerName}! 💎`
-      ],
-      nft: [
-        `${playerName} s'est fait NFTiser! 🖼️`,
-        `${playerName} a été mintable! 🔮`,
-        `${playerName} est devenu un JPG à 100 ETH! 🖼️`
-      ],
-      blockchain: [
-        `${playerName} est parti sur la blockchain! 🔗`,
-        `${playerName} a été forké! 🍴`,
-        `${playerName} a dépensé tout son gas! ⛽`
-      ],
-      defi: [
-        `${playerName} a été rugged! 💸`,
-        `${playerName} est devenu un memecoin! 🪙`,
-        `${playerName} a perdu sa liquidité! 💦`
-      ]
-    };
+    // Get phrases for the selected category or use empty array as fallback
+    const phrases = memePhrases[randomCategory] || [];
     
-    // Get phrases for the selected category or use fallback
-    const phrases = categoryPhrases[randomCategory] || [
-      `${playerName} a été mangé! 🍽️`,
-      `${playerName} a disparu! 👻`,
-      `${playerName} a perdu! 💥`
-    ];
+    // If no phrases are defined for this category, don't show a toast
+    if (phrases.length === 0) return;
     
     // Choose a random phrase from the selected category
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
     
+    // Replace {playerName} with the actual player name
+    const formattedMessage = randomPhrase.replace(/{playerName}/g, playerName);
+    
     const newToast: MemeToast = {
       id: Math.random().toString(36).substring(2, 9),
-      message: randomPhrase,
+      message: formattedMessage,
       timestamp: Date.now()
     };
     
@@ -121,7 +93,7 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
     setTimeout(() => {
       setMemeToasts(prev => prev.filter(toast => toast.id !== newToast.id));
     }, 3000);
-  }, [memeCategories]);
+  }, [memeCategories, memePhrases]);
 
   if (!players || players.length === 0) {
     return null;
