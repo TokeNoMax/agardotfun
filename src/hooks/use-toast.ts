@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import type {
@@ -139,7 +140,15 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+// Adding a return type that includes the id
+interface ToastReturn {
+  id: string
+  dismiss: () => void
+  update: (props: ToasterToast) => void
+}
+
+// Update the toast function to have a proper return type
+function toast({ ...props }: Toast): ToastReturn {
   const id = genId()
 
   const update = (props: ToasterToast) =>

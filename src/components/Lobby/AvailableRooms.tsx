@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -85,10 +84,10 @@ export default function AvailableRooms({
       console.log("Rafraîchissement manuel - démarré");
       
       // Notification de début
-      const toastId = toast({
+      const toastResult = toast({
         title: "Rafraîchissement",
         description: "Recherche des salles en cours..."
-      }).id;
+      });
       
       try {
         // Premier rafraîchissement
@@ -104,7 +103,6 @@ export default function AvailableRooms({
             
             // Mettre à jour la notification
             toast({
-              id: toastId,
               title: "Rafraîchissement terminé",
               description: `${rooms.length} salles trouvées.`
             });
@@ -116,7 +114,6 @@ export default function AvailableRooms({
         
         // Notification d'erreur
         toast({
-          id: toastId,
           title: "Erreur",
           description: "Impossible de rafraîchir les salles.",
           variant: "destructive"

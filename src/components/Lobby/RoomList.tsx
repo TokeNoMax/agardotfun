@@ -160,10 +160,10 @@ export default function RoomList() {
     if (roomName.trim()) {
       try {
         // Notification de début de création
-        const creationToastId = toast({
+        const creationToast = toast({
           title: "Création en cours",
           description: "Création de votre salle en cours..."
-        }).id;
+        });
         
         console.log(`Tentative de création de salle: "${roomName}" avec ${maxPlayers} joueurs max`);
         const roomId = await createRoom(roomName, parseInt(maxPlayers));
@@ -177,7 +177,6 @@ export default function RoomList() {
           
           // Notification de création réussie
           toast({
-            id: creationToastId,
             title: "Salle créée",
             description: "Votre salle a été créée. Recherche de la salle..."
           });
@@ -222,7 +221,6 @@ export default function RoomList() {
         } else {
           console.error("Création de salle échouée: pas d'ID retourné");
           toast({
-            id: creationToastId,
             title: "Erreur",
             description: "La création de la salle a échoué.",
             variant: "destructive"
@@ -302,10 +300,10 @@ export default function RoomList() {
     setIsRefreshing(true);
     
     // Notification de début de rafraîchissement
-    const refreshToastId = toast({
+    const refreshToast = toast({
       title: "Rafraîchissement",
       description: "Recherche des salles disponibles..."
-    }).id;
+    });
     
     try {
       // Premier rafraîchissement
@@ -319,7 +317,6 @@ export default function RoomList() {
         setIsRefreshing(false);
         
         toast({
-          id: refreshToastId,
           title: "Rafraîchissement terminé",
           description: `${rooms.length} salles trouvées.`,
         });
@@ -328,7 +325,6 @@ export default function RoomList() {
       console.error("Erreur lors du rafraîchissement:", error);
       setIsRefreshing(false);
       toast({
-        id: refreshToastId,
         title: "Erreur de rafraîchissement",
         description: "Impossible de récupérer les salles.",
         variant: "destructive"
