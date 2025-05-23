@@ -84,6 +84,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     });
 
     newSocket.on("gameRoomsUpdate", (updatedRooms: GameRoom[]) => {
+      console.log("Rooms updated from server:", updatedRooms.length);
       setRooms(updatedRooms);
     });
 
@@ -268,25 +269,37 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   );
   
   const refreshCurrentRoom = useCallback(async () => {
-    if (!socket || !currentRoom) {
-      console.warn("Socket or currentRoom not initialized, skipping refresh");
+    if (!socket) {
+      console.warn("Socket not initialized, skipping refresh");
       return;
     }
     
-    socket.emit("getGameRoom", currentRoom.id, (updatedRoom: GameRoom | null) => {
-      if (updatedRoom) {
-        setCurrentRoom(updatedRoom);
-        localStorage.setItem("blob-battle-current-room", JSON.stringify(updatedRoom));
-        
-        // Store the game state in local storage
-        localStorage.setItem('blob-battle-game-state', JSON.stringify(updatedRoom));
-      } else {
-        console.warn("Room not found, clearing current room");
-        setCurrentRoom(null);
-        localStorage.removeItem("blob-battle-current-room");
-        localStorage.removeItem('blob-battle-game-state');
+    // Demander la liste de toutes les salles disponibles
+    socket.emit("getGameRooms", (allRooms: GameRoom[]) => {
+      if (allRooms && Array.isArray(allRooms)) {
+        console.log("Refreshed all rooms:", allRooms.length);
+        setRooms(allRooms);
       }
     });
+    
+    // Si nous sommes dans une salle, obtenir également les détails de cette salle
+    if (currentRoom) {
+      socket.emit("getGameRoom", currentRoom.id, (updatedRoom: GameRoom | null) => {
+        if (updatedRoom) {
+          console.log("Refreshed current room:", updatedRoom.id);
+          setCurrentRoom(updatedRoom);
+          localStorage.setItem("blob-battle-current-room", JSON.stringify(updatedRoom));
+          
+          // Store the game state in local storage
+          localStorage.setItem('blob-battle-game-state', JSON.stringify(updatedRoom));
+        } else {
+          console.warn("Room not found, clearing current room");
+          setCurrentRoom(null);
+          localStorage.removeItem("blob-battle-current-room");
+          localStorage.removeItem('blob-battle-game-state');
+        }
+      });
+    }
   }, [socket, currentRoom]);
 
   return (

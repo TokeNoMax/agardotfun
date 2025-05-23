@@ -45,7 +45,7 @@ export default function CreateRoomDialog({
 }: CreateRoomDialogProps) {
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
-  const { refreshCurrentRoom } = useGame(); // Accès au contexte pour rafraîchir les salles
+  const { refreshCurrentRoom } = useGame();
   
   // Vérifier si le formulaire est valide pour activer le bouton
   const isFormValid = roomName.trim() !== "" && maxPlayers !== "";
@@ -66,17 +66,18 @@ export default function CreateRoomDialog({
     try {
       await handleCreateRoom();
       
-      // Force refresh après création pour assurer que la salle apparaît
+      // Force refresh après création pour garantir que la salle apparaît
+      // Augmentation du délai pour donner plus de temps au serveur
       setTimeout(() => {
         refreshCurrentRoom();
-      }, 500);
+      }, 800);
       
       toast({
         title: "Salle créée",
         description: "Votre salle a été créée avec succès.",
       });
       
-      // Fermer la modal après création réussie
+      // Fermer la modal immédiatement après création réussie
       onOpenChange(false);
     } catch (error) {
       console.error("Erreur lors de la création de la salle:", error);
@@ -111,6 +112,7 @@ export default function CreateRoomDialog({
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
               className={roomName.trim() === "" ? "border-red-300" : ""}
+              autoComplete="off"
             />
             {roomName.trim() === "" && (
               <p className="text-sm text-red-500">Le nom de la salle est requis</p>

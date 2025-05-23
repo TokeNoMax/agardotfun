@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import { RefreshCw } from "lucide-react";
 
 interface AvailableRoomsProps {
   rooms: GameRoom[];
@@ -20,7 +21,7 @@ interface AvailableRoomsProps {
   playerExists: boolean;
   selectedRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
-  refreshRooms?: () => void; // Nouvelle prop pour rafraîchir manuellement
+  refreshRooms?: () => void;
 }
 
 export default function AvailableRooms({ 
@@ -31,11 +32,11 @@ export default function AvailableRooms({
   onSelectRoom,
   refreshRooms
 }: AvailableRoomsProps) {
-  // Add stabilization state with longer delay to prevent flickering
   const [stableRooms, setStableRooms] = useState<GameRoom[]>(rooms);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Force refresh on mount to s'assurer que les salles sont à jour
+  // Force refresh on mount pour s'assurer que les salles sont à jour
   useEffect(() => {
     if (refreshRooms) {
       refreshRooms();
@@ -43,16 +44,11 @@ export default function AvailableRooms({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Use effect to stabilize room updates with a longer delay
+  // Use effect pour stabiliser les mises à jour des salles
   useEffect(() => {
-    // Only update the stable rooms after a longer delay to prevent flickering
-    const timer = setTimeout(() => {
-      // Update rooms more aggressively to ensure new rooms are displayed
-      setStableRooms(rooms);
-      setIsLoading(false);
-    }, 300); // Shorter delay to ensure rooms appear more quickly
-    
-    return () => clearTimeout(timer);
+    // Mise à jour immédiate pour les nouvelles salles
+    setStableRooms(rooms);
+    setIsLoading(false);
   }, [rooms]);
 
   // Fonction pour formater l'âge d'une salle
@@ -67,11 +63,31 @@ export default function AvailableRooms({
     }
   };
 
+  // Fonction de rafraîchissement manuel
+  const handleManualRefresh = async () => {
+    if (refreshRooms && !isRefreshing) {
+      setIsRefreshing(true);
+      await refreshRooms();
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
   // Show loading state if rooms are empty and still loading
   if (isLoading && stableRooms.length === 0) {
     return (
       <div className="mb-4">
-        <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-medium">Salles disponibles</h3>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            title="Rafraîchir les salles"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
         <div className="text-center py-8 border rounded-md bg-gray-50">
           <p className="text-gray-500">Chargement des salles...</p>
         </div>
@@ -84,7 +100,19 @@ export default function AvailableRooms({
 
   return (
     <div className="mb-4">
-      <h3 className="text-lg font-medium mb-2">Salles disponibles</h3>
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-lg font-medium">Salles disponibles</h3>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+          title="Rafraîchir les salles"
+          className="flex-shrink-0"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
       <p className="text-sm text-gray-500 mb-2">Les salles inactives depuis plus de 30 minutes sont automatiquement supprimées.</p>
       {displayRooms.length > 0 ? (
         <div className="border rounded-md overflow-hidden">
