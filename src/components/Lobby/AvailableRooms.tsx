@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -19,6 +20,7 @@ interface AvailableRoomsProps {
   playerExists: boolean;
   selectedRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
+  refreshRooms?: () => void; // Nouvelle prop pour rafraîchir manuellement
 }
 
 export default function AvailableRooms({ 
@@ -26,22 +28,29 @@ export default function AvailableRooms({
   handleJoinRoom, 
   playerExists, 
   selectedRoomId,
-  onSelectRoom 
+  onSelectRoom,
+  refreshRooms
 }: AvailableRoomsProps) {
   // Add stabilization state with longer delay to prevent flickering
   const [stableRooms, setStableRooms] = useState<GameRoom[]>(rooms);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Force refresh on mount to s'assurer que les salles sont à jour
+  useEffect(() => {
+    if (refreshRooms) {
+      refreshRooms();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
   // Use effect to stabilize room updates with a longer delay
   useEffect(() => {
     // Only update the stable rooms after a longer delay to prevent flickering
     const timer = setTimeout(() => {
-      // Filter out rooms that have the same list of players to avoid unnecessary updates
-      if (JSON.stringify(stableRooms.map(r => r.id).sort()) !== JSON.stringify(rooms.map(r => r.id).sort())) {
-        setStableRooms(rooms);
-      }
+      // Update rooms more aggressively to ensure new rooms are displayed
+      setStableRooms(rooms);
       setIsLoading(false);
-    }, 500); // Longer delay to ensure stability
+    }, 300); // Shorter delay to ensure rooms appear more quickly
     
     return () => clearTimeout(timer);
   }, [rooms]);

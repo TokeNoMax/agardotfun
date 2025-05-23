@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useGame } from "@/context/GameContext";
 
 interface CreateRoomDialogProps {
   open: boolean;
@@ -44,6 +45,7 @@ export default function CreateRoomDialog({
 }: CreateRoomDialogProps) {
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
+  const { refreshCurrentRoom } = useGame(); // Accès au contexte pour rafraîchir les salles
   
   // Vérifier si le formulaire est valide pour activer le bouton
   const isFormValid = roomName.trim() !== "" && maxPlayers !== "";
@@ -63,10 +65,19 @@ export default function CreateRoomDialog({
     
     try {
       await handleCreateRoom();
+      
+      // Force refresh après création pour assurer que la salle apparaît
+      setTimeout(() => {
+        refreshCurrentRoom();
+      }, 500);
+      
       toast({
         title: "Salle créée",
         description: "Votre salle a été créée avec succès.",
       });
+      
+      // Fermer la modal après création réussie
+      onOpenChange(false);
     } catch (error) {
       console.error("Erreur lors de la création de la salle:", error);
       toast({

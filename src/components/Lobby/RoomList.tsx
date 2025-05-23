@@ -36,12 +36,9 @@ export default function RoomList() {
         !room.name.toLowerCase().includes('test_max_') // Filter out test rooms
       );
       
-      // Compare serialized room data to avoid unnecessary updates
-      const serializedRooms = JSON.stringify(filteredRooms.map(r => r.id));
-      if (serializedRooms !== previousRoomsRef.current) {
-        previousRoomsRef.current = serializedRooms;
-        setStableWaitingRooms(filteredRooms);
-      }
+      // Mettre à jour immédiatement sans comparaison pour s'assurer que les nouvelles salles apparaissent
+      setStableWaitingRooms(filteredRooms);
+      previousRoomsRef.current = JSON.stringify(filteredRooms.map(r => r.id));
     }
   }, [rooms, currentRoom]);
 
@@ -134,6 +131,12 @@ export default function RoomList() {
       try {
         const roomId = await createRoom(roomName, parseInt(maxPlayers));
         setCreateDialogOpen(false);
+        
+        // Force refresh pour s'assurer que la nouvelle salle apparaît
+        setTimeout(() => {
+          refreshCurrentRoom();
+        }, 300);
+        
         await joinRoom(roomId);
       } catch (error) {
         console.error("Error creating room:", error);
@@ -194,10 +197,11 @@ export default function RoomList() {
     }
   };
 
+  // Fonction de rafraîchissement avec un délai plus court
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshCurrentRoom();
-    setTimeout(() => setIsRefreshing(false), 500);
+    setTimeout(() => setIsRefreshing(false), 300);
   };
 
   const handleSelectRoom = (roomId: string) => {
@@ -322,13 +326,14 @@ export default function RoomList() {
           </Card>
         ) : null}
         
-        {/* Available rooms list */}
+        {/* Available rooms list with refresh function */}
         <AvailableRooms 
           rooms={stableWaitingRooms}
           handleJoinRoom={handleJoinRoom}
           playerExists={!!player}
           selectedRoomId={selectedRoomId}
           onSelectRoom={handleSelectRoom}
+          refreshRooms={refreshCurrentRoom}
         />
       </div>
       
