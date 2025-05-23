@@ -40,17 +40,26 @@ export default function AvailableRooms({
   // Force refresh on mount pour s'assurer que les salles sont à jour
   useEffect(() => {
     if (refreshRooms) {
-      refreshRooms();
-      setLastRefresh(new Date());
+      const initialLoad = async () => {
+        // Premier chargement
+        await refreshRooms();
+        
+        // Second chargement après un court délai pour s'assurer d'avoir les dernières données
+        setTimeout(async () => {
+          await refreshRooms();
+          setLastRefresh(new Date());
+          setIsLoading(false);
+        }, 800);
+      };
+      
+      initialLoad();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Use effect pour stabiliser les mises à jour des salles
+  // Réagir immédiatement aux changements de rooms pour éviter les décalages
   useEffect(() => {
-    // Mise à jour immédiate pour les nouvelles salles
     setStableRooms(rooms);
-    setIsLoading(false);
   }, [rooms]);
 
   // Fonction pour formater l'âge d'une salle
@@ -65,7 +74,7 @@ export default function AvailableRooms({
     }
   };
 
-  // Fonction de rafraîchissement manuel avec une séquence de requêtes
+  // Fonction de rafraîchissement manuel plus intensive
   const handleManualRefresh = async () => {
     if (refreshRooms && !isRefreshing) {
       setIsRefreshing(true);
@@ -73,18 +82,25 @@ export default function AvailableRooms({
       // Premier rafraîchissement
       await refreshRooms();
       
-      // Attendre un peu puis faire un second rafraîchissement pour s'assurer d'avoir les dernières données
+      // Second rafraîchissement après un court délai
       setTimeout(async () => {
         if (refreshRooms) {
           await refreshRooms();
-          setLastRefresh(new Date());
-          setIsRefreshing(false);
+          
+          // Troisième rafraîchissement pour s'assurer d'avoir les dernières données
+          setTimeout(async () => {
+            if (refreshRooms) {
+              await refreshRooms();
+              setLastRefresh(new Date());
+              setIsRefreshing(false);
+            }
+          }, 800);
         }
-      }, 1000);
+      }, 800);
     }
   };
 
-  // Show loading state if rooms are empty and still loading
+  // Afficher l'état de chargement si les salles sont vides et chargement en cours
   if (isLoading && stableRooms.length === 0) {
     return (
       <div className="mb-4">
@@ -107,7 +123,7 @@ export default function AvailableRooms({
     );
   }
 
-  // Filter out any remaining 'finished' rooms and test rooms before displaying
+  // Filtrer les salles pertinentes - les salles en attente et récemment créées
   const displayRooms = stableRooms.filter(room => 
     room.status !== 'finished' && 
     !room.name.toLowerCase().includes('test_') &&

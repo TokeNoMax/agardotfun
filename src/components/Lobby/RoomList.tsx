@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -25,6 +26,17 @@ export default function RoomList() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const previousRoomsRef = useRef<string>("");
+  
+  // Premier chargement forcé au montage du composant
+  useEffect(() => {
+    const initialLoad = async () => {
+      await refreshCurrentRoom();
+      console.log("Initial room refresh completed");
+    };
+    
+    initialLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Enhanced room filtering with stabilization to prevent flickering
   useEffect(() => {
@@ -129,26 +141,52 @@ export default function RoomList() {
     
     if (roomName.trim()) {
       try {
+        // Notification de début de création
+        toast({
+          title: "Création en cours",
+          description: "Création de votre salle en cours..."
+        });
+        
         const roomId = await createRoom(roomName, parseInt(maxPlayers));
         setCreateDialogOpen(false);
         
-        // Série de rafraîchissements pour s'assurer que la salle apparaît
+        // Séquence intensive de rafraîchissement
+        console.log("Room created, ID:", roomId);
+        
+        // Premier rafraîchissement immédiat
+        await refreshCurrentRoom();
+        console.log("First refresh completed");
+        
+        // Deuxième rafraîchissement après un délai
         setTimeout(async () => {
           await refreshCurrentRoom();
+          console.log("Second refresh completed");
           
-          // Tenter de rejoindre la salle après un court délai
-          setTimeout(async () => {
-            try {
-              await joinRoom(roomId);
-              
-              // Rafraîchir à nouveau après avoir rejoint
-              setTimeout(() => {
-                refreshCurrentRoom();
-              }, 500);
-            } catch (error) {
-              console.error("Erreur lors de la tentative de rejoindre la salle:", error);
-            }
-          }, 500);
+          // Tentative de rejoindre la salle créée
+          try {
+            console.log("Attempting to join room:", roomId);
+            await joinRoom(roomId);
+            
+            // Notification de succès
+            toast({
+              title: "Salle créée et rejointe",
+              description: "Votre salle a été créée avec succès et vous y avez été ajouté."
+            });
+            
+            // Rafraîchissement final pour confirmer
+            setTimeout(async () => {
+              await refreshCurrentRoom();
+              console.log("Final refresh after join completed");
+            }, 500);
+          } catch (error) {
+            console.error("Erreur lors de la tentative de rejoindre la salle:", error);
+            
+            // Continuer à rafraîchir même en cas d'erreur pour tenter de récupérer
+            setTimeout(async () => {
+              await refreshCurrentRoom();
+              console.log("Recovery refresh after join error completed");
+            }, 500);
+          }
         }, 1000);
       } catch (error) {
         console.error("Error creating room:", error);
@@ -214,23 +252,39 @@ export default function RoomList() {
     }
   };
 
-  // Fonction de rafraîchissement avec une série de requêtes
+  // Fonction de rafraîchissement avec une série de requêtes et notifications
   const handleRefresh = async () => {
+    if (isRefreshing) return;
+    
     setIsRefreshing(true);
+    
+    // Notification de début de rafraîchissement
+    toast({
+      title: "Rafraîchissement",
+      description: "Recherche des salles disponibles..."
+    });
     
     // Premier rafraîchissement
     await refreshCurrentRoom();
+    console.log("First manual refresh completed");
     
     // Second rafraîchissement après un court délai
     setTimeout(async () => {
       await refreshCurrentRoom();
-      setIsRefreshing(false);
+      console.log("Second manual refresh completed");
       
-      toast({
-        title: "Rafraîchissement terminé",
-        description: "La liste des salles a été mise à jour.",
-      });
-    }, 1000);
+      // Troisième rafraîchissement pour garantir les dernières données
+      setTimeout(async () => {
+        await refreshCurrentRoom();
+        console.log("Third manual refresh completed");
+        setIsRefreshing(false);
+        
+        toast({
+          title: "Rafraîchissement terminé",
+          description: "La liste des salles a été mise à jour.",
+        });
+      }, 800);
+    }, 800);
   };
 
   const handleSelectRoom = (roomId: string) => {

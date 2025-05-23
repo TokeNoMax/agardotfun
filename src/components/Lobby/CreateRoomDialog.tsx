@@ -50,7 +50,7 @@ export default function CreateRoomDialog({
   // Vérifier si le formulaire est valide pour activer le bouton
   const isFormValid = roomName.trim() !== "" && maxPlayers !== "";
   
-  // Gérer la création de salle avec validation
+  // Gérer la création de salle avec validation et séquence de rafraîchissement améliorée
   const handleCreateRoomWithValidation = async () => {
     if (!isFormValid) {
       toast({
@@ -66,25 +66,42 @@ export default function CreateRoomDialog({
     try {
       await handleCreateRoom();
       
-      // Force refresh après création pour garantir que la salle apparaît
-      // Augmentation du délai pour donner plus de temps au serveur (de 800ms à 1500ms)
-      setTimeout(() => {
-        refreshCurrentRoom();
-        // Second refresh après un délai supplémentaire pour s'assurer que la salle apparaît
-        setTimeout(() => {
-          refreshCurrentRoom();
-        }, 1000);
-      }, 1500);
-      
+      // Notification immédiate
       toast({
         title: "Salle créée",
-        description: "Votre salle a été créée avec succès.",
+        description: "Votre salle a été créée avec succès. Rafraîchissement en cours...",
       });
       
-      // Fermer la modal avec un délai pour laisser le temps au serveur de traiter la création
+      // Séquence intensive de rafraîchissement pour garantir que la salle apparaît
+      // Premier rafraîchissement rapide
+      refreshCurrentRoom();
+      
+      // Séquence de rafraîchissements multiples avec intervalles courts
       setTimeout(() => {
-        onOpenChange(false);
-      }, 500);
+        refreshCurrentRoom();
+        
+        // Second rafraîchissement après un délai
+        setTimeout(() => {
+          refreshCurrentRoom();
+          
+          // Troisième rafraîchissement après un délai supplémentaire
+          setTimeout(() => {
+            refreshCurrentRoom();
+            
+            // Fermer la modal avec un délai suffisant
+            setTimeout(() => {
+              onOpenChange(false);
+              
+              // Notification de confirmation
+              toast({
+                title: "Liste mise à jour",
+                description: "La liste des salles a été rafraîchie.",
+              });
+            }, 300);
+          }, 1000);
+        }, 1000);
+      }, 1000);
+      
     } catch (error) {
       console.error("Erreur lors de la création de la salle:", error);
       toast({
@@ -93,7 +110,10 @@ export default function CreateRoomDialog({
         variant: "destructive"
       });
     } finally {
-      setIsCreating(false);
+      // Ne pas réinitialiser isCreating trop tôt pour empêcher les clics multiples
+      setTimeout(() => {
+        setIsCreating(false);
+      }, 3000);
     }
   };
 
@@ -146,6 +166,7 @@ export default function CreateRoomDialog({
           <Button 
             onClick={handleCreateRoomWithValidation} 
             disabled={!isFormValid || isCreating}
+            className="relative"
           >
             {isCreating ? (
               <>
