@@ -63,9 +63,67 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     const storedPhrases = localStorage.getItem("blob-battle-custom-phrases");
     return storedPhrases ? JSON.parse(storedPhrases) : defaultPhrases;
   });
+  const [sessionVerified, setSessionVerified] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Fonction pour nettoyer l'état local
+  const clearLocalState = useCallback(() => {
+    console.log("Clearing local state due to session mismatch");
+    setCurrentRoom(null);
+    localStorage.removeItem("blob-battle-current-room");
+    localStorage.removeItem('blob-battle-game-state');
+  }, []);
+
+  // Vérification de session au démarrage
+  useEffect(() => {
+    const verifySession = async () => {
+      if (!player || !currentRoom || sessionVerified) {
+        setSessionVerified(true);
+        return;
+      }
+
+      console.log("Verifying session for player", player.id, "in room", currentRoom.id);
+
+      try {
+        // Vérifier si la salle existe encore
+        const roomExists = await gameRoomService.verifyRoomExists(currentRoom.id);
+        if (!roomExists) {
+          console.log("Room no longer exists, clearing local state");
+          clearLocalState();
+          toast({
+            title: "Session expirée",
+            description: "La salle que vous avez rejointe n'existe plus",
+            variant: "destructive"
+          });
+          setSessionVerified(true);
+          return;
+        }
+
+        // Vérifier si le joueur est toujours dans la salle
+        const playerInRoom = await gameRoomService.verifyPlayerInRoom(currentRoom.id, player.id);
+        if (!playerInRoom) {
+          console.log("Player no longer in room, clearing local state");
+          clearLocalState();
+          toast({
+            title: "Session expirée",
+            description: "Vous avez été déconnecté de la salle",
+            variant: "destructive"
+          });
+        } else {
+          console.log("Session verified successfully");
+        }
+      } catch (error) {
+        console.error("Error verifying session:", error);
+        // En cas d'erreur, on garde l'état local mais on log l'erreur
+      } finally {
+        setSessionVerified(true);
+      }
+    };
+
+    verifySession();
+  }, [player, currentRoom, sessionVerified, clearLocalState, toast]);
 
   // Save custom phrases to localStorage whenever they change
   useEffect(() => {

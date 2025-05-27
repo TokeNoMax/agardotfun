@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
@@ -23,40 +22,44 @@ export default function Lobby() {
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   
-  // Enhanced clearing of stuck rooms on component mount, but only once
+  // Improved initialization with better session cleanup
   useEffect(() => {
-    const clearStuckRoom = async () => {
+    const initializeLobby = async () => {
+      if (hasInitialized) return;
+      
+      console.log("Initializing lobby...");
+      setHasInitialized(true);
+      
       try {
-        // Avoid unnecessary leave actions if we're not in a room
-        if (!hasInitialized) {
-          setHasInitialized(true);
-          
-          // Only leave if we need to cleanup test rooms or finished games
-          const finishedGameState = localStorage.getItem('blob-battle-game-state');
-          const isFinishedGame = finishedGameState && JSON.parse(finishedGameState).status === 'finished';
-          
-          // Clear local storage for finished games
-          if (isFinishedGame) {
+        // Check for any finished games in localStorage
+        const gameState = localStorage.getItem('blob-battle-game-state');
+        if (gameState) {
+          const parsedState = JSON.parse(gameState);
+          if (parsedState.status === 'finished') {
+            console.log("Found finished game, cleaning up...");
             localStorage.removeItem('blob-battle-game-state');
             
-            // Only call leaveRoom if we were in a finished game
-            if (currentRoom) {
+            // Only leave room if we're actually in one
+            if (currentRoom && currentRoom.status === 'finished') {
               await leaveRoom();
             }
           }
-          
-          // Clear outdated room references without triggering unnecessary API calls
-          if (!currentRoom) {
-            localStorage.removeItem('blob-battle-current-room');
-          }
         }
+        
+        // Force refresh current room to sync with server
+        await refreshCurrentRoom();
+        console.log("Lobby initialization complete");
+        
       } catch (error) {
-        console.error("Error clearing room state:", error);
+        console.error("Error during lobby initialization:", error);
+        // If there's an error, clear potentially corrupted state
+        localStorage.removeItem('blob-battle-current-room');
+        localStorage.removeItem('blob-battle-game-state');
       }
     };
     
-    clearStuckRoom();
-  }, [leaveRoom, refreshCurrentRoom, hasInitialized, currentRoom]);
+    initializeLobby();
+  }, [hasInitialized, currentRoom, leaveRoom, refreshCurrentRoom]);
   
   const handleTestGame = async () => {
     if (!player) {
