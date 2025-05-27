@@ -152,41 +152,41 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Calculate movement direction with smoothing
+        // Calculate movement direction with proper normalization
         const canvas = canvasRef.current;
         if (canvas) {
           const canvasWidth = canvas.width;
           const canvasHeight = canvas.height;
           
-          // Calculate target position in world coordinates with smoothing
+          // Calculate target position in world coordinates
           const targetX = cameraPosition.x - (canvasWidth / 2 - mousePosition.x) / cameraZoom;
           const targetY = cameraPosition.y - (canvasHeight / 2 - mousePosition.y) / cameraZoom;
           
-          // Update last target position with some smoothing
-          setLastTargetPosition(prev => ({
+          // Update last target position
+          setLastTargetPosition({
             x: targetX,
             y: targetY
-          }));
+          });
           
-          // Calculate movement direction with smoothing to avoid teleportation
+          // Calculate movement direction
           const dx = targetX - me.x;
           const dy = targetY - me.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          // Slower speed for larger blobs with better speed calculation
+          // Slower speed for larger blobs
           const speedFactor = Math.max(0.5, 3 / Math.sqrt(me.size));
-          const speed = 2 * speedFactor;
-          
-          // Maximum movement per frame to avoid teleportation
-          const maxMovementPerFrame = speed;
+          const maxSpeed = 2 * speedFactor;
           
           if (distance > 5) {
-            // Apply movement with limited speed to avoid teleportation
-            const moveX = Math.min(Math.abs(dx), maxMovementPerFrame) * (dx > 0 ? 1 : -1);
-            const moveY = Math.min(Math.abs(dy), maxMovementPerFrame) * (dy > 0 ? 1 : -1);
+            // Normalize direction to ensure consistent speed in all directions
+            const directionX = dx / distance;
+            const directionY = dy / distance;
             
-            me.x += moveX;
-            me.y += moveY;
+            // Apply maximum speed in the normalized direction
+            const actualSpeed = Math.min(maxSpeed, distance);
+            
+            me.x += directionX * actualSpeed;
+            me.y += directionY * actualSpeed;
             
             // Game boundaries
             me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
