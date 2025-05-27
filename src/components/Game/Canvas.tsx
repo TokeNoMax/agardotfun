@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player } from "@/types/game";
@@ -14,6 +13,11 @@ const FOOD_VALUE = 1;
 const RUG_PENALTY = 5;
 const GRID_SIZE = 150;
 const GRID_COLOR = "#333333";
+
+// Speed configuration constants for better gameplay balance
+const BASE_SPEED = 3.5; // Base speed for small blobs
+const MIN_SPEED_RATIO = 0.25; // Minimum speed ratio (25% of base speed for very large blobs)
+const SPEED_REDUCTION_FACTOR = 0.025; // How much speed decreases per size unit
 
 interface CanvasProps {
   onGameOver: (winner: Player | null) => void;
@@ -36,6 +40,15 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  // Helper function to calculate speed based on blob size
+  const calculateSpeed = (size: number): number => {
+    // Progressive speed reduction: larger blobs are significantly slower
+    const sizeAboveBase = Math.max(0, size - 15); // Start reduction after size 15
+    const speedReduction = sizeAboveBase * SPEED_REDUCTION_FACTOR;
+    const speedFactor = Math.max(MIN_SPEED_RATIO, 1 - speedReduction);
+    return BASE_SPEED * speedFactor;
+  };
 
   // Game initialization - simplified and fixed for local mode
   useEffect(() => {
@@ -173,7 +186,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Calculate movement direction with proper normalization
+        // Calculate movement direction with proper normalization and progressive speed
         const canvas = canvasRef.current;
         if (canvas) {
           const canvasWidth = canvas.width;
@@ -194,9 +207,8 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
           const dy = targetY - me.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          // Slower speed for larger blobs
-          const speedFactor = Math.max(0.5, 3 / Math.sqrt(me.size));
-          const maxSpeed = 2 * speedFactor;
+          // Use the new progressive speed calculation
+          const maxSpeed = calculateSpeed(me.size);
           
           if (distance > 5) {
             // Normalize direction to ensure consistent speed in all directions
