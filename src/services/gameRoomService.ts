@@ -6,7 +6,7 @@ export interface DatabaseGameRoom {
   id: string;
   name: string;
   max_players: number;
-  status: 'waiting' | 'playing' | 'finished';
+  status: string; // Changé de 'waiting' | 'playing' | 'finished' à string
   created_at: string;
   updated_at: string;
 }
@@ -46,7 +46,7 @@ function convertToGameRoom(
     name: dbRoom.name,
     maxPlayers: dbRoom.max_players,
     players,
-    status: dbRoom.status,
+    status: dbRoom.status as 'waiting' | 'playing' | 'finished', // Type assertion sécurisée
     createdAt: dbRoom.created_at,
     updatedAt: dbRoom.updated_at
   };
