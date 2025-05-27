@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
-import { Food, Rug, Player } from "@/types/game";
+import { Food, Rug, Player, SafeZone } from "@/types/game";
 
 // Constants - Augmenté la taille du jeu et ajouté des constantes pour la grille
 const GAME_WIDTH = 3000;
@@ -19,13 +19,27 @@ const BASE_SPEED = 3.5; // Base speed for small blobs
 const MIN_SPEED_RATIO = 0.25; // Minimum speed ratio (25% of base speed for very large blobs)
 const SPEED_REDUCTION_FACTOR = 0.025; // How much speed decreases per size unit
 
+// Zone Battle constants
+const ZONE_SHRINK_INTERVAL = 120000; // 2 minutes in milliseconds
+const ZONE_DAMAGE_PER_SECOND = 3;
+const ZONE_SHRINK_PERCENTAGE = 0.2; // 20% reduction
+const INITIAL_ZONE_RADIUS = 1400;
+
 interface CanvasProps {
   onGameOver: (winner: Player | null) => void;
   isLocalMode?: boolean;
   localPlayer?: Player | null;
+  isZoneMode?: boolean;
+  onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
 }
 
-const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localPlayer = null }) => {
+const Canvas: React.FC<CanvasProps> = ({ 
+  onGameOver, 
+  isLocalMode = false, 
+  localPlayer = null,
+  isZoneMode = false,
+  onZoneUpdate
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { currentRoom, player: currentPlayer } = useGame();
   const [foods, setFoods] = useState<Food[]>([]);
@@ -36,6 +50,11 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [gameOverCalled, setGameOverCalled] = useState(false);
   const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
+  
+  // Zone Battle state
+  const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
+  const [gameStartTime, setGameStartTime] = useState<number>(0);
+  const [lastDamageTime, setLastDamageTime] = useState<number>(0);
 
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
@@ -50,9 +69,33 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
     return BASE_SPEED * speedFactor;
   };
 
+  // Initialize safe zone for Zone Battle mode
+  const initializeSafeZone = (): SafeZone => {
+    return {
+      x: GAME_WIDTH / 2,
+      y: GAME_HEIGHT / 2,
+      currentRadius: INITIAL_ZONE_RADIUS,
+      maxRadius: INITIAL_ZONE_RADIUS,
+      nextShrinkTime: Date.now() + 30000, // 30 seconds grace period
+      isActive: true,
+      shrinkInterval: ZONE_SHRINK_INTERVAL,
+      damagePerSecond: ZONE_DAMAGE_PER_SECOND,
+      shrinkPercentage: ZONE_SHRINK_PERCENTAGE
+    };
+  };
+
+  // Check if player is in safe zone
+  const isPlayerInSafeZone = (player: Player, zone: SafeZone): boolean => {
+    if (!zone.isActive) return true;
+    const dx = player.x - zone.x;
+    const dy = player.y - zone.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    return distance <= zone.currentRadius - player.size;
+  };
+
   // Game initialization - simplified and fixed for local mode
   useEffect(() => {
-    console.log("Initializing game - isLocalMode:", isLocalMode, "localPlayer:", localPlayer, "currentRoom:", currentRoom?.status);
+    console.log("Initializing game - isLocalMode:", isLocalMode, "localPlayer:", localPlayer, "currentRoom:", currentRoom?.status, "isZoneMode:", isZoneMode);
     
     // Clear any existing game loops
     if (gameLoopRef.current) {
@@ -101,6 +144,14 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
     console.log("Initial players setup:", initialPlayers);
     setPlayers(initialPlayers);
     
+    // Initialize safe zone for Zone Battle mode
+    if (isZoneMode) {
+      const zone = initializeSafeZone();
+      setSafeZone(zone);
+      setGameStartTime(Date.now());
+      console.log("Zone Battle mode initialized with safe zone:", zone);
+    }
+    
     // Generate foods
     const initialFoods = Array(FOOD_COUNT).fill(0).map(() => ({
       id: Math.random().toString(36).substring(2, 9),
@@ -135,7 +186,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         animationFrameRef.current = null;
       }
     };
-  }, [currentRoom, currentPlayer, isLocalMode, localPlayer]); // Removed isInitializedRef dependency
+  }, [currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode]);
 
   // Mouse movement - with smoothing
   useEffect(() => {
@@ -156,7 +207,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
     };
   }, []);
 
-  // Game loop - optimized for local mode with smoothing
+  // Game loop - optimized for local mode with smoothing and zone logic
   useEffect(() => {
     // Make sure we have a player reference
     if (!playerRef.current) {
@@ -167,6 +218,30 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
     console.log("Starting game loop with player:", playerRef.current);
     
     const gameLoop = (timestamp: number) => {
+      const currentTime = Date.now();
+      
+      // Zone Battle logic
+      if (isZoneMode && safeZone) {
+        setSafeZone(prevZone => {
+          if (!prevZone) return prevZone;
+          
+          let updatedZone = { ...prevZone };
+          
+          // Check if it's time to shrink the zone
+          if (currentTime >= updatedZone.nextShrinkTime) {
+            const newRadius = updatedZone.currentRadius * (1 - updatedZone.shrinkPercentage);
+            updatedZone = {
+              ...updatedZone,
+              currentRadius: Math.max(50, newRadius), // Minimum radius of 50
+              nextShrinkTime: currentTime + updatedZone.shrinkInterval
+            };
+            console.log("Zone shrunk to radius:", updatedZone.currentRadius);
+          }
+          
+          return updatedZone;
+        });
+      }
+      
       setPlayers(prevPlayers => {
         if (prevPlayers.length === 0) {
           console.log("No players, skipping update");
@@ -185,6 +260,23 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
+        
+        // Zone Battle: Check if player is outside safe zone and apply damage
+        if (isZoneMode && safeZone && playerRef.current) {
+          const inZone = isPlayerInSafeZone(me, safeZone);
+          
+          if (!inZone && currentTime - lastDamageTime >= 1000) { // Damage every second
+            me.size = Math.max(10, me.size - safeZone.damagePerSecond);
+            setLastDamageTime(currentTime);
+            console.log("Player took zone damage, size now:", me.size);
+          }
+          
+          // Update zone info for UI
+          if (onZoneUpdate) {
+            const timeUntilShrink = Math.max(0, safeZone.nextShrinkTime - currentTime);
+            onZoneUpdate(safeZone, inZone);
+          }
+        }
         
         // Calculate movement direction with proper normalization and progressive speed
         const canvas = canvasRef.current;
@@ -357,7 +449,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         gameLoopRef.current = null;
       }
     };
-  }, [cameraZoom, cameraPosition, mousePosition, players, onGameOver, currentRoom, currentPlayer, isLocalMode, localPlayer]);
+  }, [cameraZoom, cameraPosition, mousePosition, players, onGameOver, currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode, safeZone, lastDamageTime, onZoneUpdate]);
 
   // Rendering - completely optimized
   useEffect(() => {
@@ -412,6 +504,38 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
       
       context.stroke();
       
+      // Draw safe zone for Zone Battle mode
+      if (isZoneMode && safeZone && safeZone.isActive) {
+        // Draw safe zone circle
+        context.beginPath();
+        context.strokeStyle = '#22c55e'; // Green
+        context.lineWidth = 3 / cameraZoom;
+        context.arc(safeZone.x, safeZone.y, safeZone.currentRadius, 0, Math.PI * 2);
+        context.stroke();
+        
+        // Draw danger zone (outside safe zone)
+        context.beginPath();
+        context.strokeStyle = '#ef4444'; // Red
+        context.lineWidth = 6 / cameraZoom;
+        context.setLineDash([10 / cameraZoom, 10 / cameraZoom]);
+        context.arc(safeZone.x, safeZone.y, safeZone.currentRadius + 20, 0, Math.PI * 2);
+        context.stroke();
+        context.setLineDash([]);
+        
+        // Fill danger zone with semi-transparent red
+        context.globalCompositeOperation = 'multiply';
+        context.fillStyle = 'rgba(239, 68, 68, 0.1)';
+        context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        
+        // Cut out the safe zone
+        context.globalCompositeOperation = 'destination-out';
+        context.beginPath();
+        context.arc(safeZone.x, safeZone.y, safeZone.currentRadius, 0, Math.PI * 2);
+        context.fill();
+        
+        context.globalCompositeOperation = 'source-over';
+      }
+      
       // Draw food
       foods.forEach(food => {
         context.beginPath();
@@ -464,7 +588,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         animationFrameRef.current = null;
       }
     };
-  }, [players, foods, rugs, cameraPosition, cameraZoom]);
+  }, [players, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone]);
 
   // Helper function to get color hex
   const getColorHex = (color: string): string => {

@@ -32,6 +32,19 @@ export interface Rug {
   size: number;
 }
 
+// Types pour la zone safe
+export interface SafeZone {
+  x: number;
+  y: number;
+  currentRadius: number;
+  maxRadius: number;
+  nextShrinkTime: number;
+  isActive: boolean;
+  shrinkInterval: number; // milliseconds
+  damagePerSecond: number;
+  shrinkPercentage: number; // 0.2 = 20%
+}
+
 // Types pour les salles de jeu
 export interface GameRoom {
   id: string;

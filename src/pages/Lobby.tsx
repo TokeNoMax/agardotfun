@@ -116,6 +116,24 @@ export default function Lobby() {
     
     navigate('/game?local=true');
   };
+
+  const handleZoneBattle = () => {
+    if (!player) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez personnaliser votre blob avant de jouer en Zone Battle",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    toast({
+      title: "Zone Battle",
+      description: "Préparez-vous pour la bataille dans la zone qui rétrécit !"
+    });
+    
+    navigate('/game?mode=zone');
+  };
   
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -246,7 +264,7 @@ export default function Lobby() {
                 <p className="text-gray-600 mb-4">
                   Jouez une partie rapide en solo, sans avoir à attendre d'autres joueurs.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 justify-center mt-6">
                   <Button 
                     onClick={handleTestGame}
                     disabled={isCreatingTestGame}
@@ -260,7 +278,7 @@ export default function Lobby() {
                     ) : (
                       <>
                         <Gamepad2Icon className="mr-2" />
-                        Mode Test (solo)
+                        Mode Test
                       </>
                     )}
                   </Button>
@@ -270,8 +288,36 @@ export default function Lobby() {
                     className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-lg"
                   >
                     <Gamepad2Icon className="mr-2" />
-                    Mode Local (sans réseau)
+                    Mode Local
                   </Button>
+
+                  <Button 
+                    onClick={handleZoneBattle}
+                    className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 text-lg"
+                  >
+                    <Gamepad2Icon className="mr-2" />
+                    Zone Battle
+                  </Button>
+                </div>
+                
+                <div className="mt-6 space-y-3">
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <h4 className="font-medium text-amber-800">Mode Test</h4>
+                    <p className="text-sm text-amber-700">Partie rapide sans contraintes pour tester les mécaniques de base.</p>
+                  </div>
+                  
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-medium text-green-800">Mode Local</h4>
+                    <p className="text-sm text-green-700">Jeu en solo classique, idéal pour s'entraîner.</p>
+                  </div>
+                  
+                  <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <h4 className="font-medium text-purple-800">Zone Battle</h4>
+                    <p className="text-sm text-purple-700">
+                      Mode de survie avec une zone qui rétrécit toutes les 2 minutes. 
+                      Restez dans la zone verte ou perdez de la taille !
+                    </p>
+                  </div>
                 </div>
               </div>
             </TabsContent>

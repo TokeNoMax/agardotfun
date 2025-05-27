@@ -1,11 +1,13 @@
+
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import Canvas from "./Canvas";
 import GameOverModal from "./GameOverModal";
 import Leaderboard from "./Leaderboard";
-import { Player } from "@/types/game";
-import { useNavigate } from "react-router-dom";
+import ZoneCounter from "./ZoneCounter";
+import { Player, SafeZone } from "@/types/game";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 export default function GameUI() {
@@ -15,17 +17,25 @@ export default function GameUI() {
   const [alivePlayers, setAlivePlayers] = useState<number>(0);
   const [localMode, setLocalMode] = useState<boolean>(false);
   const [localPlayer, setLocalPlayer] = useState<Player | null>(null);
+  const [isZoneMode, setIsZoneMode] = useState<boolean>(false);
+  const [currentZone, setCurrentZone] = useState<SafeZone | null>(null);
+  const [isPlayerInZone, setIsPlayerInZone] = useState<boolean>(true);
+  const [timeUntilShrink, setTimeUntilShrink] = useState<number>(0);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   
   // Check if we're in local mode based on URL parameters - seulement une fois au chargement
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const isLocalMode = urlParams.get('local') === 'true';
+    const gameMode = urlParams.get('mode');
+    const isZoneBattle = gameMode === 'zone';
     
-    if (isLocalMode) {
+    if (isLocalMode || isZoneBattle) {
       // Create a local player if in local mode
       setLocalMode(true);
+      setIsZoneMode(isZoneBattle);
       setLocalPlayer({
         id: "local-player",
         walletAddress: "local-player", // Add required walletAddress for local mode
@@ -63,6 +73,13 @@ export default function GameUI() {
       return () => clearTimeout(timer);
     }
   }, [currentRoom, player, navigate, localMode]);
+
+  // Handle zone updates from Canvas
+  const handleZoneUpdate = (zone: SafeZone, playerInZone: boolean) => {
+    setCurrentZone(zone);
+    setIsPlayerInZone(playerInZone);
+    setTimeUntilShrink(zone.nextShrinkTime - Date.now());
+  };
 
   const handleGameOver = (winner: Player | null) => {
     setWinner(winner);
@@ -134,7 +151,7 @@ export default function GameUI() {
       {/* Game status */}
       <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm p-3 rounded-md shadow-md z-10 text-white">
         <div className="text-sm font-medium">
-          {localMode ? "Mode Solo Local" : `Joueurs en vie: ${alivePlayers}`}
+          {localMode ? (isZoneMode ? "Mode Zone Battle" : "Mode Solo Local") : `Joueurs en vie: ${alivePlayers}`}
         </div>
         {!localMode && currentRoom && (
           <div className="text-sm font-medium">Salle: {currentRoom.name}</div>
@@ -143,6 +160,17 @@ export default function GameUI() {
           Vous: {localMode ? localPlayer?.name : player?.name}
         </div>
       </div>
+      
+      {/* Zone Counter for Zone Battle mode */}
+      {isZoneMode && currentZone && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+          <ZoneCounter 
+            safeZone={currentZone}
+            isPlayerInZone={isPlayerInZone}
+            timeUntilShrink={timeUntilShrink}
+          />
+        </div>
+      )}
       
       {/* Exit button */}
       <div className="absolute top-4 right-4 z-10">
@@ -170,6 +198,8 @@ export default function GameUI() {
           onGameOver={handleGameOver} 
           isLocalMode={localMode}
           localPlayer={localPlayer}
+          isZoneMode={isZoneMode}
+          onZoneUpdate={handleZoneUpdate}
         />
       </div>
       
