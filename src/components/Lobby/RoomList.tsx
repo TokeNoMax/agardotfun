@@ -19,7 +19,6 @@ export default function RoomList() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [gameStarting, setGameStarting] = useState(false);
-  const [stableWaitingRooms, setStableWaitingRooms] = useState<GameRoom[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [lastCreatedRoomId, setLastCreatedRoomId] = useState<string | null>(null);
   const [lastCreatedRoomName, setLastCreatedRoomName] = useState<string | null>(null);
@@ -28,7 +27,6 @@ export default function RoomList() {
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const previousRoomsRef = useRef<string>("");
 
   // Premier chargement forcé au montage du composant
   useEffect(() => {
@@ -42,13 +40,11 @@ export default function RoomList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Enhanced room filtering with stabilization to prevent flickering
+  // Utiliser directement les salles de rooms au lieu de stableWaitingRooms
   useEffect(() => {
     console.log("Rooms updated:", rooms.length);
     if (rooms && rooms.length > 0) {
       console.log("Room IDs:", rooms.map(r => `${r.id} (${r.name}) - ${r.status}`).join(", "));
-      setStableWaitingRooms(rooms);
-      previousRoomsRef.current = JSON.stringify(rooms.map(r => r.id));
       
       // Vérifier si notre salle récemment créée est présente dans la liste
       if (lastCreatedRoomId && !hasShownRoomFoundToast) {
@@ -320,7 +316,7 @@ export default function RoomList() {
     return currentRoom.players.some(p => p.id === player.id);
   };
   
-  // Get the selected room details
+  // Get the selected room details - use rooms directly
   const selectedRoom = selectedRoomId ? rooms.find(r => r.id === selectedRoomId) : null;
 
   // Vérifier si une salle a été créée mais n'apparaît pas dans la liste
@@ -482,9 +478,9 @@ export default function RoomList() {
           </Card>
         ) : null}
         
-        {/* Available rooms list with refresh function */}
+        {/* Available rooms list - use rooms directly instead of stableWaitingRooms */}
         <AvailableRooms 
-          rooms={stableWaitingRooms}
+          rooms={rooms}
           handleJoinRoom={handleJoinRoom}
           playerExists={!!player}
           selectedRoomId={selectedRoomId}
