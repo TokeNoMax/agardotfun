@@ -5,7 +5,8 @@
 export type PlayerColor = 'blue' | 'red' | 'green' | 'yellow' | 'purple' | 'orange' | 'cyan' | 'pink';
 
 export interface Player {
-  id: string;
+  id: string; // This will be the wallet address
+  walletAddress: string; // Solana wallet address
   name: string;
   color: PlayerColor;
   size: number;

@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
+import WalletButton from "@/components/Wallet/WalletButton";
 import { Button } from "@/components/ui/button";
-import { Gamepad2Icon, Users, User, ArrowLeft } from "lucide-react";
+import { Gamepad2Icon, Users, User, ArrowLeft, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -17,6 +19,7 @@ import {
 
 export default function Lobby() {
   const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();
+  const { connected, publicKey } = useWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
@@ -113,10 +116,14 @@ export default function Lobby() {
     navigate('/game?local=true');
   };
   
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto py-10">
-        {/* Header with logo and back button */}
+        {/* Header with logo, wallet, and back button */}
         <div className="flex justify-between items-center mb-8">
           <Button 
             variant="outline" 
@@ -126,54 +133,80 @@ export default function Lobby() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          
           <div className="flex items-center">
             <h1 className="text-3xl font-extrabold text-indigo-800">
               agar<span className="text-indigo-500">.fun</span>
             </h1>
           </div>
           
-          {/* Profile button / personalization button */}
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button 
-                variant={player ? "outline" : "default"}
-                className={player ? "gap-2" : ""}
-              >
-                {player ? (
-                  <>
-                    <div 
-                      className="w-6 h-6 rounded-full"
-                      style={{ backgroundColor: `#${getColorHex(player.color)}` }}
-                    ></div>
-                    <span>{player.name}</span>
-                  </>
-                ) : (
-                  "Personnaliser"
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetHeader className="mb-5">
-                <SheetTitle>Personnalisation</SheetTitle>
-              </SheetHeader>
-              <PlayerCustomization />
-            </SheetContent>
-          </Sheet>
+          <div className="flex items-center gap-3">
+            {/* Wallet Connection */}
+            <WalletButton />
+            
+            {/* Profile button / personalization button */}
+            {connected && publicKey && (
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button 
+                    variant={player ? "outline" : "default"}
+                    className={player ? "gap-2" : ""}
+                  >
+                    {player ? (
+                      <>
+                        <div 
+                          className="w-6 h-6 rounded-full"
+                          style={{ backgroundColor: `#${getColorHex(player.color)}` }}
+                        ></div>
+                        <span>{player.name}</span>
+                      </>
+                    ) : (
+                      "Personnaliser"
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent>
+                  <SheetHeader className="mb-5">
+                    <SheetTitle>Personnalisation</SheetTitle>
+                  </SheetHeader>
+                  <PlayerCustomization />
+                </SheetContent>
+              </Sheet>
+            )}
+          </div>
         </div>
         
         <div className="flex flex-col items-center mb-10">
           <h2 className="text-2xl font-bold text-center mb-3">Lobby de jeu</h2>
           <p className="text-gray-600 max-w-lg text-center">
-            Rejoignez ou créez une partie pour commencer à jouer. Assurez-vous de personnaliser votre blob avant de rejoindre une partie.
+            Connectez votre wallet Solana et personnalisez votre blob pour commencer à jouer.
           </p>
         </div>
         
-        {!player ? (
+        {!connected || !publicKey ? (
+          <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-lg mb-8 text-center">
+            <Wallet className="h-16 w-16 text-indigo-500 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold mb-4">Connectez votre wallet</h3>
+            <p className="text-gray-600 mb-6">
+              Votre adresse wallet Solana sera votre identité unique dans le jeu. 
+              Connectez votre wallet pour continuer.
+            </p>
+            <WalletButton className="w-full flex justify-center" />
+          </div>
+        ) : !player ? (
           <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-lg mb-8 text-center">
             <h3 className="text-xl font-semibold mb-4">Personnalisez votre blob</h3>
             <p className="text-gray-600 mb-4">
-              Vous devez créer un blob personnalisé pour rejoindre ou créer des parties.
+              Votre wallet est connecté ! Maintenant personnalisez votre blob pour rejoindre ou créer des parties.
             </p>
+            <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center justify-center gap-2">
+                <Wallet className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium text-green-800">
+                  {formatAddress(publicKey.toString())}
+                </span>
+              </div>
+            </div>
             <Sheet>
               <SheetTrigger asChild>
                 <Button className="w-full">Personnaliser mon blob</Button>

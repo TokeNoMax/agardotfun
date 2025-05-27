@@ -7,7 +7,6 @@ import React, {
   useCallback,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { v4 as uuidv4 } from "uuid";
 import { Player, PlayerColor, GameRoom } from "@/types/game";
 import { useToast } from "@/hooks/use-toast";
 import { gameRoomService } from "@/services/gameRoomService";
@@ -29,7 +28,7 @@ const defaultPhrases: string[] = [
 
 interface GameContextType {
   player: Player | null;
-  setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
+  setPlayerDetails: (name: string, color: PlayerColor, walletAddress: string) => Promise<void>;
   rooms: GameRoom[];
   createRoom: (roomName: string, maxPlayers: number) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
@@ -84,7 +83,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         return;
       }
 
-      console.log("Verifying session for player", player.id, "in room", currentRoom.id);
+      console.log("Verifying session for player", player.walletAddress, "in room", currentRoom.id);
 
       try {
         // Vérifier si la salle existe encore
@@ -102,7 +101,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         }
 
         // Vérifier si le joueur est toujours dans la salle
-        const playerInRoom = await gameRoomService.verifyPlayerInRoom(currentRoom.id, player.id);
+        const playerInRoom = await gameRoomService.verifyPlayerInRoom(currentRoom.id, player.walletAddress);
         if (!playerInRoom) {
           console.log("Player no longer in room, clearing local state");
           clearLocalState();
@@ -161,9 +160,10 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   });
 
   const setPlayerDetails = useCallback(
-    async (name: string, color: PlayerColor) => {
+    async (name: string, color: PlayerColor, walletAddress: string) => {
       const newPlayer: Player = {
-        id: uuidv4(),
+        id: walletAddress, // Use wallet address as ID
+        walletAddress: walletAddress,
         name: name,
         color: color,
         size: 20,
