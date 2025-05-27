@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { useGame } from "@/context/GameContext";
 import { PlayerColor } from "@/types/game";
 import WalletButton from "@/components/Wallet/WalletButton";
-import { Wallet } from "lucide-react";
+import { Wallet, Smartphone } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const COLORS: PlayerColor[] = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink'];
 
@@ -16,6 +17,7 @@ export default function PlayerCustomization() {
   const [selectedColor, setSelectedColor] = useState<PlayerColor>("blue");
   const { setPlayerDetails, player } = useGame();
   const { connected, publicKey } = useWallet();
+  const isMobile = useIsMobile();
 
   // Pre-fill form with player data if exists
   useEffect(() => {
@@ -48,14 +50,27 @@ export default function PlayerCustomization() {
         
         <div className="text-center space-y-4">
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <Wallet className="h-12 w-12 text-blue-500 mx-auto mb-3" />
+            {isMobile ? (
+              <Smartphone className="h-12 w-12 text-blue-500 mx-auto mb-3" />
+            ) : (
+              <Wallet className="h-12 w-12 text-blue-500 mx-auto mb-3" />
+            )}
             <p className="text-blue-800 text-sm">
-              Votre adresse wallet Solana sera votre identité unique dans le jeu.
-              Connectez votre wallet pour continuer.
+              {isMobile 
+                ? "Connectez votre wallet mobile Solana pour jouer. Votre adresse sera votre identité unique dans le jeu."
+                : "Votre adresse wallet Solana sera votre identité unique dans le jeu. Connectez votre wallet pour continuer."
+              }
             </p>
           </div>
           
           <WalletButton className="w-full flex justify-center" />
+          
+          {isMobile && (
+            <div className="text-xs text-gray-500 mt-2">
+              <p>⚠️ Ne partagez jamais votre clé privée</p>
+              <p>✅ Connexion sécurisée via votre app wallet</p>
+            </div>
+          )}
         </div>
       </div>
     );

@@ -1,5 +1,6 @@
-
 import React from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import MobileWalletButton from './MobileWalletButton';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Button } from '@/components/ui/button';
@@ -10,12 +11,19 @@ interface WalletButtonProps {
 }
 
 export default function WalletButton({ className }: WalletButtonProps) {
+  const isMobile = useIsMobile();
   const { connected, publicKey } = useWallet();
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
 
+  // Use mobile-specific component on mobile devices
+  if (isMobile) {
+    return <MobileWalletButton className={className} />;
+  }
+
+  // Desktop behavior (unchanged)
   return (
     <div className={className}>
       {connected && publicKey ? (
