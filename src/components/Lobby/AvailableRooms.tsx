@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -167,7 +166,7 @@ export default function AvailableRooms({
                       <div className="flex items-center gap-2">
                         {room.name || "Salle sans nom"}
                         {isEmpty && (
-                          <Users className="h-4 w-4 text-blue-500" title="Salle vide - vous pouvez la rejoindre" />
+                          <Users className="h-4 w-4 text-blue-500" />
                         )}
                       </div>
                     </TableCell>
