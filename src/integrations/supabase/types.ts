@@ -106,7 +106,7 @@ export type Database = {
         Insert: {
           color: string
           created_at?: string
-          id?: string
+          id: string
           name: string
         }
         Update: {

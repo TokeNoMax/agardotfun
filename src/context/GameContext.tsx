@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useState,
@@ -162,7 +161,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const setPlayerDetails = useCallback(
     async (name: string, color: PlayerColor, walletAddress: string) => {
       const newPlayer: Player = {
-        id: walletAddress, // Use wallet address as ID
+        id: walletAddress, // Use wallet address as ID directly
         walletAddress: walletAddress,
         name: name,
         color: color,
@@ -175,7 +174,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       setPlayer(newPlayer);
       localStorage.setItem("blob-battle-player", JSON.stringify(newPlayer));
       
-      console.log("Player details set:", newPlayer);
+      console.log("Player details set with Solana address as ID:", newPlayer);
     },
     []
   );
@@ -213,7 +212,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       }
 
       try {
-        console.log(`Joining room: ${roomId}`);
+        console.log(`Joining room: ${roomId} with player ID: ${player.walletAddress}`);
         await gameRoomService.joinRoom(roomId, player);
         
         // Récupérer les détails de la salle mise à jour
@@ -265,7 +264,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     
     try {
       console.log("Leaving room:", currentRoom.id);
-      await gameRoomService.leaveRoom(currentRoom.id, player.id);
+      await gameRoomService.leaveRoom(currentRoom.id, player.walletAddress); // Utiliser walletAddress
       
       setCurrentRoom(null);
       localStorage.removeItem("blob-battle-current-room");
@@ -294,7 +293,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
       try {
         console.log(`Setting player ready status to ${ready}`);
-        await gameRoomService.setPlayerReady(currentRoom.id, player.id, ready);
+        await gameRoomService.setPlayerReady(currentRoom.id, player.walletAddress, ready); // Utiliser walletAddress
       } catch (error) {
         console.error("Error setting player ready:", error);
         toast({

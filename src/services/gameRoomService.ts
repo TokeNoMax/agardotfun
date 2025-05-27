@@ -14,7 +14,7 @@ export interface DatabaseGameRoom {
 export interface DatabaseGameRoomPlayer {
   id: string;
   room_id: string;
-  player_id: string;
+  player_id: string; // Maintenant de type string au lieu d'uuid
   player_name: string;
   player_color: string;
   size: number;
@@ -182,7 +182,7 @@ export const gameRoomService = {
     return data.id;
   },
 
-  // Rejoindre une salle
+  // Rejoindre une salle - mise à jour pour utiliser les adresses Solana comme ID
   async joinRoom(roomId: string, player: Player): Promise<void> {
     console.log(`Player ${player.name} joining room ${roomId}`);
     
@@ -190,7 +190,7 @@ export const gameRoomService = {
     const { data: existingPlayer, error: playerCheckError } = await supabase
       .from('players')
       .select('id')
-      .eq('id', player.id)
+      .eq('id', player.walletAddress) // Utiliser walletAddress comme ID
       .single();
 
     if (playerCheckError || !existingPlayer) {
@@ -198,7 +198,7 @@ export const gameRoomService = {
       const { error: createPlayerError } = await supabase
         .from('players')
         .insert({
-          id: player.id,
+          id: player.walletAddress, // Utiliser l'adresse Solana comme ID
           name: player.name,
           color: player.color
         });
@@ -214,7 +214,7 @@ export const gameRoomService = {
       .from('game_room_players')
       .insert({
         room_id: roomId,
-        player_id: player.id,
+        player_id: player.walletAddress, // Utiliser l'adresse Solana comme player_id
         player_name: player.name,
         player_color: player.color,
         size: player.size,
