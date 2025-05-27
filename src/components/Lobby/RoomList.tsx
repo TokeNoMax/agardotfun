@@ -7,7 +7,6 @@ import { useNavigate } from "react-router-dom";
 import CreateRoomDialog from "./CreateRoomDialog";
 import CurrentRoom from "./CurrentRoom";
 import AvailableRooms from "./AvailableRooms";
-import AdminPanel from "./AdminPanel";
 import { GameRoom } from "@/types/game";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -368,9 +367,6 @@ export default function RoomList() {
       </div>
       
       <div className="p-6">
-        {/* Panneau d'administration */}
-        <AdminPanel />
-        
         {/* Message si trop d'erreurs de création */}
         {creationErrorCount >= 2 && (
           <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-md">

@@ -12,10 +12,9 @@ import {
 } from "@/components/ui/sheet";
 import AdminPanel from "@/components/Lobby/AdminPanel";
 
-// Adresses Solana autorisées pour l'administration
+// Adresse Solana autorisée pour l'administration
 const ADMIN_ADDRESSES = [
-  // Ajoutez ici les adresses Solana des administrateurs
-  "VOTRE_ADRESSE_ADMIN_ICI", // Remplacez par la vraie adresse
+  "2qjVVphwN7hb93JeYnSVYZV4BiHpFrZCpNWW9rZezDpx"
 ];
 
 export default function AdminSheet() {
