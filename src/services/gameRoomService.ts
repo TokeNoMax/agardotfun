@@ -182,9 +182,18 @@ export const gameRoomService = {
     return data.id;
   },
 
-  // Rejoindre une salle - mise à jour pour utiliser les adresses Solana comme ID
+  // Rejoindre une salle - AMÉLIORÉ pour éviter les doublons
   async joinRoom(roomId: string, player: Player): Promise<void> {
     console.log(`Player ${player.name} joining room ${roomId}`);
+    
+    // Vérifier d'abord si le joueur est déjà dans cette salle
+    const isPlayerAlreadyInRoom = await this.verifyPlayerInRoom(roomId, player.walletAddress);
+    if (isPlayerAlreadyInRoom) {
+      console.log(`Player ${player.walletAddress} is already in room ${roomId}`);
+      // Simplement mettre à jour l'activité de la salle et retourner
+      await this.updateRoomActivity(roomId);
+      return;
+    }
     
     // D'abord, vérifier si le joueur existe dans la table players
     const { data: existingPlayer, error: playerCheckError } = await supabase
