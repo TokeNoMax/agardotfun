@@ -5,6 +5,7 @@ import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import WalletButton from "@/components/Wallet/WalletButton";
+import AdminSheet from "@/components/Admin/AdminSheet";
 import { Button } from "@/components/ui/button";
 import { Gamepad2Icon, Users, User, ArrowLeft, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -123,7 +124,7 @@ export default function Lobby() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto py-10">
-        {/* Header with logo, wallet, and back button */}
+        {/* Header with logo, wallet, admin, and back button */}
         <div className="flex justify-between items-center mb-8">
           <Button 
             variant="outline" 
@@ -141,6 +142,9 @@ export default function Lobby() {
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Admin Panel (only visible for admins) */}
+            <AdminSheet />
+            
             {/* Wallet Connection */}
             <WalletButton />
             
