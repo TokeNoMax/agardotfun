@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { GameRoom, Player } from "@/types/game";
 
@@ -33,6 +32,7 @@ function convertToGameRoom(
 ): GameRoom {
   const players: Player[] = dbPlayers.map(dbPlayer => ({
     id: dbPlayer.player_id,
+    walletAddress: dbPlayer.player_id, // Use player_id as wallet address since they're the same now
     name: dbPlayer.player_name,
     color: dbPlayer.player_color as any,
     size: dbPlayer.size,

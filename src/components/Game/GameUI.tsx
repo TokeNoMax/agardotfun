@@ -28,6 +28,7 @@ export default function GameUI() {
       setLocalMode(true);
       setLocalPlayer({
         id: "local-player",
+        walletAddress: "local-player", // Add required walletAddress for local mode
         name: player?.name || "LocalPlayer",
         color: player?.color || "blue",
         size: 15,
