@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player } from "@/types/game";
@@ -32,28 +33,42 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
   const [gameOverCalled, setGameOverCalled] = useState(false);
   const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
 
-  const playerRef = useRef(isLocalMode ? localPlayer : currentPlayer);
+  const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const isInitializedRef = useRef<boolean>(false);
 
-  // Game initialization - simplified for local mode
+  // Game initialization - simplified and fixed for local mode
   useEffect(() => {
-    if (isInitializedRef.current) return;
-    isInitializedRef.current = true;
+    console.log("Initializing game - isLocalMode:", isLocalMode, "localPlayer:", localPlayer, "currentRoom:", currentRoom?.status);
+    
+    // Clear any existing game loops
+    if (gameLoopRef.current) {
+      cancelAnimationFrame(gameLoopRef.current);
+      gameLoopRef.current = null;
+    }
     
     // For local mode, don't check currentRoom status
-    const shouldInitialize = isLocalMode ? true : 
+    const shouldInitialize = isLocalMode ? !!localPlayer : 
       (currentRoom?.status === 'playing' && !!currentPlayer);
     
-    if (!shouldInitialize) return;
+    if (!shouldInitialize) {
+      console.log("Not initializing - conditions not met");
+      return;
+    }
     
     let initialPlayers: Player[] = [];
     
     if (isLocalMode && localPlayer) {
       // In local mode, just use the local player
-      initialPlayers = [localPlayer];
-      playerRef.current = localPlayer;
+      console.log("Setting up local player:", localPlayer);
+      initialPlayers = [{
+        ...localPlayer,
+        x: GAME_WIDTH / 2,
+        y: GAME_HEIGHT / 2,
+        isAlive: true,
+        size: 15
+      }];
+      playerRef.current = initialPlayers[0];
     } else if (currentRoom) {
       // In online mode, use players from currentRoom
       initialPlayers = currentRoom.players.map(p => ({
@@ -70,6 +85,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
       }
     }
     
+    console.log("Initial players setup:", initialPlayers);
     setPlayers(initialPlayers);
     
     // Generate foods
@@ -96,7 +112,6 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
     }
 
     return () => {
-      isInitializedRef.current = false;
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
         gameLoopRef.current = null;
@@ -107,7 +122,7 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
         animationFrameRef.current = null;
       }
     };
-  }, [currentRoom, currentPlayer, isLocalMode, localPlayer]);
+  }, [currentRoom, currentPlayer, isLocalMode, localPlayer]); // Removed isInitializedRef dependency
 
   // Mouse movement - with smoothing
   useEffect(() => {
@@ -130,22 +145,28 @@ const Canvas: React.FC<CanvasProps> = ({ onGameOver, isLocalMode = false, localP
 
   // Game loop - optimized for local mode with smoothing
   useEffect(() => {
-    // Local mode uses localPlayer, online mode uses currentPlayer from currentRoom
-    const activePlayer = isLocalMode ? localPlayer : 
-      (currentRoom?.status === 'playing' && currentPlayer) ? currentPlayer : null;
-      
-    if (!activePlayer) return;
+    // Make sure we have a player reference
+    if (!playerRef.current) {
+      console.log("No player ref, skipping game loop");
+      return;
+    }
+    
+    console.log("Starting game loop with player:", playerRef.current);
     
     const gameLoop = (timestamp: number) => {
       setPlayers(prevPlayers => {
-        if (prevPlayers.length === 0) return prevPlayers;
+        if (prevPlayers.length === 0) {
+          console.log("No players, skipping update");
+          return prevPlayers;
+        }
         
         // Find our player index
         const ourPlayerIndex = prevPlayers.findIndex(p => 
-          p.id === (isLocalMode ? localPlayer?.id : currentPlayer?.id)
+          p.id === playerRef.current?.id
         );
         
         if (ourPlayerIndex === -1 || !prevPlayers[ourPlayerIndex].isAlive) {
+          console.log("Player not found or not alive, skipping update");
           return prevPlayers;
         }
         
