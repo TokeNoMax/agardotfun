@@ -7,9 +7,11 @@ import { useNavigate } from "react-router-dom";
 import CreateRoomDialog from "./CreateRoomDialog";
 import CurrentRoom from "./CurrentRoom";
 import AvailableRooms from "./AvailableRooms";
+import AdminPanel from "./AdminPanel";
 import { GameRoom } from "@/types/game";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 
 export default function RoomList() {
   const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
@@ -323,6 +325,12 @@ export default function RoomList() {
   const isLastCreatedRoomMissing = lastCreatedRoomId !== null && 
                                   !rooms.some(r => r.id === lastCreatedRoomId);
 
+  // Activer le nettoyage automatique
+  useAutoCleanup({ 
+    intervalMinutes: 15, // Nettoyage toutes les 15 minutes depuis le frontend
+    enableLogging: true 
+  });
+
   return (
     <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg">
       <div className="flex justify-between items-center p-6 border-b">
@@ -360,6 +368,9 @@ export default function RoomList() {
       </div>
       
       <div className="p-6">
+        {/* Panneau d'administration */}
+        <AdminPanel />
+        
         {/* Message si trop d'erreurs de création */}
         {creationErrorCount >= 2 && (
           <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-md">
@@ -478,7 +489,7 @@ export default function RoomList() {
           </Card>
         ) : null}
         
-        {/* Available rooms list - use rooms directly instead of stableWaitingRooms */}
+        {/* Available rooms list */}
         <AvailableRooms 
           rooms={rooms}
           handleJoinRoom={handleJoinRoom}
@@ -489,7 +500,7 @@ export default function RoomList() {
         />
       </div>
       
-      {/* Create room button - more visible at the bottom */}
+      {/* Create room button */}
       {!currentRoom && (
         <div className="p-6 pt-0">
           <Button 
