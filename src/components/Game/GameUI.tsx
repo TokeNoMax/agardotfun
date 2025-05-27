@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -25,35 +24,47 @@ export default function GameUI() {
   const location = useLocation();
   const { toast } = useToast();
   
-  // Check if we're in local mode based on URL parameters - seulement une fois au chargement
+  // Check URL parameters and set modes
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const isLocalMode = urlParams.get('local') === 'true';
     const gameMode = urlParams.get('mode');
     const isZoneBattle = gameMode === 'zone';
     
-    if (isLocalMode || isZoneBattle) {
-      // Create a local player if in local mode
+    console.log('GameUI: Checking URL params:', { isLocalMode, gameMode, isZoneBattle });
+    
+    if (isLocalMode) {
       setLocalMode(true);
       setIsZoneMode(isZoneBattle);
-      setLocalPlayer({
+      
+      // Create a local player
+      const newLocalPlayer = {
         id: "local-player",
-        walletAddress: "local-player", // Add required walletAddress for local mode
+        walletAddress: "local-player",
         name: player?.name || "LocalPlayer",
         color: player?.color || "blue",
         size: 15,
-        x: 1500, // Centré sur la nouvelle taille du jeu
-        y: 1500, // Centré sur la nouvelle taille du jeu
+        x: 1500,
+        y: 1500,
         isAlive: true
-      });
+      };
       
+      setLocalPlayer(newLocalPlayer);
       setAlivePlayers(1);
+      
+      console.log('GameUI: Local mode initialized:', { isZoneBattle, player: newLocalPlayer });
+      
+      if (isZoneBattle) {
+        toast({
+          title: "Zone Battle Activé",
+          description: "La zone commencera à rétrécir dans 30 secondes !",
+        });
+      }
     } else if (currentRoom) {
-      // Normal online mode - use currentRoom - seulement une mise à jour initiale
       const alive = currentRoom.players.filter(p => p.isAlive).length;
       setAlivePlayers(alive || currentRoom.players.length);
     }
-  }, []);
+  }, [player]);
 
   // Mise à jour des joueurs en vie uniquement lorsque le statut des joueurs change
   useEffect(() => {
@@ -63,7 +74,7 @@ export default function GameUI() {
     }
   }, [currentRoom?.players, localMode]);
 
-  // Redirect if not in local mode and no valid session
+  // Redirect only if not in local mode and no valid session
   useEffect(() => {
     if (!localMode && (!currentRoom || !player || !currentRoom.players.some(p => p.id === player.id))) {
       const timer = setTimeout(() => {
@@ -183,7 +194,7 @@ export default function GameUI() {
         </Button>
       </div>
       
-      {/* Leaderboard - with player eaten callback */}
+      {/* Leaderboard */}
       <div className="absolute top-4 right-20 z-10">
         <Leaderboard 
           players={localMode ? (localPlayer ? [localPlayer] : []) : (currentRoom ? currentRoom.players : [])} 

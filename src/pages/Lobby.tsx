@@ -132,7 +132,8 @@ export default function Lobby() {
       description: "Préparez-vous pour la bataille dans la zone qui rétrécit !"
     });
     
-    navigate('/game?mode=zone');
+    // Fix: Add local=true parameter for Zone Battle mode
+    navigate('/game?local=true&mode=zone');
   };
   
   const formatAddress = (address: string) => {

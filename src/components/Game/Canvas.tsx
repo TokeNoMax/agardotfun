@@ -71,12 +71,13 @@ const Canvas: React.FC<CanvasProps> = ({
 
   // Initialize safe zone for Zone Battle mode
   const initializeSafeZone = (): SafeZone => {
+    const now = Date.now();
     return {
       x: GAME_WIDTH / 2,
       y: GAME_HEIGHT / 2,
       currentRadius: INITIAL_ZONE_RADIUS,
       maxRadius: INITIAL_ZONE_RADIUS,
-      nextShrinkTime: Date.now() + 30000, // 30 seconds grace period
+      nextShrinkTime: now + 30000, // 30 seconds grace period
       isActive: true,
       shrinkInterval: ZONE_SHRINK_INTERVAL,
       damagePerSecond: ZONE_DAMAGE_PER_SECOND,
@@ -93,9 +94,9 @@ const Canvas: React.FC<CanvasProps> = ({
     return distance <= zone.currentRadius - player.size;
   };
 
-  // Game initialization - simplified and fixed for local mode
+  // Game initialization
   useEffect(() => {
-    console.log("Initializing game - isLocalMode:", isLocalMode, "localPlayer:", localPlayer, "currentRoom:", currentRoom?.status, "isZoneMode:", isZoneMode);
+    console.log("Canvas: Initializing game", { isLocalMode, localPlayer: !!localPlayer, isZoneMode });
     
     // Clear any existing game loops
     if (gameLoopRef.current) {
@@ -103,20 +104,18 @@ const Canvas: React.FC<CanvasProps> = ({
       gameLoopRef.current = null;
     }
     
-    // For local mode, don't check currentRoom status
     const shouldInitialize = isLocalMode ? !!localPlayer : 
       (currentRoom?.status === 'playing' && !!currentPlayer);
     
     if (!shouldInitialize) {
-      console.log("Not initializing - conditions not met");
+      console.log("Canvas: Not initializing - conditions not met");
       return;
     }
     
     let initialPlayers: Player[] = [];
     
     if (isLocalMode && localPlayer) {
-      // In local mode, just use the local player
-      console.log("Setting up local player:", localPlayer);
+      console.log("Canvas: Setting up local player for Zone Battle:", isZoneMode);
       initialPlayers = [{
         ...localPlayer,
         x: GAME_WIDTH / 2,
@@ -126,7 +125,6 @@ const Canvas: React.FC<CanvasProps> = ({
       }];
       playerRef.current = initialPlayers[0];
     } else if (currentRoom) {
-      // In online mode, use players from currentRoom
       initialPlayers = currentRoom.players.map(p => ({
         ...p,
         x: Math.random() * (GAME_WIDTH - 100) + 50,
@@ -141,7 +139,6 @@ const Canvas: React.FC<CanvasProps> = ({
       }
     }
     
-    console.log("Initial players setup:", initialPlayers);
     setPlayers(initialPlayers);
     
     // Initialize safe zone for Zone Battle mode
@@ -149,7 +146,8 @@ const Canvas: React.FC<CanvasProps> = ({
       const zone = initializeSafeZone();
       setSafeZone(zone);
       setGameStartTime(Date.now());
-      console.log("Zone Battle mode initialized with safe zone:", zone);
+      setLastDamageTime(Date.now());
+      console.log("Canvas: Zone Battle initialized with safe zone:", zone);
     }
     
     // Generate foods
@@ -211,11 +209,11 @@ const Canvas: React.FC<CanvasProps> = ({
   useEffect(() => {
     // Make sure we have a player reference
     if (!playerRef.current) {
-      console.log("No player ref, skipping game loop");
+      console.log("Canvas: No player ref, skipping game loop");
       return;
     }
     
-    console.log("Starting game loop with player:", playerRef.current);
+    console.log("Canvas: Starting game loop with Zone Battle:", isZoneMode);
     
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
@@ -232,10 +230,10 @@ const Canvas: React.FC<CanvasProps> = ({
             const newRadius = updatedZone.currentRadius * (1 - updatedZone.shrinkPercentage);
             updatedZone = {
               ...updatedZone,
-              currentRadius: Math.max(50, newRadius), // Minimum radius of 50
+              currentRadius: Math.max(50, newRadius),
               nextShrinkTime: currentTime + updatedZone.shrinkInterval
             };
-            console.log("Zone shrunk to radius:", updatedZone.currentRadius);
+            console.log("Canvas: Zone shrunk to radius:", updatedZone.currentRadius);
           }
           
           return updatedZone;
@@ -243,10 +241,7 @@ const Canvas: React.FC<CanvasProps> = ({
       }
       
       setPlayers(prevPlayers => {
-        if (prevPlayers.length === 0) {
-          console.log("No players, skipping update");
-          return prevPlayers;
-        }
+        if (prevPlayers.length === 0) return prevPlayers;
         
         // Find our player index
         const ourPlayerIndex = prevPlayers.findIndex(p => 
@@ -254,7 +249,6 @@ const Canvas: React.FC<CanvasProps> = ({
         );
         
         if (ourPlayerIndex === -1 || !prevPlayers[ourPlayerIndex].isAlive) {
-          console.log("Player not found or not alive, skipping update");
           return prevPlayers;
         }
         
@@ -265,15 +259,14 @@ const Canvas: React.FC<CanvasProps> = ({
         if (isZoneMode && safeZone && playerRef.current) {
           const inZone = isPlayerInSafeZone(me, safeZone);
           
-          if (!inZone && currentTime - lastDamageTime >= 1000) { // Damage every second
+          if (!inZone && currentTime - lastDamageTime >= 1000) {
             me.size = Math.max(10, me.size - safeZone.damagePerSecond);
             setLastDamageTime(currentTime);
-            console.log("Player took zone damage, size now:", me.size);
+            console.log("Canvas: Player took zone damage, size now:", me.size);
           }
           
           // Update zone info for UI
           if (onZoneUpdate) {
-            const timeUntilShrink = Math.max(0, safeZone.nextShrinkTime - currentTime);
             onZoneUpdate(safeZone, inZone);
           }
         }
