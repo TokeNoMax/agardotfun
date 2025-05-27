@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -75,6 +75,41 @@ export default function AvailableRooms({
     }
   };
 
+  // Fonction pour déterminer le statut d'affichage d'une salle
+  const getRoomDisplayStatus = (room: GameRoom) => {
+    const playerCount = room.players?.length || 0;
+    
+    if (room.status === 'playing') {
+      return { 
+        text: 'En cours', 
+        variant: 'outline' as const, 
+        className: 'bg-amber-50 text-amber-700 border-amber-200' 
+      };
+    }
+    
+    if (room.status === 'finished') {
+      return { 
+        text: 'Terminée', 
+        variant: 'outline' as const, 
+        className: 'bg-gray-50 text-gray-700 border-gray-200' 
+      };
+    }
+    
+    if (playerCount === 0) {
+      return { 
+        text: 'Vide', 
+        variant: 'outline' as const, 
+        className: 'bg-blue-50 text-blue-700 border-blue-200' 
+      };
+    }
+    
+    return { 
+      text: 'En attente', 
+      variant: 'outline' as const, 
+      className: 'bg-green-50 text-green-700 border-green-200' 
+    };
+  };
+
   const roomsToDisplay = Array.isArray(rooms) ? rooms : [];
   
   console.log("Rendering AvailableRooms with", roomsToDisplay.length, "rooms");
@@ -117,45 +152,51 @@ export default function AvailableRooms({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {roomsToDisplay.map((room) => (
-                <TableRow 
-                  key={room.id} 
-                  className={selectedRoomId === room.id ? "bg-indigo-50 hover:bg-indigo-100" : ""}
-                  onClick={() => onSelectRoom(room.id)}
-                >
-                  <TableCell className="font-medium">{room.name || "Salle sans nom"}</TableCell>
-                  <TableCell>
-                    {(room.players?.length || 0)}/{room.maxPlayers || 4}
-                  </TableCell>
-                  <TableCell>
-                    {room.status === 'waiting' ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        En attente
+              {roomsToDisplay.map((room) => {
+                const playerCount = room.players?.length || 0;
+                const statusInfo = getRoomDisplayStatus(room);
+                const isEmpty = playerCount === 0;
+                
+                return (
+                  <TableRow 
+                    key={room.id} 
+                    className={selectedRoomId === room.id ? "bg-indigo-50 hover:bg-indigo-100" : ""}
+                    onClick={() => onSelectRoom(room.id)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {room.name || "Salle sans nom"}
+                        {isEmpty && (
+                          <Users className="h-4 w-4 text-blue-500" title="Salle vide - vous pouvez la rejoindre" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className={isEmpty ? 'text-blue-600 font-medium' : ''}>
+                        {playerCount}/{room.maxPlayers || 4}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={statusInfo.variant} className={statusInfo.className}>
+                        {statusInfo.text}
                       </Badge>
-                    ) : room.status === 'playing' ? (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                        En cours
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                        Terminée
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button 
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleJoinRoom(room.id);
-                      }}
-                      disabled={!playerExists || (room.players && room.players.length >= (room.maxPlayers || 4)) || room.status !== 'waiting'}
-                    >
-                      Rejoindre
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleJoinRoom(room.id);
+                        }}
+                        disabled={!playerExists || (room.players && room.players.length >= (room.maxPlayers || 4)) || room.status !== 'waiting'}
+                        className={isEmpty ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                      >
+                        {isEmpty ? 'Rejoindre (vide)' : 'Rejoindre'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

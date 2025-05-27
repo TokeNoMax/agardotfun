@@ -70,6 +70,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_activity: string
           max_players: number
           name: string
           status: string
@@ -78,6 +79,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          last_activity?: string
           max_players?: number
           name: string
           status?: string
@@ -86,6 +88,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          last_activity?: string
           max_players?: number
           name?: string
           status?: string

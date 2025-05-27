@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { GameRoom, Player } from "@/types/game";
 
@@ -8,6 +9,7 @@ export interface DatabaseGameRoom {
   status: string; // Changé de 'waiting' | 'playing' | 'finished' à string
   created_at: string;
   updated_at: string;
+  last_activity: string;
 }
 
 export interface DatabaseGameRoomPlayer {
@@ -52,6 +54,21 @@ function convertToGameRoom(
 }
 
 export const gameRoomService = {
+  // Mettre à jour l'activité d'une salle
+  async updateRoomActivity(roomId: string): Promise<void> {
+    console.log(`Updating room activity for ${roomId}`);
+    
+    const { error } = await supabase
+      .from('game_rooms')
+      .update({ last_activity: new Date().toISOString() })
+      .eq('id', roomId);
+
+    if (error) {
+      console.error("Error updating room activity:", error);
+      // Ne pas throw l'erreur pour ne pas bloquer les autres opérations
+    }
+  },
+
   // Vérifier si un joueur est réellement dans une salle côté serveur
   async verifyPlayerInRoom(roomId: string, playerId: string): Promise<boolean> {
     console.log(`Verifying player ${playerId} in room ${roomId}`);
@@ -150,7 +167,8 @@ export const gameRoomService = {
       .insert({
         name,
         max_players: maxPlayers,
-        status: 'waiting'
+        status: 'waiting',
+        last_activity: new Date().toISOString()
       })
       .select()
       .single();
@@ -211,10 +229,13 @@ export const gameRoomService = {
       throw error;
     }
 
+    // Mettre à jour l'activité de la salle
+    await this.updateRoomActivity(roomId);
+
     console.log("Player joined room successfully");
   },
 
-  // Quitter une salle
+  // Quitter une salle (MODIFIÉ - ne supprime plus automatiquement les salles vides)
   async leaveRoom(roomId: string, playerId: string): Promise<void> {
     console.log(`Player ${playerId} leaving room ${roomId}`);
     
@@ -229,31 +250,10 @@ export const gameRoomService = {
       throw error;
     }
 
-    // Vérifier s'il reste des joueurs dans la salle
-    const { data: remainingPlayers, error: checkError } = await supabase
-      .from('game_room_players')
-      .select('id')
-      .eq('room_id', roomId);
+    // Mettre à jour l'activité de la salle même quand elle devient vide
+    await this.updateRoomActivity(roomId);
 
-    if (checkError) {
-      console.error("Error checking remaining players:", checkError);
-      return;
-    }
-
-    // Si aucun joueur ne reste, supprimer la salle
-    if (!remainingPlayers || remainingPlayers.length === 0) {
-      console.log("No players left, deleting room");
-      const { error: deleteError } = await supabase
-        .from('game_rooms')
-        .delete()
-        .eq('id', roomId);
-
-      if (deleteError) {
-        console.error("Error deleting empty room:", deleteError);
-      }
-    }
-
-    console.log("Player left room successfully");
+    console.log("Player left room successfully - room kept available for rejoining");
   },
 
   // Mettre à jour le statut "prêt" d'un joueur
@@ -271,6 +271,9 @@ export const gameRoomService = {
       throw error;
     }
 
+    // Mettre à jour l'activité de la salle
+    await this.updateRoomActivity(roomId);
+
     console.log("Player ready status updated successfully");
   },
 
@@ -280,7 +283,10 @@ export const gameRoomService = {
     
     const { error } = await supabase
       .from('game_rooms')
-      .update({ status: 'playing' })
+      .update({ 
+        status: 'playing',
+        last_activity: new Date().toISOString()
+      })
       .eq('id', roomId);
 
     if (error) {
