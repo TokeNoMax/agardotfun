@@ -24,6 +24,7 @@ export default function RoomList() {
   const [lastCreatedRoomId, setLastCreatedRoomId] = useState<string | null>(null);
   const [lastCreatedRoomName, setLastCreatedRoomName] = useState<string | null>(null);
   const [creationErrorCount, setCreationErrorCount] = useState(0);
+  const [hasShownRoomFoundToast, setHasShownRoomFoundToast] = useState(false);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -50,11 +51,12 @@ export default function RoomList() {
       previousRoomsRef.current = JSON.stringify(rooms.map(r => r.id));
       
       // Vérifier si notre salle récemment créée est présente dans la liste
-      if (lastCreatedRoomId) {
+      if (lastCreatedRoomId && !hasShownRoomFoundToast) {
         const foundRoom = rooms.find(r => r.id === lastCreatedRoomId);
         if (foundRoom) {
           console.log(`La salle créée ${lastCreatedRoomId} est présente dans la liste!`);
-          // Notification de confirmation
+          // Notification de confirmation (une seule fois)
+          setHasShownRoomFoundToast(true);
           toast({
             title: "Salle trouvée",
             description: `Votre salle "${foundRoom.name}" est maintenant disponible.`,
@@ -64,13 +66,14 @@ export default function RoomList() {
           setTimeout(() => {
             setLastCreatedRoomId(null);
             setLastCreatedRoomName(null);
+            setHasShownRoomFoundToast(false);
           }, 5000);
         } else {
           console.log(`La salle créée ${lastCreatedRoomId} (${lastCreatedRoomName}) n'est pas dans la liste!`);
         }
       }
     }
-  }, [rooms, lastCreatedRoomId, lastCreatedRoomName, toast]);
+  }, [rooms, lastCreatedRoomId, lastCreatedRoomName, toast, hasShownRoomFoundToast]);
 
   // Clear selection when currentRoom changes
   useEffect(() => {
@@ -147,7 +150,7 @@ export default function RoomList() {
     };
   }, [countdown, startGame, toast, gameStarting]);
 
-  // Mise à jour de la fonction handleCreateRoom pour utiliser correctement toast
+  // Mise à jour de la fonction handleCreateRoom pour réduire les notifications
   const handleCreateRoom = async () => {
     if (!player) {
       toast({
@@ -160,12 +163,6 @@ export default function RoomList() {
     
     if (roomName.trim()) {
       try {
-        // Notification de début de création
-        toast({
-          title: "Création en cours",
-          description: "Création de votre salle en cours..."
-        });
-        
         console.log(`Tentative de création de salle: "${roomName}" avec ${maxPlayers} joueurs max`);
         const roomId = await createRoom(roomName, parseInt(maxPlayers));
         
@@ -174,40 +171,27 @@ export default function RoomList() {
           // Stocker l'ID de la dernière salle créée pour suivi
           setLastCreatedRoomId(roomId);
           setLastCreatedRoomName(roomName);
+          setHasShownRoomFoundToast(false);
           setCreateDialogOpen(false);
           
-          // Notification de création réussie
+          // Notification simplifiée de création
           toast({
             title: "Salle créée",
-            description: "Votre salle a été créée. Recherche de la salle..."
+            description: "Recherche de votre salle..."
           });
           
-          // Séquence intensive de rafraîchissement pour trouver la nouvelle salle
-          console.log("Séquence de rafraîchissement intensif...");
-          
-          // Premier rafraîchissement après 1 seconde
+          // Séquence simplifiée de rafraîchissement
           setTimeout(async () => {
             await refreshCurrentRoom();
-            console.log("Premier rafraîchissement après création");
+            console.log("Rafraîchissement après création");
             
-            // Deuxième rafraîchissement après 2 secondes
+            // Vérifier si la salle est trouvée et rejoindre directement si nécessaire
             setTimeout(async () => {
-              await refreshCurrentRoom();
-              console.log("Deuxième rafraîchissement après création");
-              
-              // Vérifier si la salle est trouvée
               const isRoomFound = rooms.some(r => r.id === roomId);
               if (!isRoomFound) {
-                console.log("La salle n'est toujours pas visible après les rafraîchissements");
-                
-                // Tentative de rejoindre directement avec l'ID
+                console.log("Tentative de rejoindre directement avec l'ID");
                 try {
-                  console.log("Tentative de rejoindre directement avec l'ID");
                   await joinRoom(roomId);
-                  toast({
-                    title: "Connexion directe",
-                    description: "Connexion directe à votre salle."
-                  });
                 } catch (joinError) {
                   console.error("Erreur de connexion directe:", joinError);
                   toast({
@@ -217,7 +201,7 @@ export default function RoomList() {
                   });
                 }
               }
-            }, 2000);
+            }, 1500);
           }, 1000);
         } else {
           console.error("Création de salle échouée: pas d'ID retourné");
@@ -294,42 +278,30 @@ export default function RoomList() {
     }
   };
 
-  // Mise à jour de la fonction handleRefresh pour utiliser correctement toast
+  // Fonction de rafraîchissement optimisée
   const handleRefresh = async () => {
     if (isRefreshing) return;
     
     setIsRefreshing(true);
     
-    // Notification de début de rafraîchissement
-    toast({
-      title: "Rafraîchissement",
-      description: "Recherche des salles disponibles..."
-    });
-    
     try {
-      // Premier rafraîchissement
       await refreshCurrentRoom();
-      console.log("Premier rafraîchissement manuel terminé");
+      console.log("Rafraîchissement manuel terminé");
       
-      // Second rafraîchissement après un court délai
-      setTimeout(async () => {
-        await refreshCurrentRoom();
-        console.log("Second rafraîchissement manuel terminé");
-        setIsRefreshing(false);
-        
-        toast({
-          title: "Rafraîchissement terminé",
-          description: `${rooms.length} salles trouvées.`,
-        });
-      }, 1000);
+      // Notification simple de fin de rafraîchissement
+      toast({
+        title: "Actualisé",
+        description: `${rooms.length} salles trouvées.`,
+      });
     } catch (error) {
       console.error("Erreur lors du rafraîchissement:", error);
-      setIsRefreshing(false);
       toast({
         title: "Erreur de rafraîchissement",
         description: "Impossible de récupérer les salles.",
         variant: "destructive"
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -403,13 +375,12 @@ export default function RoomList() {
           </div>
         )}
         
-        {/* Message de débogage si la salle créée est manquante */}
+        {/* Message de débogage optimisé */}
         {isLastCreatedRoomMissing && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-md">
             <p className="text-amber-800 text-sm">
               <strong>Salle non visible :</strong> La dernière salle créée 
-              "{lastCreatedRoomName}" (ID: {lastCreatedRoomId?.substring(0, 8)}...) 
-              n'apparaît pas dans la liste. Elle a peut-être été supprimée automatiquement ou n'a pas été créée correctement.
+              "{lastCreatedRoomName}" n'apparaît pas dans la liste.
             </p>
             <div className="flex gap-2 mt-2">
               <Button 
@@ -418,7 +389,7 @@ export default function RoomList() {
                 onClick={handleRefresh}
                 disabled={isRefreshing}
               >
-                {isRefreshing ? "Rafraîchissement..." : "Rafraîchir maintenant"}
+                {isRefreshing ? "Rafraîchissement..." : "Rafraîchir"}
               </Button>
               
               {lastCreatedRoomId && (
@@ -427,7 +398,7 @@ export default function RoomList() {
                   onClick={() => joinRoom(lastCreatedRoomId)}
                   disabled={!player}
                 >
-                  Essayer de rejoindre directement
+                  Rejoindre directement
                 </Button>
               )}
             </div>

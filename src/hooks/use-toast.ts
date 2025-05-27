@@ -6,9 +6,9 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-// Augmenté pour une meilleure visibilité et permettre plus de notifications
-const TOAST_LIMIT = 20
-const TOAST_REMOVE_DELAY = 1000 * 15 // Augmenté à 15 secondes pour donner plus de temps de lecture
+// Réduit pour éviter trop de notifications en même temps
+const TOAST_LIMIT = 5
+const TOAST_REMOVE_DELAY = 1000 * 8 // Réduit à 8 secondes
 
 type ToasterToast = ToastProps & {
   id: string
@@ -56,6 +56,10 @@ interface State {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+// Stocker les derniers toasts pour éviter les doublons
+const recentToasts = new Map<string, number>()
+const DUPLICATE_PREVENTION_TIME = 3000 // 3 secondes
 
 const addToRemoveQueue = (toastId: string) => {
   if (toastTimeouts.has(toastId)) {
@@ -146,6 +150,33 @@ export interface ToastReturn {
 }
 
 function toast(props: Toast): ToastReturn {
+  // Créer une clé unique pour détecter les doublons
+  const toastKey = `${props.title}-${props.description}`
+  const now = Date.now()
+  
+  // Vérifier si un toast similaire a été affiché récemment
+  if (recentToasts.has(toastKey)) {
+    const lastTime = recentToasts.get(toastKey)!
+    if (now - lastTime < DUPLICATE_PREVENTION_TIME) {
+      // Retourner un objet factice pour éviter l'erreur
+      return {
+        id: "duplicate",
+        dismiss: () => {},
+        update: () => {}
+      }
+    }
+  }
+  
+  // Enregistrer ce toast comme récent
+  recentToasts.set(toastKey, now)
+  
+  // Nettoyer les anciens toasts de la liste
+  for (const [key, time] of recentToasts.entries()) {
+    if (now - time > DUPLICATE_PREVENTION_TIME) {
+      recentToasts.delete(key)
+    }
+  }
+
   const id = genId()
 
   const update = (props: ToasterToast) =>
