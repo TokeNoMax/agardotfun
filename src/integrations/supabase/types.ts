@@ -9,6 +9,90 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      game_room_players: {
+        Row: {
+          id: string
+          is_alive: boolean
+          is_ready: boolean
+          joined_at: string
+          player_color: string
+          player_id: string
+          player_name: string
+          room_id: string
+          size: number
+          x: number
+          y: number
+        }
+        Insert: {
+          id?: string
+          is_alive?: boolean
+          is_ready?: boolean
+          joined_at?: string
+          player_color: string
+          player_id: string
+          player_name: string
+          room_id: string
+          size?: number
+          x?: number
+          y?: number
+        }
+        Update: {
+          id?: string
+          is_alive?: boolean
+          is_ready?: boolean
+          joined_at?: string
+          player_color?: string
+          player_id?: string
+          player_name?: string
+          room_id?: string
+          size?: number
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_room_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_room_players_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_rooms: {
+        Row: {
+          created_at: string
+          id: string
+          max_players: number
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          max_players?: number
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          max_players?: number
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       players: {
         Row: {
           color: string

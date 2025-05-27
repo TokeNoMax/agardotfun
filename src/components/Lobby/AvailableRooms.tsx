@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { RefreshCw, AlertCircle, WifiOff } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -33,44 +33,41 @@ export default function AvailableRooms({
   refreshRooms
 }: AvailableRoomsProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [connectionError, setConnectionError] = useState(false);
+  const [hasSuccessfulConnection, setHasSuccessfulConnection] = useState(false);
   const { toast } = useToast();
   
-  // Afficher les salles dans la console à chaque fois que rooms change
   useEffect(() => {
-    console.log("AvailableRooms - Rooms actualisées:", rooms);
-    if (Array.isArray(rooms)) {
-      console.log(`Nombre de salles: ${rooms.length}`);
+    console.log("AvailableRooms - Rooms updated:", rooms);
+    if (Array.isArray(rooms) && rooms.length >= 0) {
+      console.log(`Number of rooms: ${rooms.length}`);
+      setHasSuccessfulConnection(true);
       if (rooms.length > 0) {
-        console.log("Première salle:", rooms[0]);
-        // Si nous recevons des salles valides, réinitialiser l'état d'erreur de connexion
-        setConnectionError(false);
+        console.log("First room:", rooms[0]);
       }
     } else {
-      console.log("rooms n'est pas un tableau:", rooms);
+      console.log("rooms is not an array:", rooms);
     }
   }, [rooms]);
 
   const handleRefresh = async () => {
     if (!refreshRooms || isRefreshing) return;
     
-    console.log("Début du rafraîchissement manuel des salles");
+    console.log("Manual refresh started");
     setIsRefreshing(true);
-    setConnectionError(false);
     
     try {
       await refreshRooms();
-      console.log("Rafraîchissement terminé, salles:", rooms);
+      console.log("Refresh completed, rooms:", rooms);
       toast({
-        title: "Rafraîchissement terminé",
-        description: `${Array.isArray(rooms) ? rooms.length : 0} salles disponibles.`
+        title: "Actualisé",
+        description: `${Array.isArray(rooms) ? rooms.length : 0} salles trouvées.`
       });
     } catch (error) {
-      console.error("Erreur de rafraîchissement:", error);
-      setConnectionError(true);
+      console.error("Error during refresh:", error);
+      setHasSuccessfulConnection(false);
       toast({
         title: "Erreur de connexion",
-        description: "Impossible de se connecter au serveur de jeu. Veuillez réessayer plus tard.",
+        description: "Impossible de récupérer les salles. Vérifiez votre connexion.",
         variant: "destructive"
       });
     } finally {
@@ -78,10 +75,9 @@ export default function AvailableRooms({
     }
   };
 
-  // Garantir que rooms est toujours traité comme un tableau
   const roomsToDisplay = Array.isArray(rooms) ? rooms : [];
   
-  console.log("Rendu de AvailableRooms avec", roomsToDisplay.length, "salles");
+  console.log("Rendering AvailableRooms with", roomsToDisplay.length, "rooms");
 
   return (
     <div className="mb-4">
@@ -92,24 +88,19 @@ export default function AvailableRooms({
           size="icon"
           onClick={handleRefresh}
           disabled={isRefreshing}
-          title="Rafraîchir les salles"
+          title="Actualiser les salles"
         >
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
       
-      {/* Afficher une alerte en cas d'erreur de connexion */}
-      {connectionError && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Problème de connexion</AlertTitle>
-          <AlertDescription>
-            Impossible de se connecter au serveur de jeu. Cela peut être dû à:
-            <ul className="list-disc pl-5 mt-2">
-              <li>Un problème temporaire de serveur</li>
-              <li>Une interruption de votre connexion internet</li>
-              <li>Un problème d'hébergement</li>
-            </ul>
+      {/* Indicateur de statut de connexion */}
+      {hasSuccessfulConnection && (
+        <Alert className="mb-4 border-green-200 bg-green-50">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertTitle className="text-green-800">Connecté à Supabase</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Connexion réussie au système de salles de jeu.
           </AlertDescription>
         </Alert>
       )}
@@ -170,11 +161,11 @@ export default function AvailableRooms({
         </div>
       ) : (
         <div className="text-center py-8 border rounded-md bg-gray-50">
-          {connectionError ? (
+          {!hasSuccessfulConnection ? (
             <div className="flex flex-col items-center justify-center">
-              <WifiOff className="h-12 w-12 text-red-500 mb-4" />
-              <p className="text-gray-700 font-medium">Problème de connexion au serveur</p>
-              <p className="text-gray-500 mt-2">Impossible de récupérer les salles disponibles.</p>
+              <AlertCircle className="h-12 w-12 text-amber-500 mb-4" />
+              <p className="text-gray-700 font-medium">Connexion en cours...</p>
+              <p className="text-gray-500 mt-2">Connexion au système de salles de jeu.</p>
               <Button 
                 className="mt-4" 
                 onClick={handleRefresh}
@@ -183,7 +174,7 @@ export default function AvailableRooms({
                 {isRefreshing ? (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Nouvelle tentative...
+                    Connexion...
                   </>
                 ) : (
                   <>
@@ -204,12 +195,12 @@ export default function AvailableRooms({
                 {isRefreshing ? (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Rafraîchissement...
+                    Actualisation...
                   </>
                 ) : (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    Rafraîchir
+                    Actualiser
                   </>
                 )}
               </Button>

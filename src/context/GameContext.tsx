@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -6,10 +7,11 @@ import React, {
   useCallback,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { io, Socket } from "socket.io-client";
 import { v4 as uuidv4 } from "uuid";
 import { Player, PlayerColor, GameRoom } from "@/types/game";
 import { useToast } from "@/hooks/use-toast";
+import { gameRoomService } from "@/services/gameRoomService";
+import { useGameRoomSubscriptions } from "@/hooks/useGameRoomSubscriptions";
 
 // Default custom phrases
 const defaultPhrases: string[] = [
@@ -35,9 +37,8 @@ interface GameContextType {
   startGame: () => Promise<boolean>;
   leaveRoom: () => Promise<void>;
   setPlayerReady: (ready: boolean) => Promise<void>;
-  socket: Socket | null;
+  socket: null; // Maintenu pour compatibilité mais toujours null
   refreshCurrentRoom: () => Promise<void>;
-  // Simplified phrases property
   customPhrases: string[];
   setCustomPhrases: (phrases: string[] | ((prev: string[]) => string[])) => void;
 }
@@ -58,8 +59,6 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     const storedRoom = localStorage.getItem("blob-battle-current-room");
     return storedRoom ? JSON.parse(storedRoom) : null;
   });
-  const [socket, setSocket] = useState<Socket | null>(null);
-  // Simplified phrases state
   const [customPhrases, setCustomPhrases] = useState<string[]>(() => {
     const storedPhrases = localStorage.getItem("blob-battle-custom-phrases");
     return storedPhrases ? JSON.parse(storedPhrases) : defaultPhrases;
@@ -67,108 +66,44 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  const backendURL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
   // Save custom phrases to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem("blob-battle-custom-phrases", JSON.stringify(customPhrases));
   }, [customPhrases]);
 
-  useEffect(() => {
-    const newSocket = io(backendURL);
-    setSocket(newSocket);
+  // Callbacks pour les subscriptions temps réel
+  const handleRoomsUpdate = useCallback((updatedRooms: GameRoom[]) => {
+    console.log("Rooms updated from Supabase:", updatedRooms.length);
+    setRooms(updatedRooms);
+  }, []);
 
-    newSocket.on("connect", () => {
-      console.log("Connected to WebSocket server");
-    });
+  const handleRoomUpdate = useCallback((room: GameRoom) => {
+    console.log("Current room updated:", room.id);
+    setCurrentRoom(room);
+    localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
+    localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
+  }, []);
 
-    newSocket.on("gameRoomsUpdate", (updatedRooms: GameRoom[]) => {
-      console.log("Rooms updated from server:", updatedRooms.length);
-      
-      // Assurons-nous de traiter les salles uniquement si c'est un tableau valide
-      if (Array.isArray(updatedRooms)) {
-        // Log les détails des salles à des fins de débogage
-        updatedRooms.forEach(room => {
-          console.log(`Room: ${room.id} - ${room.name} - Status: ${room.status} - Players: ${room.players?.length || 0}/${room.maxPlayers}`);
-        });
-        
-        setRooms(updatedRooms);
-      } else {
-        console.error("Received invalid rooms data:", updatedRooms);
-      }
-    });
-
-    newSocket.on("roomJoined", (room: GameRoom) => {
-      console.log("Room joined:", room);
-      setCurrentRoom(room);
-      localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
-      
-      // Store the game state in local storage
-      localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-    });
+  const handleGameStarted = useCallback((room: GameRoom) => {
+    console.log("Game started in room:", room.id);
+    localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
     
-    newSocket.on("roomLeft", () => {
-      console.log("Room left");
-      setCurrentRoom(null);
-      localStorage.removeItem("blob-battle-current-room");
-      localStorage.removeItem('blob-battle-game-state');
-    });
+    if (!window.location.href.includes('local=true')) {
+      navigate("/game?join=true");
+    }
+  }, [navigate]);
 
-    newSocket.on("gameStarted", (room: GameRoom) => {
-      console.log("Game started in room:", room.id);
-      
-      // Store the game state in local storage
-      localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-      
-      // Navigate to the game page only if not in local mode
-      if (!window.location.href.includes('local=true')) {
-        navigate("/game?join=true");
-      }
-    });
-    
-    newSocket.on("playerReadyStatus", (room: GameRoom) => {
-      console.log("Player ready status updated in room:", room.id);
-      setCurrentRoom(room);
-      localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
-      
-      // Store the game state in local storage
-      localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-    });
-    
-    newSocket.on("roomUpdate", (room: GameRoom) => {
-      console.log("Room updated:", room.id);
-      setCurrentRoom(room);
-      localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
-      
-      // Store the game state in local storage
-      localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("Disconnected from WebSocket server");
-    });
-
-    return () => {
-      newSocket.off("connect");
-      newSocket.off("gameRoomsUpdate");
-      newSocket.off("roomJoined");
-      newSocket.off("roomLeft");
-      newSocket.off("gameStarted");
-      newSocket.off("playerReadyStatus");
-      newSocket.off("roomUpdate");
-      newSocket.off("disconnect");
-      newSocket.disconnect();
-    };
-  }, [navigate, backendURL]);
+  // Utiliser les subscriptions temps réel
+  const { refreshRooms, refreshCurrentRoom } = useGameRoomSubscriptions({
+    onRoomsUpdate: handleRoomsUpdate,
+    onRoomUpdate: handleRoomUpdate,
+    onGameStarted: handleGameStarted,
+    currentRoomId: currentRoom?.id
+  });
 
   const setPlayerDetails = useCallback(
     async (name: string, color: PlayerColor) => {
-      if (!socket) {
-        console.error("Socket not initialized");
-        return;
-      }
-
       const newPlayer: Player = {
         id: uuidv4(),
         name: name,
@@ -181,182 +116,138 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
       setPlayer(newPlayer);
       localStorage.setItem("blob-battle-player", JSON.stringify(newPlayer));
-
-      // Emit event to create player on the server
-      socket.emit("createPlayer", newPlayer);
+      
+      console.log("Player details set:", newPlayer);
     },
-    [socket]
+    []
   );
 
   const createRoom = useCallback(
     async (roomName: string, maxPlayers: number) => {
-      if (!socket || !player) {
-        console.error("Socket ou player non initialisé");
+      if (!player) {
+        console.error("Player not initialized");
         return "";
       }
 
-      const roomId = uuidv4();
-      
-      // Ensure maxPlayers is at least 2
-      const adjustedMaxPlayers = Math.max(2, maxPlayers);
-
-      const newRoom: GameRoom = {
-        id: roomId,
-        name: roomName,
-        maxPlayers: adjustedMaxPlayers,
-        status: 'waiting',
-        players: [],
-        createdAt: new Date().toISOString(),
-      };
-
-      console.log("Création d'une nouvelle salle:", JSON.stringify(newRoom, null, 2));
-      
-      return new Promise<string>((resolve) => {
-        // Définir un timeout pour la résolution après 5 secondes si pas de réponse du serveur
-        const timeoutId = setTimeout(() => {
-          console.warn("Timeout lors de la création de salle après 5 secondes, on renvoie l'ID quand même");
-          resolve(roomId);
-        }, 5000);
+      try {
+        const adjustedMaxPlayers = Math.max(2, maxPlayers);
+        console.log("Creating room:", roomName, "with max players:", adjustedMaxPlayers);
         
-        // Emit event to create room on the server
-        socket.emit("createGameRoom", newRoom, (success: boolean) => {
-          clearTimeout(timeoutId); // Annuler le timeout
+        const roomId = await gameRoomService.createRoom(roomName, adjustedMaxPlayers);
         
-          if (success) {
-            console.log("Salle créée avec succès sur le serveur:", roomId);
-            
-            // Demander immédiatement une mise à jour des salles
-            socket.emit("getGameRooms", (allRooms: GameRoom[]) => {
-              if (allRooms && Array.isArray(allRooms)) {
-                console.log("Salles actualisées après création:", allRooms.length);
-                setRooms(allRooms);
-              }
-            });
-            
-            resolve(roomId);
-          } else {
-            console.error("Échec de la création de salle sur le serveur");
-            resolve(""); // Retourner une chaîne vide en cas d'échec
-          }
-        });
-      });
+        // Actualiser la liste des salles
+        await refreshRooms();
+        
+        return roomId;
+      } catch (error) {
+        console.error("Error creating room:", error);
+        throw error;
+      }
     },
-    [socket, player]
+    [player, refreshRooms]
   );
 
   const joinRoom = useCallback(
     async (roomId: string) => {
-      if (!socket || !player) {
-        console.error("Socket ou player non initialisé");
+      if (!player) {
+        console.error("Player not initialized");
         return;
       }
 
-      console.log(`Tentative de rejoindre la salle: ${roomId}`);
-      socket.emit("joinGameRoom", { roomId, player });
+      try {
+        console.log(`Joining room: ${roomId}`);
+        await gameRoomService.joinRoom(roomId, player);
+        
+        // Récupérer les détails de la salle mise à jour
+        const room = await gameRoomService.getRoom(roomId);
+        if (room) {
+          setCurrentRoom(room);
+          localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
+          localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
+          
+          toast({
+            title: "Salle rejointe",
+            description: `Vous avez rejoint la salle "${room.name}"`
+          });
+        }
+      } catch (error) {
+        console.error("Error joining room:", error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de rejoindre la salle",
+          variant: "destructive"
+        });
+        throw error;
+      }
     },
-    [socket, player]
+    [player, toast]
   );
 
   const startGame = useCallback(async () => {
-    if (!socket || !currentRoom) {
-      console.error("Socket or currentRoom not initialized");
+    if (!currentRoom) {
+      console.error("No current room");
       return false;
     }
     
-    return new Promise<boolean>((resolve) => {
-      socket.emit("startGame", currentRoom.id, (success: boolean) => {
-        if (success) {
-          console.log("Game started successfully on server");
-          
-          // Optimistically update local state
-          setCurrentRoom(prevRoom => {
-            if (prevRoom) {
-              return { ...prevRoom, status: 'playing' };
-            }
-            return prevRoom;
-          });
-          
-          resolve(true);
-        } else {
-          console.error("Failed to start game on server");
-          resolve(false);
-        }
-      });
-    });
-  }, [socket, currentRoom]);
+    try {
+      console.log("Starting game for room:", currentRoom.id);
+      await gameRoomService.startGame(currentRoom.id);
+      return true;
+    } catch (error) {
+      console.error("Error starting game:", error);
+      return false;
+    }
+  }, [currentRoom]);
 
   const leaveRoom = useCallback(async () => {
-    if (!socket || !player || !currentRoom) {
-      console.error("Socket, player, or currentRoom not initialized");
+    if (!player || !currentRoom) {
+      console.error("Player or currentRoom not initialized");
       return;
     }
     
-    socket.emit("leaveGameRoom", { roomId: currentRoom.id, playerId: player.id });
-  }, [socket, player, currentRoom]);
+    try {
+      console.log("Leaving room:", currentRoom.id);
+      await gameRoomService.leaveRoom(currentRoom.id, player.id);
+      
+      setCurrentRoom(null);
+      localStorage.removeItem("blob-battle-current-room");
+      localStorage.removeItem('blob-battle-game-state');
+      
+      toast({
+        title: "Salle quittée",
+        description: "Vous avez quitté la salle"
+      });
+    } catch (error) {
+      console.error("Error leaving room:", error);
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la sortie de la salle",
+        variant: "destructive"
+      });
+    }
+  }, [player, currentRoom, toast]);
 
   const setPlayerReady = useCallback(
     async (ready: boolean) => {
-      if (!socket || !player || !currentRoom) {
-        console.error("Socket, player, or currentRoom not initialized");
+      if (!player || !currentRoom) {
+        console.error("Player or currentRoom not initialized");
         return;
       }
 
-      socket.emit("setPlayerReady", {
-        roomId: currentRoom.id,
-        playerId: player.id,
-        ready: ready,
-      });
+      try {
+        console.log(`Setting player ready status to ${ready}`);
+        await gameRoomService.setPlayerReady(currentRoom.id, player.id, ready);
+      } catch (error) {
+        console.error("Error setting player ready:", error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de mettre à jour le statut",
+          variant: "destructive"
+        });
+      }
     },
-    [socket, player, currentRoom]
+    [player, currentRoom, toast]
   );
-  
-  const refreshCurrentRoom = useCallback(async () => {
-    if (!socket) {
-      console.warn("Socket non initialisé, rafraîchissement ignoré");
-      return;
-    }
-    
-    console.log("Début du rafraîchissement des salles");
-    
-    return new Promise<void>((resolve) => {
-      // Définir un timeout si le serveur ne répond pas après 4 secondes
-      const timeoutId = setTimeout(() => {
-        console.warn("Timeout lors du rafraîchissement des salles");
-        resolve();
-      }, 4000);
-      
-      // Demander la liste de toutes les salles disponibles avec un callback
-      socket.emit("getGameRooms", (allRooms: GameRoom[]) => {
-        clearTimeout(timeoutId); // Annuler le timeout
-        
-        if (allRooms && Array.isArray(allRooms)) {
-          console.log("Salles rafraîchies:", allRooms.length, 
-            "IDs:", allRooms.map(r => `${r.id.substring(0, 6)}... (${r.name})`).join(', '));
-          
-          setRooms(allRooms);
-          
-          // Si nous sommes dans une salle, vérifier si elle existe toujours dans la liste
-          if (currentRoom) {
-            const updatedCurrentRoom = allRooms.find(r => r.id === currentRoom.id);
-            
-            if (updatedCurrentRoom) {
-              console.log("Salle actuelle trouvée dans les salles rafraîchies:", updatedCurrentRoom.id);
-              setCurrentRoom(updatedCurrentRoom);
-              localStorage.setItem("blob-battle-current-room", JSON.stringify(updatedCurrentRoom));
-              localStorage.setItem('blob-battle-game-state', JSON.stringify(updatedCurrentRoom));
-            } else {
-              console.warn("Salle actuelle non trouvée dans les salles rafraîchies");
-              // On ne nettoie pas automatiquement l'état, peut-être encore valide
-            }
-          }
-        } else {
-          console.warn("Données de salles invalides pendant le rafraîchissement:", allRooms);
-        }
-        
-        resolve();
-      });
-    });
-  }, [socket, currentRoom]);
 
   return (
     <GameContext.Provider
@@ -370,9 +261,8 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         startGame,
         leaveRoom,
         setPlayerReady,
-        socket,
+        socket: null, // Maintenu pour compatibilité
         refreshCurrentRoom,
-        // Simplified phrases properties
         customPhrases,
         setCustomPhrases,
       }}
