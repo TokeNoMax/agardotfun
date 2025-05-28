@@ -215,6 +215,10 @@ export default function Index() {
             <p className="text-gray-400 font-mono text-sm mt-2">
               [HODL_MODE] Diamond hands only 💎🚀
             </p>
+            {/* Mobile info */}
+            <p className="text-cyber-cyan font-mono text-xs mt-3 opacity-80">
+              📱 Pour jouer sur mobile, utilisez le browser Phantom
+            </p>
           </div>
           
           <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto font-mono leading-relaxed">
