@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Constants - Augmenté la taille du jeu et ajouté des constantes pour la grille
 const GAME_WIDTH = 3000;
@@ -51,6 +52,10 @@ const Canvas: React.FC<CanvasProps> = ({
   const [gameOverCalled, setGameOverCalled] = useState(false);
   const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
   
+  // Mobile-specific state
+  const isMobile = useIsMobile();
+  const [mobileDirection, setMobileDirection] = useState<{ x: number; y: number } | null>(null);
+  
   // Zone Battle state
   const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
   const [gameStartTime, setGameStartTime] = useState<number>(0);
@@ -94,15 +99,20 @@ const Canvas: React.FC<CanvasProps> = ({
     return distance <= zone.currentRadius - player.size;
   };
 
-  // Unified position handler for both mouse and touch
+  // Unified position handler for both mouse and touch (PC only)
   const updateMousePosition = (clientX: number, clientY: number) => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || isMobile) return;
     
     const rect = canvasRef.current.getBoundingClientRect();
     setMousePosition({
       x: clientX - rect.left,
       y: clientY - rect.top
     });
+  };
+
+  // Mobile direction handler
+  const handleMobileDirection = (direction: { x: number; y: number } | null) => {
+    setMobileDirection(direction);
   };
 
   // Game initialization
@@ -197,8 +207,10 @@ const Canvas: React.FC<CanvasProps> = ({
     };
   }, [currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode]);
 
-  // Mouse movement handler
+  // Mouse movement handler (PC only)
   useEffect(() => {
+    if (isMobile) return;
+
     const handleMouseMove = (e: MouseEvent) => {
       updateMousePosition(e.clientX, e.clientY);
     };
@@ -208,7 +220,7 @@ const Canvas: React.FC<CanvasProps> = ({
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
     };
-  }, []);
+  }, [isMobile]);
 
   // Touch controls - unified with mouse controls
   useEffect(() => {
@@ -315,45 +327,51 @@ const Canvas: React.FC<CanvasProps> = ({
           }
         }
         
-        // Calculate movement direction with proper normalization and progressive speed
+        // Calculate movement direction - different for mobile vs PC
         const canvas = canvasRef.current;
         if (canvas) {
-          const canvasWidth = canvas.width;
-          const canvasHeight = canvas.height;
-          
-          // Calculate target position in world coordinates
-          const targetX = cameraPosition.x - (canvasWidth / 2 - mousePosition.x) / cameraZoom;
-          const targetY = cameraPosition.y - (canvasHeight / 2 - mousePosition.y) / cameraZoom;
-          
-          // Update last target position
-          setLastTargetPosition({
-            x: targetX,
-            y: targetY
-          });
-          
-          // Calculate movement direction
-          const dx = targetX - me.x;
-          const dy = targetY - me.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          
-          // Use the new progressive speed calculation
           const maxSpeed = calculateSpeed(me.size);
           
-          if (distance > 5) {
-            // Normalize direction to ensure consistent speed in all directions
-            const directionX = dx / distance;
-            const directionY = dy / distance;
+          if (isMobile && mobileDirection) {
+            // Mobile: Use persistent direction
+            me.x += mobileDirection.x * maxSpeed;
+            me.y += mobileDirection.y * maxSpeed;
+          } else if (!isMobile) {
+            // PC: Use mouse position
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
             
-            // Apply maximum speed in the normalized direction
-            const actualSpeed = Math.min(maxSpeed, distance);
+            // Calculate target position in world coordinates
+            const targetX = cameraPosition.x - (canvasWidth / 2 - mousePosition.x) / cameraZoom;
+            const targetY = cameraPosition.y - (canvasHeight / 2 - mousePosition.y) / cameraZoom;
             
-            me.x += directionX * actualSpeed;
-            me.y += directionY * actualSpeed;
+            // Update last target position
+            setLastTargetPosition({
+              x: targetX,
+              y: targetY
+            });
             
-            // Game boundaries
-            me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
-            me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
+            // Calculate movement direction
+            const dx = targetX - me.x;
+            const dy = targetY - me.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 5) {
+              // Normalize direction to ensure consistent speed in all directions
+              const directionX = dx / distance;
+              const directionY = dy / distance;
+              
+              // Apply maximum speed in the normalized direction
+              const actualSpeed = Math.min(maxSpeed, distance);
+              
+              me.x += directionX * actualSpeed;
+              me.y += directionY * actualSpeed;
+            }
           }
+          
+          // Game boundaries
+          me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
+          me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
         }
         
         // Check collisions with food
@@ -486,7 +504,7 @@ const Canvas: React.FC<CanvasProps> = ({
         gameLoopRef.current = null;
       }
     };
-  }, [cameraZoom, cameraPosition, mousePosition, players, onGameOver, currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode, safeZone, lastDamageTime, onZoneUpdate]);
+  }, [cameraZoom, cameraPosition, mousePosition, players, onGameOver, currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection]);
 
   // Rendering - completely optimized
   useEffect(() => {
@@ -643,11 +661,18 @@ const Canvas: React.FC<CanvasProps> = ({
   };
 
   return (
-    <canvas 
-      ref={canvasRef} 
-      className="w-full h-full bg-black"
-      style={{ touchAction: 'none' }} // Prevent browser touch gestures
-    />
+    <>
+      <canvas 
+        ref={canvasRef} 
+        className="w-full h-full bg-black"
+        style={{ touchAction: 'none' }} // Prevent browser touch gestures
+      />
+      {/* Pass the direction handler to parent component */}
+      {React.createElement('div', { 
+        'data-mobile-direction-handler': handleMobileDirection,
+        style: { display: 'none' }
+      })}
+    </>
   );
 };
 

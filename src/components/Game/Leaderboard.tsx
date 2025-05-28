@@ -1,8 +1,11 @@
+
 import { useEffect, useState, useCallback } from "react";
 import { Player } from "@/types/game";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useGame } from "@/context/GameContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface LeaderboardProps {
   players: Player[];
@@ -20,7 +23,9 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
   const [sortedPlayers, setSortedPlayers] = useState<Player[]>([]);
   const [memeToasts, setMemeToasts] = useState<MemeToast[]>([]);
   const [previousPlayers, setPreviousPlayers] = useState<Player[]>([]);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const { customPhrases } = useGame();
+  const isMobile = useIsMobile();
 
   // Sort players by size in descending order
   useEffect(() => {
@@ -87,52 +92,77 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
 
   return (
     <>
-      <Card className="w-full max-w-xs bg-black/80 backdrop-blur-sm text-white border-gray-700">
-        <CardHeader className="p-3">
-          <CardTitle className="text-lg">Classement</CardTitle>
+      <Card className={`bg-black/80 backdrop-blur-sm text-white border-gray-700 ${
+        isMobile ? 'w-full max-w-[200px]' : 'w-full max-w-xs'
+      }`}>
+        <CardHeader className={`${isMobile ? 'p-2' : 'p-3'} ${isMobile ? 'cursor-pointer' : ''}`} 
+                   onClick={isMobile ? () => setIsCollapsed(!isCollapsed) : undefined}>
+          <div className="flex items-center justify-between">
+            <CardTitle className={`${isMobile ? 'text-sm' : 'text-lg'}`}>
+              {isMobile ? 'Score' : 'Classement'}
+            </CardTitle>
+            {isMobile && (
+              <div className="flex items-center text-xs text-white/70">
+                {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              </div>
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-gray-700">
-                <TableHead className="text-white p-2 w-10">#</TableHead>
-                <TableHead className="text-white p-2">Joueur</TableHead>
-                <TableHead className="text-white p-2 text-right">Taille</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedPlayers.map((player, index) => (
-                <TableRow 
-                  key={player.id} 
-                  className={`border-gray-700 ${player.id === currentPlayerId ? 'bg-primary/20' : ''}`}
-                >
-                  <TableCell className="p-2">{index + 1}</TableCell>
-                  <TableCell className="p-2">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: `#${getColorHex(player.color)}` }}
-                      />
-                      {player.name}
-                    </div>
-                  </TableCell>
-                  <TableCell className="p-2 text-right">{Math.round(player.size)}</TableCell>
+        
+        {(!isMobile || !isCollapsed) && (
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-gray-700">
+                  <TableHead className={`text-white ${isMobile ? 'p-1 w-6 text-xs' : 'p-2 w-10'}`}>#</TableHead>
+                  <TableHead className={`text-white ${isMobile ? 'p-1 text-xs' : 'p-2'}`}>
+                    {isMobile ? 'Nom' : 'Joueur'}
+                  </TableHead>
+                  <TableHead className={`text-white ${isMobile ? 'p-1 text-xs' : 'p-2'} text-right`}>
+                    {isMobile ? 'Pts' : 'Taille'}
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
+              </TableHeader>
+              <TableBody>
+                {(isMobile ? sortedPlayers.slice(0, 5) : sortedPlayers).map((player, index) => (
+                  <TableRow 
+                    key={player.id} 
+                    className={`border-gray-700 ${player.id === currentPlayerId ? 'bg-primary/20' : ''}`}
+                  >
+                    <TableCell className={`${isMobile ? 'p-1 text-xs' : 'p-2'}`}>{index + 1}</TableCell>
+                    <TableCell className={`${isMobile ? 'p-1' : 'p-2'}`}>
+                      <div className="flex items-center gap-1">
+                        <div 
+                          className={`${isMobile ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`}
+                          style={{ backgroundColor: `#${getColorHex(player.color)}` }}
+                        />
+                        <span className={`${isMobile ? 'text-xs' : ''} ${isMobile && player.name.length > 8 ? 'truncate max-w-[60px]' : ''}`}>
+                          {isMobile && player.name.length > 8 ? player.name.substring(0, 8) + '...' : player.name}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className={`${isMobile ? 'p-1 text-xs' : 'p-2'} text-right`}>
+                      {Math.round(player.size)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        )}
       </Card>
       
       {/* Meme toasts display */}
-      <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
+      <div className={`fixed ${isMobile ? 'bottom-16 left-2' : 'bottom-4 left-4'} z-50 flex flex-col gap-2`}>
         {memeToasts.map(toast => (
           <div 
             key={toast.id}
-            className="bg-gradient-to-r from-purple-600 to-blue-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in flex items-center gap-2"
+            className={`bg-gradient-to-r from-purple-600 to-blue-500 text-white ${
+              isMobile ? 'px-2 py-1 text-xs' : 'px-4 py-2'
+            } rounded-lg shadow-lg animate-fade-in flex items-center gap-2`}
           >
-            <span className="text-2xl">🚀</span>
-            <span className="font-bold">{toast.message}</span>
+            <span className={`${isMobile ? 'text-lg' : 'text-2xl'}`}>🚀</span>
+            <span className={`font-bold ${isMobile ? 'text-xs' : ''}`}>{toast.message}</span>
           </div>
         ))}
       </div>

@@ -5,9 +5,11 @@ import Canvas from "./Canvas";
 import GameOverModal from "./GameOverModal";
 import Leaderboard from "./Leaderboard";
 import ZoneCounter from "./ZoneCounter";
+import TouchControlArea from "./TouchControlArea";
 import { Player, SafeZone } from "@/types/game";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function GameUI() {
   const { currentRoom, leaveRoom, player } = useGame();
@@ -20,9 +22,11 @@ export default function GameUI() {
   const [currentZone, setCurrentZone] = useState<SafeZone | null>(null);
   const [isPlayerInZone, setIsPlayerInZone] = useState<boolean>(true);
   const [timeUntilShrink, setTimeUntilShrink] = useState<number>(0);
+  const [canvasRef, setCanvasRef] = useState<any>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   
   // Check URL parameters and set modes
   useEffect(() => {
@@ -90,6 +94,13 @@ export default function GameUI() {
     setCurrentZone(zone);
     setIsPlayerInZone(playerInZone);
     setTimeUntilShrink(zone.nextShrinkTime - Date.now());
+  };
+
+  // Handle mobile direction change
+  const handleMobileDirectionChange = (direction: { x: number; y: number } | null) => {
+    if (canvasRef && canvasRef.handleMobileDirection) {
+      canvasRef.handleMobileDirection(direction);
+    }
   };
 
   const handleGameOver = (winner: Player | null) => {
@@ -160,14 +171,16 @@ export default function GameUI() {
   return (
     <div className="w-full h-full relative">
       {/* Game status */}
-      <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm p-3 rounded-md shadow-md z-10 text-white">
-        <div className="text-sm font-medium">
+      <div className={`absolute top-4 left-4 bg-black/80 backdrop-blur-sm ${
+        isMobile ? 'p-2 text-sm' : 'p-3'
+      } rounded-md shadow-md z-10 text-white`}>
+        <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
           {localMode ? (isZoneMode ? "Mode Zone Battle" : "Mode Solo Local") : `Joueurs en vie: ${alivePlayers}`}
         </div>
         {!localMode && currentRoom && (
-          <div className="text-sm font-medium">Salle: {currentRoom.name}</div>
+          <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>Salle: {currentRoom.name}</div>
         )}
-        <div className="text-sm font-medium">
+        <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
           Vous: {localMode ? localPlayer?.name : player?.name}
         </div>
       </div>
@@ -187,7 +200,8 @@ export default function GameUI() {
       <div className="absolute top-4 right-4 z-10">
         <Button 
           variant="destructive" 
-          size="sm"
+          size={isMobile ? "sm" : "default"}
+          className={isMobile ? "text-xs px-2 py-1" : ""}
           onClick={handleBackToLobby}
         >
           Quitter
@@ -195,7 +209,7 @@ export default function GameUI() {
       </div>
       
       {/* Leaderboard */}
-      <div className="absolute top-4 right-20 z-10">
+      <div className={`absolute top-4 ${isMobile ? 'right-4 mt-12' : 'right-20'} z-10`}>
         <Leaderboard 
           players={localMode ? (localPlayer ? [localPlayer] : []) : (currentRoom ? currentRoom.players : [])} 
           currentPlayerId={localMode ? localPlayer?.id : player?.id}
@@ -206,6 +220,7 @@ export default function GameUI() {
       {/* Game canvas */}
       <div className="w-full h-full">
         <Canvas 
+          ref={(ref) => setCanvasRef(ref)}
           onGameOver={handleGameOver} 
           isLocalMode={localMode}
           localPlayer={localPlayer}
@@ -213,6 +228,11 @@ export default function GameUI() {
           onZoneUpdate={handleZoneUpdate}
         />
       </div>
+      
+      {/* Mobile Touch Control Area */}
+      <TouchControlArea 
+        onDirectionChange={handleMobileDirectionChange}
+      />
       
       {/* Game over modal */}
       <GameOverModal
