@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface TouchControlAreaProps {
@@ -9,6 +9,8 @@ const TouchControlArea: React.FC<TouchControlAreaProps> = ({ onDirectionChange }
   const isMobile = useIsMobile();
   const touchAreaRef = useRef<HTMLDivElement>(null);
   const startTouchRef = useRef<{ x: number; y: number } | null>(null);
+  const [currentDirection, setCurrentDirection] = useState<{ x: number; y: number } | null>(null);
+  const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
     if (!isMobile || !touchAreaRef.current) return;
@@ -24,6 +26,8 @@ const TouchControlArea: React.FC<TouchControlAreaProps> = ({ onDirectionChange }
           x: touch.clientX - rect.left,
           y: touch.clientY - rect.top
         };
+        setIsActive(true);
+        console.log('TouchControlArea: Touch started at:', startTouchRef.current);
       }
     };
 
@@ -40,12 +44,15 @@ const TouchControlArea: React.FC<TouchControlAreaProps> = ({ onDirectionChange }
         
         // Minimum movement threshold to avoid jitter
         const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        if (distance > 10) {
+        if (distance > 15) {
           // Normalize direction vector
           const normalizedDirection = {
             x: deltaX / distance,
             y: deltaY / distance
           };
+          
+          console.log('TouchControlArea: Direction change:', normalizedDirection);
+          setCurrentDirection(normalizedDirection);
           onDirectionChange(normalizedDirection);
         }
       }
@@ -53,9 +60,11 @@ const TouchControlArea: React.FC<TouchControlAreaProps> = ({ onDirectionChange }
 
     const handleTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
-      startTouchRef.current = null;
-      // Keep the last direction instead of stopping
-      // onDirectionChange(null);
+      setIsActive(false);
+      
+      // Keep the last direction instead of stopping immediately
+      // This allows for persistent movement
+      console.log('TouchControlArea: Touch ended, keeping direction');
     };
 
     // Double tap to stop
@@ -63,7 +72,10 @@ const TouchControlArea: React.FC<TouchControlAreaProps> = ({ onDirectionChange }
     const handleDoubleTap = (e: TouchEvent) => {
       const currentTime = Date.now();
       if (currentTime - lastTapTime < 300) {
+        console.log('TouchControlArea: Double tap detected, stopping movement');
+        setCurrentDirection(null);
         onDirectionChange(null);
+        setIsActive(false);
       }
       lastTapTime = currentTime;
     };
@@ -86,15 +98,34 @@ const TouchControlArea: React.FC<TouchControlAreaProps> = ({ onDirectionChange }
   return (
     <div
       ref={touchAreaRef}
-      className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent border-t-2 border-white/20 flex flex-col items-center justify-center z-20"
+      className={`absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/30 to-transparent border-t-2 ${
+        isActive ? 'border-green-400' : 'border-white/20'
+      } flex flex-col items-center justify-center z-20`}
       style={{ touchAction: 'none' }}
     >
       <div className="text-white/70 text-sm text-center mb-2">
         <div className="mb-1">Zone de Contrôle</div>
         <div className="text-xs">Glissez pour diriger • Double-tap pour arrêter</div>
+        {currentDirection && (
+          <div className="text-xs text-green-400">
+            Direction: {Math.round(currentDirection.x * 100)}, {Math.round(currentDirection.y * 100)}
+          </div>
+        )}
       </div>
-      <div className="w-16 h-16 rounded-full border-2 border-white/40 bg-white/10 flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full bg-white/60"></div>
+      <div className={`w-16 h-16 rounded-full border-2 ${
+        isActive ? 'border-green-400 bg-green-400/20' : 'border-white/40 bg-white/10'
+      } flex items-center justify-center transition-colors`}>
+        <div className={`w-8 h-8 rounded-full ${
+          isActive ? 'bg-green-400' : 'bg-white/60'
+        } transition-colors`}></div>
+        {currentDirection && (
+          <div 
+            className="absolute w-6 h-1 bg-green-400 rounded"
+            style={{
+              transform: `rotate(${Math.atan2(currentDirection.y, currentDirection.x) * 180 / Math.PI}deg)`
+            }}
+          />
+        )}
       </div>
     </div>
   );

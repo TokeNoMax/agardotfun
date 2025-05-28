@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -34,13 +34,17 @@ interface CanvasProps {
   onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
 }
 
-const Canvas: React.FC<CanvasProps> = ({ 
+export interface CanvasRef {
+  setMobileDirection: (direction: { x: number; y: number } | null) => void;
+}
+
+const Canvas = forwardRef<CanvasRef, CanvasProps>(({ 
   onGameOver, 
   isLocalMode = false, 
   localPlayer = null,
   isZoneMode = false,
   onZoneUpdate
-}) => {
+}, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { currentRoom, player: currentPlayer } = useGame();
   const [foods, setFoods] = useState<Food[]>([]);
@@ -64,6 +68,14 @@ const Canvas: React.FC<CanvasProps> = ({
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  // Expose mobile direction setter to parent component
+  useImperativeHandle(ref, () => ({
+    setMobileDirection: (direction: { x: number; y: number } | null) => {
+      console.log('Canvas: Setting mobile direction:', direction);
+      setMobileDirection(direction);
+    }
+  }));
 
   // Helper function to calculate speed based on blob size
   const calculateSpeed = (size: number): number => {
@@ -99,7 +111,7 @@ const Canvas: React.FC<CanvasProps> = ({
     return distance <= zone.currentRadius - player.size;
   };
 
-  // Unified position handler for both mouse and touch (PC only)
+  // Mouse position handler (PC only)
   const updateMousePosition = (clientX: number, clientY: number) => {
     if (!canvasRef.current || isMobile) return;
     
@@ -108,11 +120,6 @@ const Canvas: React.FC<CanvasProps> = ({
       x: clientX - rect.left,
       y: clientY - rect.top
     });
-  };
-
-  // Mobile direction handler
-  const handleMobileDirection = (direction: { x: number; y: number } | null) => {
-    setMobileDirection(direction);
   };
 
   // Game initialization
@@ -222,45 +229,6 @@ const Canvas: React.FC<CanvasProps> = ({
     };
   }, [isMobile]);
 
-  // Touch controls - unified with mouse controls
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      e.preventDefault(); // Prevent scrolling
-      if (e.touches.length > 0) {
-        const touch = e.touches[0];
-        updateMousePosition(touch.clientX, touch.clientY);
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      e.preventDefault(); // Prevent scrolling
-      if (e.touches.length > 0) {
-        const touch = e.touches[0];
-        updateMousePosition(touch.clientX, touch.clientY);
-      }
-    };
-
-    const handleTouchEnd = (e: TouchEvent) => {
-      e.preventDefault(); // Prevent scrolling
-      // Keep the last touch position when finger is lifted
-      // This maintains the blob's direction
-    };
-
-    // Add touch event listeners to the canvas
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-
-    return () => {
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, []);
-
   // Game loop - optimized for local mode with smoothing and zone logic
   useEffect(() => {
     // Make sure we have a player reference
@@ -333,7 +301,8 @@ const Canvas: React.FC<CanvasProps> = ({
           const maxSpeed = calculateSpeed(me.size);
           
           if (isMobile && mobileDirection) {
-            // Mobile: Use persistent direction
+            // Mobile: Use persistent direction from TouchControlArea
+            console.log('Canvas: Using mobile direction:', mobileDirection);
             me.x += mobileDirection.x * maxSpeed;
             me.y += mobileDirection.y * maxSpeed;
           } else if (!isMobile) {
@@ -661,19 +630,14 @@ const Canvas: React.FC<CanvasProps> = ({
   };
 
   return (
-    <>
-      <canvas 
-        ref={canvasRef} 
-        className="w-full h-full bg-black"
-        style={{ touchAction: 'none' }} // Prevent browser touch gestures
-      />
-      {/* Pass the direction handler to parent component */}
-      {React.createElement('div', { 
-        'data-mobile-direction-handler': handleMobileDirection,
-        style: { display: 'none' }
-      })}
-    </>
+    <canvas 
+      ref={canvasRef} 
+      className="w-full h-full bg-black"
+      style={{ touchAction: 'none' }}
+    />
   );
-};
+});
+
+Canvas.displayName = 'Canvas';
 
 export default Canvas;

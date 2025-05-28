@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
-import Canvas from "./Canvas";
+import Canvas, { CanvasRef } from "./Canvas";
 import GameOverModal from "./GameOverModal";
 import Leaderboard from "./Leaderboard";
 import ZoneCounter from "./ZoneCounter";
@@ -22,7 +23,7 @@ export default function GameUI() {
   const [currentZone, setCurrentZone] = useState<SafeZone | null>(null);
   const [isPlayerInZone, setIsPlayerInZone] = useState<boolean>(true);
   const [timeUntilShrink, setTimeUntilShrink] = useState<number>(0);
-  const [canvasRef, setCanvasRef] = useState<any>(null);
+  const canvasRef = useRef<CanvasRef>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -96,10 +97,13 @@ export default function GameUI() {
     setTimeUntilShrink(zone.nextShrinkTime - Date.now());
   };
 
-  // Handle mobile direction change
+  // Handle mobile direction change - properly communicate with Canvas
   const handleMobileDirectionChange = (direction: { x: number; y: number } | null) => {
-    if (canvasRef && canvasRef.handleMobileDirection) {
-      canvasRef.handleMobileDirection(direction);
+    console.log('GameUI: Received mobile direction change:', direction);
+    if (canvasRef.current) {
+      canvasRef.current.setMobileDirection(direction);
+    } else {
+      console.warn('GameUI: Canvas ref not available');
     }
   };
 
@@ -220,7 +224,7 @@ export default function GameUI() {
       {/* Game canvas */}
       <div className="w-full h-full">
         <Canvas 
-          ref={(ref) => setCanvasRef(ref)}
+          ref={canvasRef}
           onGameOver={handleGameOver} 
           isLocalMode={localMode}
           localPlayer={localPlayer}
