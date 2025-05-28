@@ -10,6 +10,7 @@ import WalletButton from "@/components/Wallet/WalletButton";
 import { Wallet, Smartphone, Image } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 
 const COLORS: PlayerColor[] = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink'];
 
@@ -19,9 +20,11 @@ export default function PlayerCustomization() {
   const [nftImageUrl, setNftImageUrl] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { setPlayerDetails, player } = useGame();
   const { connected, publicKey } = useWallet();
   const isMobile = useIsMobile();
+  const { toast } = useToast();
 
   // Pre-fill form with player data if exists
   useEffect(() => {
@@ -40,7 +43,7 @@ export default function PlayerCustomization() {
     
     if (url.trim()) {
       // Test if the image loads
-      const img = new Image();
+      const img = document.createElement('img');
       img.onload = () => {
         setPreviewImage(url);
         setImageError(false);
@@ -59,11 +62,52 @@ export default function PlayerCustomization() {
     e.preventDefault();
     
     if (!connected || !publicKey) {
-      return; // Wallet must be connected
+      toast({
+        title: "Erreur",
+        description: "Veuillez connecter votre wallet pour continuer.",
+        variant: "destructive"
+      });
+      return;
     }
     
-    if (name.trim()) {
-      await setPlayerDetails(name, selectedColor, publicKey.toString(), nftImageUrl.trim() || undefined);
+    if (!name.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez entrer un nom pour votre blob.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      console.log("Creating player with:", {
+        name: name.trim(),
+        color: selectedColor,
+        walletAddress: publicKey.toString(),
+        nftImageUrl: nftImageUrl.trim() || undefined
+      });
+
+      await setPlayerDetails(
+        name.trim(),
+        selectedColor,
+        nftImageUrl.trim() || undefined
+      );
+
+      toast({
+        title: "Succès",
+        description: `Votre blob "${name}" a été configuré avec succès !`
+      });
+    } catch (error) {
+      console.error("Error creating player:", error);
+      toast({
+        title: "Erreur de configuration",
+        description: "Impossible de configurer votre joueur. Vérifiez votre connexion et réessayez.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -127,6 +171,7 @@ export default function PlayerCustomization() {
             onChange={(e) => setName(e.target.value)}
             required
             maxLength={15}
+            disabled={isLoading}
           />
         </div>
         
@@ -149,6 +194,7 @@ export default function PlayerCustomization() {
                   style={{ backgroundColor: `#${getColorHex(color)}` }}
                   onClick={() => setSelectedColor(color)}
                   aria-label={`Sélectionner la couleur ${color}`}
+                  disabled={isLoading}
                 />
               ))}
             </div>
@@ -162,6 +208,7 @@ export default function PlayerCustomization() {
               value={nftImageUrl}
               onChange={(e) => handleNftImageChange(e.target.value)}
               type="url"
+              disabled={isLoading}
             />
             
             {imageError && (
@@ -229,13 +276,13 @@ export default function PlayerCustomization() {
                   <p className="text-xs text-gray-500">{formatAddress(player.walletAddress)}</p>
                 </div>
               </div>
-              <Button type="submit">
-                Modifier
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Modification..." : "Modifier"}
               </Button>
             </div>
           ) : (
-            <Button type="submit" className="w-full">
-              Confirmer
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Configuration..." : "Confirmer"}
             </Button>
           )}
         </div>
