@@ -73,6 +73,16 @@ export default {
 					'cyan': '#1abc9c',
 					'pink': '#fd79a8',
 					'rug': '#8e44ad'
+				},
+				cyber: {
+					cyan: '#00ffff',
+					magenta: '#ff00ff',
+					green: '#00ff00',
+					yellow: '#ffff00',
+					orange: '#ff6600',
+					blue: '#0080ff',
+					purple: '#8000ff',
+					pink: '#ff0080'
 				}
 			},
 			borderRadius: {
@@ -104,6 +114,36 @@ export default {
 				float: {
 					'0%, 100%': { transform: 'translateY(0)' },
 					'50%': { transform: 'translateY(-10px)' },
+				},
+				'grid-flow': {
+					'0%': { transform: 'translateX(-100%)' },
+					'100%': { transform: 'translateX(100%)' }
+				},
+				'scan-line': {
+					'0%': { transform: 'translateY(-100vh)' },
+					'100%': { transform: 'translateY(100vh)' }
+				},
+				'glitch': {
+					'0%': { transform: 'translate(0)' },
+					'20%': { transform: 'translate(-2px, 2px)' },
+					'40%': { transform: 'translate(-2px, -2px)' },
+					'60%': { transform: 'translate(2px, 2px)' },
+					'80%': { transform: 'translate(2px, -2px)' },
+					'100%': { transform: 'translate(0)' }
+				},
+				'neon-pulse': {
+					'0%, 100%': { 
+						textShadow: '0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor',
+						opacity: '1'
+					},
+					'50%': { 
+						textShadow: '0 0 2px currentColor, 0 0 5px currentColor, 0 0 8px currentColor',
+						opacity: '0.8'
+					}
+				},
+				'terminal-blink': {
+					'0%, 50%': { opacity: '1' },
+					'51%, 100%': { opacity: '0' }
 				}
 			},
 			animation: {
@@ -111,6 +151,15 @@ export default {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'pulse': 'pulse 2s infinite ease-in-out',
 				'float': 'float 6s infinite ease-in-out',
+				'grid-flow': 'grid-flow 20s linear infinite',
+				'scan-line': 'scan-line 2s linear infinite',
+				'glitch': 'glitch 0.3s ease-in-out',
+				'neon-pulse': 'neon-pulse 2s ease-in-out infinite',
+				'terminal-blink': 'terminal-blink 1s step-end infinite'
+			},
+			fontFamily: {
+				'mono': ['Courier New', 'monospace'],
+				'pixel': ['Press Start 2P', 'cursive']
 			}
 		}
 	},
