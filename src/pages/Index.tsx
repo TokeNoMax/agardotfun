@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGame, defaultPhrases } from "@/context/GameContext";
@@ -210,9 +209,9 @@ export default function Index() {
           </div>
           
           <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto font-mono leading-relaxed">
-            Absorbez, grandissez et <span className="text-cyber-magenta">MOON</span> ! 
-            <br />Un jeu multijoueur où vous contrôlez un blob et tentez de devenir 
-            <span className="text-cyber-yellow"> LE BOSS FINAL</span> 🎮
+            Move, Eat, Hodl to the <span className="text-cyber-magenta">Moon</span> ! 
+            <br />
+            <span className="text-cyber-yellow">Time to become THE BOSS FINAL</span> 🎮
           </p>
           
           <Button 
@@ -220,7 +219,7 @@ export default function Index() {
             className="bg-gradient-to-r from-cyber-magenta to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-magenta text-black font-mono font-bold text-lg px-8 py-6 rounded-none border-2 border-cyber-cyan shadow-[0_0_20px_rgba(0,255,255,0.5)] hover:shadow-[0_0_30px_rgba(255,0,255,0.7)] transition-all duration-300 transform hover:scale-105"
           >
             <PlayIcon className="mr-2" />
-            &gt; ENTER_THE_MATRIX
+            &gt; DEPLOY_TO_MAINNET
           </Button>
         </div>
         
