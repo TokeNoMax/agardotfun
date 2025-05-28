@@ -14,6 +14,15 @@ export interface Player {
   y: number;
   isAlive: boolean;
   ready?: boolean;
+  nftImageUrl?: string; // URL of the NFT image to display on the blob
+}
+
+// Simple interface for NFT selection
+export interface PlayerNFT {
+  id: string;
+  name: string;
+  imageUrl: string;
+  walletAddress: string;
 }
 
 // Types pour la nourriture

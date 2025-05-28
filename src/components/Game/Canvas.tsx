@@ -65,6 +65,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [gameStartTime, setGameStartTime] = useState<number>(0);
   const [lastDamageTime, setLastDamageTime] = useState<number>(0);
 
+  // NFT Image cache for performance
+  const [imageCache, setImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
+
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -76,6 +79,24 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       setMobileDirection(direction);
     }
   }));
+
+  // Helper function to preload and cache NFT images
+  const preloadImage = (url: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      if (imageCache.has(url)) {
+        resolve(imageCache.get(url)!);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        setImageCache(prev => new Map(prev.set(url, img)));
+        resolve(img);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  };
 
   // Helper function to calculate speed based on blob size
   const calculateSpeed = (size: number): number => {
@@ -152,6 +173,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         size: 15
       }];
       playerRef.current = initialPlayers[0];
+      
+      // Preload NFT image if available
+      if (localPlayer.nftImageUrl) {
+        preloadImage(localPlayer.nftImageUrl).catch(console.error);
+      }
     } else if (currentRoom) {
       initialPlayers = currentRoom.players.map(p => ({
         ...p,
@@ -165,6 +191,13 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       if (ourPlayer) {
         playerRef.current = ourPlayer;
       }
+      
+      // Preload all players' NFT images
+      initialPlayers.forEach(player => {
+        if (player.nftImageUrl) {
+          preloadImage(player.nftImageUrl).catch(console.error);
+        }
+      });
     }
     
     setPlayers(initialPlayers);
@@ -475,7 +508,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [cameraZoom, cameraPosition, mousePosition, players, onGameOver, currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection]);
 
-  // Rendering - completely optimized
+  // Rendering - completely optimized with NFT image support
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -576,22 +609,61 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.fill();
       });
       
-      // Draw players
+      // Draw players with NFT image support
       players.forEach(player => {
         if (!player.isAlive) return;
         
-        // Simple drawing for blobs
-        context.beginPath();
-        context.fillStyle = `#${getColorHex(player.color)}`;
-        context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-        context.fill();
+        context.save();
+        
+        // Check if player has NFT image and if it's loaded
+        const hasNftImage = player.nftImageUrl && imageCache.has(player.nftImageUrl);
+        
+        if (hasNftImage) {
+          const img = imageCache.get(player.nftImageUrl!);
+          if (img) {
+            // Draw NFT image as circular blob
+            context.beginPath();
+            context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            context.clip();
+            
+            // Draw the image to fill the circular area
+            const imageSize = player.size * 2;
+            context.drawImage(
+              img,
+              player.x - player.size,
+              player.y - player.size,
+              imageSize,
+              imageSize
+            );
+            
+            // Add a border around the NFT blob
+            context.restore();
+            context.save();
+            context.beginPath();
+            context.strokeStyle = '#ffffff';
+            context.lineWidth = 2 / cameraZoom;
+            context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            context.stroke();
+          }
+        } else {
+          // Fallback to color blob if no NFT image
+          context.beginPath();
+          context.fillStyle = `#${getColorHex(player.color)}`;
+          context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+          context.fill();
+        }
         
         // Draw player name and size
         context.font = `${14 / cameraZoom}px Arial`;
         context.fillStyle = '#fff';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
+        context.strokeStyle = '#000';
+        context.lineWidth = 3 / cameraZoom;
+        context.strokeText(`${player.name} (${Math.round(player.size)})`, player.x, player.y);
         context.fillText(`${player.name} (${Math.round(player.size)})`, player.x, player.y);
+        
+        context.restore();
       });
       
       // Restore context
@@ -612,7 +684,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         animationFrameRef.current = null;
       }
     };
-  }, [players, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone]);
+  }, [players, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone, imageCache]);
 
   // Helper function to get color hex
   const getColorHex = (color: string): string => {

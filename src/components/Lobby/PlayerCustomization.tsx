@@ -7,14 +7,18 @@ import { Label } from "@/components/ui/label";
 import { useGame } from "@/context/GameContext";
 import { PlayerColor } from "@/types/game";
 import WalletButton from "@/components/Wallet/WalletButton";
-import { Wallet, Smartphone } from "lucide-react";
+import { Wallet, Smartphone, Image } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const COLORS: PlayerColor[] = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink'];
 
 export default function PlayerCustomization() {
   const [name, setName] = useState("");
   const [selectedColor, setSelectedColor] = useState<PlayerColor>("blue");
+  const [nftImageUrl, setNftImageUrl] = useState("");
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
   const { setPlayerDetails, player } = useGame();
   const { connected, publicKey } = useWallet();
   const isMobile = useIsMobile();
@@ -24,8 +28,32 @@ export default function PlayerCustomization() {
     if (player) {
       setName(player.name);
       setSelectedColor(player.color);
+      setNftImageUrl(player.nftImageUrl || "");
+      setPreviewImage(player.nftImageUrl || null);
     }
   }, [player]);
+
+  // Handle NFT image URL change and validation
+  const handleNftImageChange = (url: string) => {
+    setNftImageUrl(url);
+    setImageError(false);
+    
+    if (url.trim()) {
+      // Test if the image loads
+      const img = new Image();
+      img.onload = () => {
+        setPreviewImage(url);
+        setImageError(false);
+      };
+      img.onerror = () => {
+        setPreviewImage(null);
+        setImageError(true);
+      };
+      img.src = url;
+    } else {
+      setPreviewImage(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +63,7 @@ export default function PlayerCustomization() {
     }
     
     if (name.trim()) {
-      await setPlayerDetails(name, selectedColor, publicKey.toString());
+      await setPlayerDetails(name, selectedColor, publicKey.toString(), nftImageUrl.trim() || undefined);
     }
   };
 
@@ -102,35 +130,98 @@ export default function PlayerCustomization() {
           />
         </div>
         
-        <div className="space-y-2">
-          <Label>Choisissez une couleur</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={`w-12 h-12 rounded-full transition-all ${
-                  selectedColor === color ? "ring-4 ring-offset-2 ring-black" : "hover:opacity-80"
-                }`}
-                style={{ backgroundColor: `#${getColorHex(color)}` }}
-                onClick={() => setSelectedColor(color)}
-                aria-label={`Sélectionner la couleur ${color}`}
-              />
-            ))}
-          </div>
-        </div>
+        <Tabs defaultValue="color" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="color">Couleurs</TabsTrigger>
+            <TabsTrigger value="nft">NFT Image</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="color" className="space-y-2 mt-4">
+            <Label>Choisissez une couleur</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`w-12 h-12 rounded-full transition-all ${
+                    selectedColor === color ? "ring-4 ring-offset-2 ring-black" : "hover:opacity-80"
+                  }`}
+                  style={{ backgroundColor: `#${getColorHex(color)}` }}
+                  onClick={() => setSelectedColor(color)}
+                  aria-label={`Sélectionner la couleur ${color}`}
+                />
+              ))}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="nft" className="space-y-2 mt-4">
+            <Label htmlFor="nftUrl">URL de l'image NFT</Label>
+            <Input
+              id="nftUrl"
+              placeholder="https://example.com/mon-nft.png"
+              value={nftImageUrl}
+              onChange={(e) => handleNftImageChange(e.target.value)}
+              type="url"
+            />
+            
+            {imageError && (
+              <p className="text-sm text-red-600">
+                Impossible de charger cette image. Vérifiez l'URL.
+              </p>
+            )}
+            
+            {previewImage && !imageError && (
+              <div className="mt-3 text-center">
+                <Label className="text-sm text-gray-600">Aperçu:</Label>
+                <div className="mt-2 inline-block relative">
+                  <div 
+                    className="w-16 h-16 rounded-full border-2 border-gray-300 overflow-hidden bg-white"
+                  >
+                    <img 
+                      src={previewImage} 
+                      alt="NFT Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 mt-3">
+              <div className="flex items-start gap-2">
+                <Image className="h-4 w-4 text-blue-600 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium">Comment utiliser un NFT:</p>
+                  <ul className="mt-1 text-xs space-y-1">
+                    <li>• Collez l'URL de l'image de votre NFT</li>
+                    <li>• L'image s'affichera sur votre blob dans le jeu</li>
+                    <li>• Si l'image ne charge pas, la couleur sera utilisée</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
         
         <div className="pt-2">
           {player ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: `#${getColorHex(player.color)}` }}
+                  className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden border-2 border-gray-300"
+                  style={{ backgroundColor: previewImage ? 'transparent' : `#${getColorHex(player.color)}` }}
                 >
-                  <span className="text-white font-bold">
-                    {player.name.substring(0, 2)}
-                  </span>
+                  {previewImage ? (
+                    <img 
+                      src={previewImage} 
+                      alt="Current NFT" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-white font-bold text-sm">
+                      {player.name.substring(0, 2)}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-medium">Actuellement</p>
