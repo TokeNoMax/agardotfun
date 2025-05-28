@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGame, defaultPhrases } from "@/context/GameContext";
-import { GlobeIcon, Users, PlayIcon, Settings, Plus, Save, Trash2, Zap } from "lucide-react";
+import { Users, PlayIcon, Settings, Plus, Save, Trash2, Zap } from "lucide-react";
 import { useState } from "react";
 import {
   Sheet,
@@ -190,7 +190,16 @@ export default function Index() {
         <div className="text-center mb-16">
           <div className="flex justify-center items-center mb-6">
             <div className="relative">
-              <GlobeIcon size={42} className="text-cyber-cyan mr-3 animate-neon-pulse" />
+              {/* Solana Logo */}
+              <svg width="42" height="42" viewBox="0 0 397.7 311.7" className="text-cyber-cyan mr-3 animate-neon-pulse" fill="currentColor">
+                <linearGradient id="logosGradient" x1="360.8791" y1="351.4553" x2="141.213" y2="-69.2936" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stopColor="#00FFF0"/>
+                  <stop offset="1" stopColor="#DC1FFF"/>
+                </linearGradient>
+                <path d="M64.6,237.9c2.4-2.4,5.7-3.8,9.2-3.8h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,237.9z" fill="url(#logosGradient)"/>
+                <path d="M64.6,3.8C67.1,1.4,70.4,0,73.8,0h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,3.8z" fill="url(#logosGradient)"/>
+                <path d="M333.1,120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8,0-8.7,7-4.6,11.1l62.7,62.7c2.4,2.4,5.7,3.8,9.2,3.8h317.4c5.8,0,8.7-7,4.6-11.1L333.1,120.1z" fill="url(#logosGradient)"/>
+              </svg>
               <div className="absolute inset-0 bg-cyber-cyan/20 rounded-full blur-xl animate-pulse"></div>
             </div>
             <h1 className="text-6xl md:text-7xl font-pixel text-cyber-cyan tracking-wider animate-neon-pulse">
@@ -211,7 +220,7 @@ export default function Index() {
           <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto font-mono leading-relaxed">
             Move, Eat, Hodl to the <span className="text-cyber-magenta">Moon</span> ! 
             <br />
-            <span className="text-cyber-yellow">Time to become THE BOSS FINAL</span> 🎮
+            <span className="text-cyber-yellow">Time to become THE ULTIMATE WHALE</span> 🎮
           </p>
           
           <Button 
@@ -219,7 +228,7 @@ export default function Index() {
             className="bg-gradient-to-r from-cyber-magenta to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-magenta text-black font-mono font-bold text-lg px-8 py-6 rounded-none border-2 border-cyber-cyan shadow-[0_0_20px_rgba(0,255,255,0.5)] hover:shadow-[0_0_30px_rgba(255,0,255,0.7)] transition-all duration-300 transform hover:scale-105"
           >
             <PlayIcon className="mr-2" />
-            &gt; DEPLOY_TO_MAINNET
+            &gt; ENTER_THE_MAINNET
           </Button>
         </div>
         
@@ -248,7 +257,7 @@ export default function Index() {
               </div>
               <h3 className="text-xl font-bold text-cyber-magenta mb-2 font-mono">CUSTOM.cfg</h3>
               <p className="text-gray-300 font-mono text-sm leading-relaxed">
-                Personnalisez votre <span className="text-cyber-cyan">AVATAR</span> et créez un blob unique. 
+                Personnalisez votre <span className="text-cyber-cyan">blob avec votre NFT</span> et créez un avatar unique. 
                 <br />Time to <span className="text-cyber-yellow">FLEX</span> 💪
               </p>
             </div>
@@ -307,7 +316,7 @@ export default function Index() {
             className="bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold text-lg px-8 py-6 rounded-none border-2 border-cyber-green shadow-[0_0_20px_rgba(0,255,0,0.5)] hover:shadow-[0_0_30px_rgba(0,255,255,0.7)] transition-all duration-300 transform hover:scale-105"
           >
             <PlayIcon className="mr-2" />
-            &gt; DEPLOY_TO_MAINNET
+            &gt; ENTER_THE_MAINNET
           </Button>
         </div>
       </div>
