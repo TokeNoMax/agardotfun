@@ -94,6 +94,17 @@ const Canvas: React.FC<CanvasProps> = ({
     return distance <= zone.currentRadius - player.size;
   };
 
+  // Unified position handler for both mouse and touch
+  const updateMousePosition = (clientX: number, clientY: number) => {
+    if (!canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    setMousePosition({
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    });
+  };
+
   // Game initialization
   useEffect(() => {
     console.log("Canvas: Initializing game", { isLocalMode, localPlayer: !!localPlayer, isZoneMode });
@@ -186,22 +197,55 @@ const Canvas: React.FC<CanvasProps> = ({
     };
   }, [currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode]);
 
-  // Mouse movement - with smoothing
+  // Mouse movement handler
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!canvasRef.current) return;
-      
-      const rect = canvasRef.current.getBoundingClientRect();
-      setMousePosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
+      updateMousePosition(e.clientX, e.clientY);
     };
     
     window.addEventListener('mousemove', handleMouseMove);
     
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
+  // Touch controls - unified with mouse controls
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault(); // Prevent scrolling
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        updateMousePosition(touch.clientX, touch.clientY);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault(); // Prevent scrolling
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        updateMousePosition(touch.clientX, touch.clientY);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault(); // Prevent scrolling
+      // Keep the last touch position when finger is lifted
+      // This maintains the blob's direction
+    };
+
+    // Add touch event listeners to the canvas
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
     };
   }, []);
 
@@ -602,6 +646,7 @@ const Canvas: React.FC<CanvasProps> = ({
     <canvas 
       ref={canvasRef} 
       className="w-full h-full bg-black"
+      style={{ touchAction: 'none' }} // Prevent browser touch gestures
     />
   );
 };
