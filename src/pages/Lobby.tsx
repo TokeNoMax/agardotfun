@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -18,6 +17,7 @@ import {
   SheetTitle, 
   SheetTrigger 
 } from "@/components/ui/sheet";
+import { useAutoCleanup } from "@/hooks/use-auto-cleanup";
 
 export default function Lobby() {
   const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();
@@ -26,6 +26,12 @@ export default function Lobby() {
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  
+  // Utiliser le nettoyage automatique amélioré
+  useAutoCleanup({
+    intervalMinutes: 10, // Nettoyage plus fréquent
+    enableLogging: true
+  });
   
   // Improved initialization with better session cleanup
   useEffect(() => {

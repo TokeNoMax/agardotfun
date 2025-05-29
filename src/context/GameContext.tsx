@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { gameRoomService } from "@/services/gameRoomService";
 import { useGameRoomSubscriptions } from "@/hooks/useGameRoomSubscriptions";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
 
 // Default custom phrases
 const defaultPhrases: string[] = [
@@ -45,11 +46,7 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
-interface GameProviderProps {
-  children: React.ReactNode;
-}
-
-const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
+export const GameContextProvider = ({ children }: { children: React.ReactNode }) => {
   const [player, setPlayer] = useState<Player | null>(() => {
     const storedPlayer = localStorage.getItem("blob-battle-player");
     return storedPlayer ? JSON.parse(storedPlayer) : null;
@@ -184,6 +181,14 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     onRoomUpdate: handleRoomUpdate,
     onGameStarted: handleGameStarted,
     currentRoomId: currentRoom?.id
+  });
+
+  // Ajouter le heartbeat pour maintenir la connexion active
+  usePlayerHeartbeat({
+    roomId: currentRoom?.id,
+    playerId: player?.walletAddress,
+    intervalSeconds: 25, // Heartbeat toutes les 25 secondes
+    enableLogging: false
   });
 
   const setPlayerDetails = useCallback(
@@ -503,4 +508,4 @@ const useGame = (): GameContextType => {
   return context;
 };
 
-export { GameProvider, useGame, defaultPhrases };
+export { GameContextProvider, useGame, defaultPhrases };

@@ -8,17 +8,17 @@ interface UseAutoCleanupOptions {
 }
 
 export const useAutoCleanup = (options: UseAutoCleanupOptions = {}) => {
-  const { intervalMinutes = 15, enableLogging = true } = options;
+  const { intervalMinutes = 10, enableLogging = true } = options;
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerCleanup = async () => {
     if (enableLogging) {
-      console.log('Déclenchement automatique du nettoyage des salles...');
+      console.log('Déclenchement automatique du nettoyage amélioré...');
     }
 
     try {
       const { data, error } = await supabase.functions.invoke('cleanup-inactive-rooms', {
-        body: { triggered_by: 'frontend_auto' }
+        body: { triggered_by: 'frontend_auto_enhanced' }
       });
 
       if (error) {
@@ -26,8 +26,12 @@ export const useAutoCleanup = (options: UseAutoCleanupOptions = {}) => {
         return;
       }
 
-      if (enableLogging && data?.cleaned > 0) {
-        console.log(`Nettoyage automatique: ${data.cleaned} salle(s) supprimée(s)`, data.roomNames);
+      if (enableLogging && (data?.cleaned > 0 || data?.ghostPlayersRemoved > 0)) {
+        console.log(`Nettoyage automatique amélioré:`, {
+          sallesSuprimées: data.cleaned,
+          joueursFantômesSuprimés: data.ghostPlayersRemoved,
+          salles: data.roomNames
+        });
       }
 
     } catch (error) {
@@ -36,18 +40,18 @@ export const useAutoCleanup = (options: UseAutoCleanupOptions = {}) => {
   };
 
   useEffect(() => {
-    // Premier nettoyage après 2 minutes pour éviter de surcharger au démarrage
+    // Premier nettoyage après 1 minute pour nettoyer rapidement les salles fantômes
     const initialTimeout = setTimeout(() => {
       triggerCleanup();
-    }, 2 * 60 * 1000);
+    }, 1 * 60 * 1000);
 
-    // Ensuite, nettoyage périodique selon l'intervalle configuré
+    // Ensuite, nettoyage périodique plus fréquent (toutes les 10 minutes par défaut)
     intervalRef.current = setInterval(() => {
       triggerCleanup();
     }, intervalMinutes * 60 * 1000);
 
     if (enableLogging) {
-      console.log(`Nettoyage automatique configuré: toutes les ${intervalMinutes} minutes`);
+      console.log(`Nettoyage automatique amélioré configuré: toutes les ${intervalMinutes} minutes`);
     }
 
     return () => {
