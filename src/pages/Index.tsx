@@ -238,15 +238,15 @@ export default function Index() {
         </div>
         
         {/* Features section with hexagonal cyber design - LARGER CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 text-center mb-12">
           {/* Multiplayer Card - ENLARGED */}
           <div className="group relative">
             <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-magenta/20 rounded-lg blur-xl group-hover:blur-2xl transition-all duration-300"></div>
-            <div className="relative bg-black/80 backdrop-blur-sm p-8 rounded-lg border-2 border-cyber-cyan/50 hover:border-cyber-magenta/70 transition-all duration-300 min-h-[280px] flex flex-col justify-center">
-              <div className="bg-gradient-to-r from-cyber-cyan to-cyber-blue w-20 h-20 rounded-lg flex items-center justify-center mx-auto mb-6 shadow-[0_0_15px_rgba(0,255,255,0.5)]">
-                <Users className="text-black" size={32} />
+            <div className="relative bg-black/80 backdrop-blur-sm p-12 rounded-lg border-2 border-cyber-cyan/50 hover:border-cyber-magenta/70 transition-all duration-300 min-h-[380px] flex flex-col justify-center">
+              <div className="bg-gradient-to-r from-cyber-cyan to-cyber-blue w-24 h-24 rounded-lg flex items-center justify-center mx-auto mb-8 shadow-[0_0_15px_rgba(0,255,255,0.5)]">
+                <Users className="text-black" size={36} />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4 font-mono drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]">MULTIPLAYER.exe</h3>
+              <h3 className="text-2xl font-bold text-white mb-6 font-mono drop-shadow-[0_0_10px_rgba(0,255,255,0.8)]">MULTIPLAYER.exe</h3>
               <p className="text-gray-200 font-mono text-base leading-relaxed drop-shadow-[0_0_5px_rgba(0,0,0,0.8)]">
                 Battle royale avec des joueurs du monde entier ou créez une <span className="text-cyber-yellow">PRIVATE_ROOM</span> avec vos crew 👥
               </p>
@@ -256,11 +256,11 @@ export default function Index() {
           {/* Customization Card - ENLARGED */}
           <div className="group relative">
             <div className="absolute inset-0 bg-gradient-to-r from-cyber-magenta/20 to-cyber-yellow/20 rounded-lg blur-xl group-hover:blur-2xl transition-all duration-300"></div>
-            <div className="relative bg-black/80 backdrop-blur-sm p-8 rounded-lg border-2 border-cyber-magenta/50 hover:border-cyber-yellow/70 transition-all duration-300 min-h-[280px] flex flex-col justify-center">
-              <div className="bg-gradient-to-r from-cyber-magenta to-cyber-purple w-20 h-20 rounded-lg flex items-center justify-center mx-auto mb-6 shadow-[0_0_15px_rgba(255,0,255,0.5)]">
-                <Zap className="text-black" size={32} />
+            <div className="relative bg-black/80 backdrop-blur-sm p-12 rounded-lg border-2 border-cyber-magenta/50 hover:border-cyber-yellow/70 transition-all duration-300 min-h-[380px] flex flex-col justify-center">
+              <div className="bg-gradient-to-r from-cyber-magenta to-cyber-purple w-24 h-24 rounded-lg flex items-center justify-center mx-auto mb-8 shadow-[0_0_15px_rgba(255,0,255,0.5)]">
+                <Zap className="text-black" size={36} />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4 font-mono drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]">CUSTOM.cfg</h3>
+              <h3 className="text-2xl font-bold text-white mb-6 font-mono drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]">CUSTOM.cfg</h3>
               <p className="text-gray-200 font-mono text-base leading-relaxed drop-shadow-[0_0_5px_rgba(0,0,0,0.8)]">
                 Personnalisez votre <span className="text-cyber-cyan">blob avec votre NFT</span> et créez un avatar unique. 
                 <br />Time to <span className="text-cyber-yellow">FLEX</span> 💪
@@ -271,13 +271,13 @@ export default function Index() {
           {/* Competitive Card - ENLARGED */}
           <div className="group relative">
             <div className="absolute inset-0 bg-gradient-to-r from-cyber-green/20 to-cyber-orange/20 rounded-lg blur-xl group-hover:blur-2xl transition-all duration-300"></div>
-            <div className="relative bg-black/80 backdrop-blur-sm p-8 rounded-lg border-2 border-cyber-green/50 hover:border-cyber-orange/70 transition-all duration-300 min-h-[280px] flex flex-col justify-center">
-              <div className="bg-gradient-to-r from-cyber-green to-cyber-yellow w-20 h-20 rounded-lg flex items-center justify-center mx-auto mb-6 shadow-[0_0_15px_rgba(0,255,0,0.5)]">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-black">
+            <div className="relative bg-black/80 backdrop-blur-sm p-12 rounded-lg border-2 border-cyber-green/50 hover:border-cyber-orange/70 transition-all duration-300 min-h-[380px] flex flex-col justify-center">
+              <div className="bg-gradient-to-r from-cyber-green to-cyber-yellow w-24 h-24 rounded-lg flex items-center justify-center mx-auto mb-8 shadow-[0_0_15px_rgba(0,255,0,0.5)]">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-9 h-9 text-black">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4 font-mono drop-shadow-[0_0_10px_rgba(0,255,0,0.8)]">TO_THE_MOON.sol</h3>
+              <h3 className="text-2xl font-bold text-white mb-6 font-mono drop-shadow-[0_0_10px_rgba(0,255,0,0.8)]">TO_THE_MOON.sol</h3>
               <p className="text-gray-200 font-mono text-base leading-relaxed drop-shadow-[0_0_5px_rgba(0,0,0,0.8)]">
                 Mangez les autres blobs, esquivez les <span className="text-cyber-magenta">RUG_PULLS</span> et devenez le 
                 <span className="text-cyber-yellow"> WHALE</span> ultime ! 🐋
