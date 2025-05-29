@@ -12,11 +12,12 @@ export default function Game() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [hasVerifiedSession, setHasVerifiedSession] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
   // Check if we're in local mode
   const isLocalMode = new URLSearchParams(location.search).get('local') === 'true';
   
-  // Improved session check function - skipped for local mode
+  // Improved session check function with retry logic
   const checkGameSession = useCallback(async () => {
     // Skip validation for local mode
     if (isLocalMode) {
@@ -72,10 +73,23 @@ export default function Game() {
         return false;
       }
       
-      // Navigation automatique : permettre l'accès si le jeu est en cours
+      // Allow access if game is playing OR starting (to handle sync delay)
       if (currentRoom.status !== 'playing') {
+        // If status is still 'waiting' but we're retrying, give it more time
+        if (retryCount < 3) {
+          console.log(`Game not started yet, retry ${retryCount + 1}/3`);
+          setRetryCount(prev => prev + 1);
+          
+          // Wait and retry
+          setTimeout(() => {
+            checkGameSession();
+          }, 1000);
+          return false;
+        }
+        
+        console.log("Game status:", currentRoom.status, "after retries");
         toast({
-          title: "Partie non démarrée",
+          title: "Partie non accessible",
           description: "Cette partie n'est pas encore démarrée. Retour au lobby.",
           variant: "destructive"
         });
@@ -85,9 +99,21 @@ export default function Game() {
       
       setIsLoading(false);
       setHasVerifiedSession(true);
+      setRetryCount(0); // Reset retry count on success
       return true;
     } catch (error) {
       console.error("Erreur lors de la récupération de la salle:", error);
+      
+      // Retry on error up to 3 times
+      if (retryCount < 3) {
+        console.log(`Network error, retry ${retryCount + 1}/3`);
+        setRetryCount(prev => prev + 1);
+        setTimeout(() => {
+          checkGameSession();
+        }, 1500);
+        return false;
+      }
+      
       toast({
         title: "Erreur de connexion",
         description: "Impossible de rejoindre la partie. Retour au lobby.",
@@ -96,9 +122,9 @@ export default function Game() {
       navigate('/lobby');
       return false;
     }
-  }, [currentRoom, player, navigate, toast, isLocalMode, hasVerifiedSession, refreshCurrentRoom]);
+  }, [currentRoom, player, navigate, toast, isLocalMode, hasVerifiedSession, refreshCurrentRoom, retryCount]);
   
-  // Effect to check and restore session if necessary - skipped for local mode
+  // Effect to check and restore session if necessary
   useEffect(() => {
     if (!hasVerifiedSession) {
       checkGameSession();
@@ -112,6 +138,9 @@ export default function Game() {
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-lg font-medium">Connexion à la partie...</p>
+          {retryCount > 0 && (
+            <p className="text-sm text-gray-500 mt-2">Tentative {retryCount}/3</p>
+          )}
         </div>
       </div>
     );

@@ -82,6 +82,9 @@ export const roomService = {
     }
 
     console.log("Game started successfully");
+    
+    // Wait a moment to ensure the update is propagated
+    await new Promise(resolve => setTimeout(resolve, 500));
   },
 
   async getRoom(roomId: string): Promise<GameRoom | null> {
