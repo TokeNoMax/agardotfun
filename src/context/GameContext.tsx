@@ -68,6 +68,20 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const { toast } = useToast();
   const { publicKey, connected } = useWallet();
 
+  // Vérifier et corriger le joueur si l'adresse wallet est manquante
+  useEffect(() => {
+    if (player && (!player.walletAddress || player.walletAddress.trim() === '')) {
+      console.log("Player has empty wallet address, clearing player data");
+      setPlayer(null);
+      localStorage.removeItem("blob-battle-player");
+      toast({
+        title: "Configuration invalide",
+        description: "Veuillez reconnecter votre wallet et reconfigurer votre joueur",
+        variant: "destructive"
+      });
+    }
+  }, [player, toast]);
+
   // Fonction pour nettoyer l'état local
   const clearLocalState = useCallback(() => {
     console.log("Clearing local state due to session mismatch");
@@ -162,11 +176,13 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
   const setPlayerDetails = useCallback(
     async (name: string, color: PlayerColor, nftImageUrl?: string) => {
+      console.log("Setting player details - wallet connected:", connected, "publicKey:", publicKey?.toString());
+      
       if (!connected || !publicKey) {
-        console.error("Wallet not connected");
+        console.error("Wallet not connected when setting player details");
         toast({
-          title: "Erreur",
-          description: "Votre wallet doit être connecté pour configurer votre joueur",
+          title: "Erreur de connexion",
+          description: "Votre wallet doit être connecté pour configurer votre joueur. Veuillez reconnecter votre wallet.",
           variant: "destructive"
         });
         throw new Error("Wallet not connected");
@@ -175,10 +191,10 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       const walletAddress = publicKey.toString();
       
       if (!walletAddress || walletAddress.trim() === '') {
-        console.error("Invalid wallet address");
+        console.error("Invalid wallet address when setting player details:", walletAddress);
         toast({
-          title: "Erreur",
-          description: "Adresse wallet invalide",
+          title: "Erreur d'adresse",
+          description: "Adresse wallet invalide. Veuillez reconnecter votre wallet.",
           variant: "destructive"
         });
         throw new Error("Invalid wallet address");
@@ -196,11 +212,22 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         nftImageUrl: nftImageUrl?.trim() || undefined
       };
 
-      console.log("Creating player with details:", newPlayer);
+      console.log("Creating player with validated wallet address:", {
+        name: newPlayer.name,
+        walletAddress: newPlayer.walletAddress,
+        connected,
+        publicKeyExists: !!publicKey
+      });
+      
       setPlayer(newPlayer);
       localStorage.setItem("blob-battle-player", JSON.stringify(newPlayer));
       
-      console.log("Player details set successfully:", newPlayer.name, "with wallet:", newPlayer.walletAddress);
+      console.log("Player details set successfully with wallet:", newPlayer.walletAddress);
+      
+      toast({
+        title: "Joueur configuré",
+        description: `Votre blob "${name}" a été configuré avec succès !`
+      });
     },
     [connected, publicKey, toast]
   );
@@ -258,10 +285,17 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
   const joinRoom = useCallback(
     async (roomId: string) => {
+      console.log("Attempting to join room with player:", {
+        playerExists: !!player,
+        walletConnected: connected,
+        publicKeyExists: !!publicKey,
+        playerWalletAddress: player?.walletAddress
+      });
+
       if (!player) {
-        console.error("Player not initialized");
+        console.error("Player not initialized when joining room");
         toast({
-          title: "Erreur",
+          title: "Erreur de configuration",
           description: "Veuillez d'abord configurer votre joueur",
           variant: "destructive"
         });
@@ -269,17 +303,51 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       }
 
       if (!connected || !publicKey) {
-        console.error("Wallet not connected");
+        console.error("Wallet not connected when joining room");
         toast({
-          title: "Erreur",
-          description: "Votre wallet doit être connecté pour rejoindre une salle",
+          title: "Erreur de connexion",
+          description: "Votre wallet doit être connecté pour rejoindre une salle. Veuillez reconnecter votre wallet.",
           variant: "destructive"
         });
         throw new Error("Wallet not connected");
       }
 
+      // Vérifier que le joueur a une adresse wallet valide
+      if (!player.walletAddress || player.walletAddress.trim() === '') {
+        console.error("Player has empty wallet address when joining room");
+        toast({
+          title: "Configuration invalide",
+          description: "Votre configuration de joueur est invalide. Veuillez reconfigurer votre joueur.",
+          variant: "destructive"
+        });
+        
+        // Nettoyer le joueur invalide
+        setPlayer(null);
+        localStorage.removeItem("blob-battle-player");
+        throw new Error("Invalid player configuration");
+      }
+
+      // Vérifier que l'adresse wallet du joueur correspond à celle du wallet connecté
+      const currentWalletAddress = publicKey.toString();
+      if (player.walletAddress !== currentWalletAddress) {
+        console.error("Player wallet address mismatch:", {
+          playerWallet: player.walletAddress,
+          connectedWallet: currentWalletAddress
+        });
+        toast({
+          title: "Adresse wallet différente",
+          description: "L'adresse de votre wallet a changé. Veuillez reconfigurer votre joueur.",
+          variant: "destructive"
+        });
+        
+        // Nettoyer le joueur avec l'ancienne adresse
+        setPlayer(null);
+        localStorage.removeItem("blob-battle-player");
+        throw new Error("Wallet address mismatch");
+      }
+
       try {
-        console.log(`Attempting to join room: ${roomId} with player:`, {
+        console.log(`Attempting to join room: ${roomId} with validated player:`, {
           name: player.name,
           walletAddress: player.walletAddress,
           id: player.id

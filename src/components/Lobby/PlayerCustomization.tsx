@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useGame } from "@/context/GameContext";
 import { PlayerColor } from "@/types/game";
 import WalletButton from "@/components/Wallet/WalletButton";
-import { Wallet, Smartphone, Image, Zap } from "lucide-react";
+import { Wallet, Smartphone, Image, Zap, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -91,10 +91,11 @@ export default function PlayerCustomization() {
     setIsLoading(true);
     
     try {
-      console.log("Submitting player configuration:", {
+      console.log("Submitting player configuration with wallet verification:", {
         name: name.trim(),
         color: selectedColor,
         walletAddress: publicKey.toString(),
+        connected: connected,
         nftImageUrl: nftImageUrl.trim() || undefined
       });
 
@@ -104,15 +105,12 @@ export default function PlayerCustomization() {
         nftImageUrl.trim() || undefined
       );
 
-      toast({
-        title: "BLOB_CONFIGURED",
-        description: `Votre blob "${name}" a été configuré avec succès !`
-      });
+      console.log("Player configuration successful");
     } catch (error) {
       console.error("Error creating player:", error);
       toast({
         title: "CONFIGURATION_ERROR",
-        description: error instanceof Error ? error.message : "Impossible de configurer votre joueur. Vérifiez votre connexion et réessayez.",
+        description: error instanceof Error ? error.message : "Impossible de configurer votre joueur. Vérifiez votre connexion wallet et réessayez.",
         variant: "destructive"
       });
     } finally {
@@ -142,6 +140,16 @@ export default function PlayerCustomization() {
                 : "Votre adresse wallet Solana sera votre identité unique dans le jeu. Connectez votre wallet pour continuer."
               }
             </p>
+          </div>
+          
+          <div className="p-3 bg-amber-900/20 rounded-lg border border-amber-600/30">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5" />
+              <div className="text-sm text-amber-200 font-mono">
+                <p className="font-bold">IMPORTANT:</p>
+                <p className="mt-1">Votre wallet doit rester connecté pendant toute la session de jeu pour pouvoir rejoindre des salles.</p>
+              </div>
+            </div>
           </div>
           
           <WalletButton className="w-full flex justify-center bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold" />

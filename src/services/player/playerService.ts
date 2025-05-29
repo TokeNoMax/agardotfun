@@ -6,23 +6,38 @@ import { activityService } from "../room/activityService";
 
 export const playerService = {
   async joinRoom(roomId: string, player: Player): Promise<void> {
-    console.log(`Player ${player.name} (${player.walletAddress}) joining room ${roomId}`);
+    console.log(`Player joining room - Details:`, {
+      playerName: player.name,
+      walletAddress: player.walletAddress,
+      roomId: roomId,
+      playerObject: player
+    });
     
-    // Vérifications essentielles
+    // Vérifications essentielles avec des messages d'erreur plus détaillés
     if (!player.walletAddress || player.walletAddress.trim() === '') {
-      console.error("Player wallet address is missing or empty");
-      throw new Error("L'adresse wallet du joueur est requise pour rejoindre une salle");
+      console.error("CRITICAL: Player wallet address is missing or empty", {
+        walletAddress: player.walletAddress,
+        player: player
+      });
+      throw new Error("L'adresse wallet du joueur est requise pour rejoindre une salle. Veuillez reconnecter votre wallet et reconfigurer votre joueur.");
     }
 
     if (!player.name || player.name.trim() === '') {
-      console.error("Player name is missing or empty");
+      console.error("CRITICAL: Player name is missing or empty", {
+        playerName: player.name,
+        player: player
+      });
       throw new Error("Le nom du joueur est requis pour rejoindre une salle");
     }
 
     if (!roomId || roomId.trim() === '') {
-      console.error("Room ID is missing or empty");
+      console.error("CRITICAL: Room ID is missing or empty", {
+        roomId: roomId
+      });
       throw new Error("L'ID de la salle est requis");
     }
+
+    console.log("✅ Initial validation passed for player:", player.walletAddress);
     
     // Vérifier d'abord si le joueur est déjà dans cette salle
     const isPlayerAlreadyInRoom = await verificationService.verifyPlayerInRoom(roomId, player.walletAddress);
@@ -126,7 +141,7 @@ export const playerService = {
       }
 
       await activityService.updateRoomActivity(roomId);
-      console.log("Player joined room successfully");
+      console.log("✅ Player joined room successfully");
     } catch (error) {
       console.error("Error in joinRoom:", error);
       throw error;
