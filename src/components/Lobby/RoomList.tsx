@@ -331,17 +331,18 @@ export default function RoomList() {
   });
 
   return (
-    <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg">
-      <div className="flex justify-between items-center p-6 border-b">
-        <h2 className="text-2xl font-bold">Salles de jeu</h2>
+    <div className="w-full max-w-4xl bg-black/90 backdrop-blur-sm rounded-lg border-2 border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+      <div className="flex justify-between items-center p-6 border-b border-cyber-cyan/30">
+        <h2 className="text-2xl font-bold text-cyber-cyan font-mono">GAME_ROOMS</h2>
         
         <div className="flex space-x-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={handleRefresh}
             disabled={isRefreshing}
             title="Rafraîchir les salles"
+            className="text-cyber-cyan hover:text-cyber-magenta hover:bg-cyber-cyan/10 border border-cyber-cyan/30 hover:border-cyber-magenta/50 transition-all duration-300"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
@@ -369,21 +370,20 @@ export default function RoomList() {
       <div className="p-6">
         {/* Message si trop d'erreurs de création */}
         {creationErrorCount >= 2 && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-md">
-            <p className="text-red-800 text-sm">
-              <strong>Problème de création des salles :</strong> Nous avons détecté plusieurs échecs lors de la création. 
-              Il pourrait s'agir d'un problème de connexion au serveur ou de configuration. 
-              Essayez de rafraîchir la page ou de vérifier votre connexion.
+          <div className="mb-4 p-3 bg-cyber-magenta/20 border border-cyber-magenta/50 rounded-md">
+            <p className="text-cyber-magenta text-sm font-mono">
+              <strong>CREATION_ERROR :</strong> Multiple failures detected. 
+              Check your connection or refresh the page.
             </p>
           </div>
         )}
         
         {/* Message de débogage optimisé */}
         {isLastCreatedRoomMissing && (
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-md">
-            <p className="text-amber-800 text-sm">
-              <strong>Salle non visible :</strong> La dernière salle créée 
-              "{lastCreatedRoomName}" n'apparaît pas dans la liste.
+          <div className="mb-4 p-3 bg-cyber-yellow/20 border border-cyber-yellow/50 rounded-md">
+            <p className="text-cyber-yellow text-sm font-mono">
+              <strong>ROOM_NOT_VISIBLE :</strong> Last created room 
+              "{lastCreatedRoomName}" not found in list.
             </p>
             <div className="flex gap-2 mt-2">
               <Button 
@@ -391,8 +391,9 @@ export default function RoomList() {
                 variant="outline" 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
+                className="border-cyber-cyan/50 text-cyber-cyan hover:bg-cyber-cyan/10 font-mono"
               >
-                {isRefreshing ? "Rafraîchissement..." : "Rafraîchir"}
+                {isRefreshing ? "REFRESHING..." : "REFRESH"}
               </Button>
               
               {lastCreatedRoomId && (
@@ -400,8 +401,9 @@ export default function RoomList() {
                   size="sm" 
                   onClick={() => joinRoom(lastCreatedRoomId)}
                   disabled={!player}
+                  className="bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono"
                 >
-                  Rejoindre directement
+                  JOIN_DIRECT
                 </Button>
               )}
             </div>
@@ -423,48 +425,47 @@ export default function RoomList() {
             isCurrentPlayerInRoom={isCurrentPlayerInRoom}
           />
         ) : selectedRoom ? (
-          <Card className="mb-6 border-2 border-indigo-300">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex justify-between items-center">
-                {selectedRoom.name}
+          <div className="mb-6 relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-magenta/20 rounded-lg blur-xl"></div>
+            <div className="relative bg-black/80 backdrop-blur-sm border-2 border-cyber-cyan/50 rounded-lg p-6 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-cyber-cyan font-mono">{selectedRoom.name}</h3>
                 {selectedRoom.status === 'waiting' ? (
-                  <Badge className="bg-green-100 text-green-800 border-green-200">
-                    En attente
+                  <Badge className="bg-cyber-green/20 text-cyber-green border-cyber-green/50 font-mono">
+                    WAITING
                   </Badge>
                 ) : selectedRoom.status === 'playing' ? (
-                  <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-                    En cours
+                  <Badge className="bg-cyber-yellow/20 text-cyber-yellow border-cyber-yellow/50 font-mono">
+                    PLAYING
                   </Badge>
                 ) : (
-                  <Badge className="bg-gray-100 text-gray-800 border-gray-200">
-                    Terminée
+                  <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/50 font-mono">
+                    FINISHED
                   </Badge>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+              </div>
               <div className="flex flex-col gap-4">
                 <div>
-                  <p className="text-gray-600">
-                    {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} joueurs
+                  <p className="text-gray-300 font-mono">
+                    {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} NODES
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-1 font-mono">
                     ID: {selectedRoom.id}
                   </p>
                   {selectedRoom.players && selectedRoom.players.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-sm font-medium mb-1">Joueurs:</p>
+                      <p className="text-sm font-medium mb-1 text-cyber-cyan font-mono">CONNECTED_NODES:</p>
                       <div className="flex flex-wrap gap-2">
                         {selectedRoom.players.map(player => (
                           <span 
                             key={player.id} 
-                            className={`px-2 py-1 rounded text-sm ${
+                            className={`px-2 py-1 rounded text-sm font-mono ${
                               player.ready 
-                                ? 'bg-green-100 text-green-800 border border-green-300' 
-                                : 'bg-white border border-gray-200'
+                                ? 'bg-cyber-green/20 text-cyber-green border border-cyber-green/50' 
+                                : 'bg-black/50 border border-cyber-cyan/30 text-gray-300'
                             }`}
                           >
-                            {player.name} {player.ready ? '✓' : ''}
+                            {player.name} {player.ready ? '✓' : '○'}
                           </span>
                         ))}
                       </div>
@@ -472,17 +473,17 @@ export default function RoomList() {
                   )}
                 </div>
                 <Button 
-                  className="w-full" 
+                  className="w-full bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold" 
                   onClick={() => handleJoinRoom(selectedRoom.id)}
                   disabled={!player || 
                     (selectedRoom.players && selectedRoom.players.length >= selectedRoom.maxPlayers) ||
                     selectedRoom.status !== 'waiting'}
                 >
-                  {selectedRoom.status === 'waiting' ? 'Rejoindre cette salle' : 'Salle non disponible'}
+                  {selectedRoom.status === 'waiting' ? 'JOIN_ROOM' : 'ROOM_UNAVAILABLE'}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ) : null}
         
         {/* Available rooms list */}
@@ -500,11 +501,11 @@ export default function RoomList() {
       {!currentRoom && (
         <div className="p-6 pt-0">
           <Button 
-            className="w-full py-6 text-lg" 
+            className="w-full py-6 text-lg bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold border border-cyber-green/50" 
             onClick={() => setCreateDialogOpen(true)}
             disabled={!player}
           >
-            <PlusCircle className="mr-2 h-5 w-5" /> Créer une nouvelle salle
+            <PlusCircle className="mr-2 h-5 w-5" /> CREATE_NEW_ROOM
           </Button>
         </div>
       )}
