@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useContext,
   useCallback,
+  useRef,
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { Player, PlayerColor, GameRoom } from "@/types/game";
@@ -63,10 +64,12 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     return storedPhrases ? JSON.parse(storedPhrases) : defaultPhrases;
   });
   const [sessionVerified, setSessionVerified] = useState(false);
+  const [isLeavingRoom, setIsLeavingRoom] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
   const { publicKey, connected } = useWallet();
+  const isUnmountedRef = useRef(false);
 
   // Vérifier et corriger le joueur si l'adresse wallet est manquante
   useEffect(() => {
@@ -74,13 +77,15 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       console.log("Player has empty wallet address, clearing player data");
       setPlayer(null);
       localStorage.removeItem("blob-battle-player");
-      toast({
-        title: "Configuration invalide",
-        description: "Veuillez reconnecter votre wallet et reconfigurer votre joueur",
-        variant: "destructive"
-      });
+      if (!isLeavingRoom) {
+        toast({
+          title: "Configuration invalide",
+          description: "Veuillez reconnecter votre wallet et reconfigurer votre joueur",
+          variant: "destructive"
+        });
+      }
     }
-  }, [player, toast]);
+  }, [player, toast, isLeavingRoom]);
 
   // Fonction pour nettoyer l'état local
   const clearLocalState = useCallback(() => {
@@ -93,7 +98,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   // Vérification de session au démarrage
   useEffect(() => {
     const verifySession = async () => {
-      if (!player || !currentRoom || sessionVerified) {
+      if (!player || !currentRoom || sessionVerified || isLeavingRoom) {
         setSessionVerified(true);
         return;
       }
@@ -106,11 +111,13 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         if (!roomExists) {
           console.log("Room no longer exists, clearing local state");
           clearLocalState();
-          toast({
-            title: "Session expirée",
-            description: "La salle que vous avez rejointe n'existe plus",
-            variant: "destructive"
-          });
+          if (!isLeavingRoom) {
+            toast({
+              title: "Session expirée",
+              description: "La salle que vous avez rejointe n'existe plus",
+              variant: "destructive"
+            });
+          }
           setSessionVerified(true);
           return;
         }
@@ -120,11 +127,13 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         if (!playerInRoom) {
           console.log("Player no longer in room, clearing local state");
           clearLocalState();
-          toast({
-            title: "Session expirée",
-            description: "Vous avez été déconnecté de la salle",
-            variant: "destructive"
-          });
+          if (!isLeavingRoom) {
+            toast({
+              title: "Session expirée",
+              description: "Vous avez été déconnecté de la salle",
+              variant: "destructive"
+            });
+          }
         } else {
           console.log("Session verified successfully");
         }
@@ -137,7 +146,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     };
 
     verifySession();
-  }, [player, currentRoom, sessionVerified, clearLocalState, toast]);
+  }, [player, currentRoom, sessionVerified, clearLocalState, toast, isLeavingRoom]);
 
   // Save custom phrases to localStorage whenever they change
   useEffect(() => {
@@ -146,28 +155,32 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
   // Callbacks pour les subscriptions temps réel
   const handleRoomsUpdate = useCallback((updatedRooms: GameRoom[]) => {
+    if (isUnmountedRef.current || isLeavingRoom) return;
     console.log("Rooms updated from Supabase:", updatedRooms.length);
     setRooms(updatedRooms);
-  }, []);
+  }, [isLeavingRoom]);
 
   const handleRoomUpdate = useCallback((room: GameRoom) => {
+    if (isUnmountedRef.current || isLeavingRoom) return;
     console.log("Current room updated:", room.id);
     setCurrentRoom(room);
     localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
     localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-  }, []);
+  }, [isLeavingRoom]);
 
   const handleGameStarted = useCallback((room: GameRoom) => {
+    if (isUnmountedRef.current || isLeavingRoom) return;
     console.log("Game started in room:", room.id);
     localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
     
+    // Navigation automatique vers le jeu quand il démarre
     if (!window.location.href.includes('local=true')) {
-      navigate("/game?join=true");
+      navigate("/game");
     }
-  }, [navigate]);
+  }, [navigate, isLeavingRoom]);
 
   // Utiliser les subscriptions temps réel
-  const { refreshRooms, refreshCurrentRoom } = useGameRoomSubscriptions({
+  const { refreshRooms, refreshCurrentRoom, cleanupSubscriptions } = useGameRoomSubscriptions({
     onRoomsUpdate: handleRoomsUpdate,
     onRoomUpdate: handleRoomUpdate,
     onGameStarted: handleGameStarted,
@@ -407,27 +420,30 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       return;
     }
     
+    setIsLeavingRoom(true);
+    
     try {
       console.log("Leaving room:", currentRoom.id);
-      await gameRoomService.leaveRoom(currentRoom.id, player.walletAddress); // Utiliser walletAddress
       
+      // Nettoyer immédiatement les subscriptions
+      cleanupSubscriptions();
+      
+      // Nettoyer l'état local
       setCurrentRoom(null);
       localStorage.removeItem("blob-battle-current-room");
       localStorage.removeItem('blob-battle-game-state');
       
-      toast({
-        title: "Salle quittée",
-        description: "Vous avez quitté la salle"
-      });
+      // Ensuite faire l'appel API
+      await gameRoomService.leaveRoom(currentRoom.id, player.walletAddress);
+      
+      console.log("Room left successfully");
     } catch (error) {
       console.error("Error leaving room:", error);
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la sortie de la salle",
-        variant: "destructive"
-      });
+      // Pas de toast d'erreur pour éviter le clignotement
+    } finally {
+      setIsLeavingRoom(false);
     }
-  }, [player, currentRoom, toast]);
+  }, [player, currentRoom, cleanupSubscriptions]);
 
   const setPlayerReady = useCallback(
     async (ready: boolean) => {
@@ -438,7 +454,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
       try {
         console.log(`Setting player ready status to ${ready}`);
-        await gameRoomService.setPlayerReady(currentRoom.id, player.walletAddress, ready); // Utiliser walletAddress
+        await gameRoomService.setPlayerReady(currentRoom.id, player.walletAddress, ready);
       } catch (error) {
         console.error("Error setting player ready:", error);
         toast({
@@ -450,6 +466,13 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     },
     [player, currentRoom, toast]
   );
+
+  // Cleanup sur unmount
+  useEffect(() => {
+    return () => {
+      isUnmountedRef.current = true;
+    };
+  }, []);
 
   return (
     <GameContext.Provider

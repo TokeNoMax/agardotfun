@@ -72,11 +72,8 @@ export default function Game() {
         return false;
       }
       
-      // MODIFICATION: Ne pas accepter automatiquement une partie qui vient de démarrer
-      // Le joueur doit explicitement cliquer sur "Rejoindre la partie" depuis le lobby
-      const joinFromUrlParam = new URLSearchParams(location.search).get('join') === 'true';
-      
-      if (currentRoom.status !== 'playing' && !joinFromUrlParam) {
+      // Navigation automatique : permettre l'accès si le jeu est en cours
+      if (currentRoom.status !== 'playing') {
         toast({
           title: "Partie non démarrée",
           description: "Cette partie n'est pas encore démarrée. Retour au lobby.",
@@ -99,7 +96,7 @@ export default function Game() {
       navigate('/lobby');
       return false;
     }
-  }, [currentRoom, player, navigate, toast, isLocalMode, hasVerifiedSession, refreshCurrentRoom, location.search]);
+  }, [currentRoom, player, navigate, toast, isLocalMode, hasVerifiedSession, refreshCurrentRoom]);
   
   // Effect to check and restore session if necessary - skipped for local mode
   useEffect(() => {

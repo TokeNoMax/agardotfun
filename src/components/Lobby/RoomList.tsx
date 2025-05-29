@@ -26,6 +26,7 @@ export default function RoomList() {
   const [creationErrorCount, setCreationErrorCount] = useState(0);
   const [hasShownRoomFoundToast, setHasShownRoomFoundToast] = useState(false);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownStartTimeRef = useRef<number | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -89,22 +90,31 @@ export default function RoomList() {
       currentRoom.players.every(p => p.ready === true)
     ) {
       // Launch countdown if all players are ready
-      if (countdown === null) {
+      if (countdown === null && !gameStarting) {
+        console.log("All players ready, starting countdown");
         setCountdown(5);
+        countdownStartTimeRef.current = Date.now();
+        
+        toast({
+          title: "Tous les joueurs sont prêts !",
+          description: "La partie démarre dans 5 secondes...",
+        });
       }
     } else {
       // Cancel countdown if a player is no longer ready
       if (countdown !== null) {
+        console.log("Player not ready anymore, cancelling countdown");
         setCountdown(null);
+        countdownStartTimeRef.current = null;
         if (countdownTimerRef.current) {
           clearInterval(countdownTimerRef.current);
           countdownTimerRef.current = null;
         }
       }
     }
-  }, [currentRoom, countdown]);
+  }, [currentRoom, countdown, gameStarting, toast]);
 
-  // Handle countdown with proper cleanup
+  // Handle countdown with proper cleanup et synchronisation
   useEffect(() => {
     if (countdown !== null && countdown > 0 && !gameStarting) {
       if (countdownTimerRef.current) {
@@ -119,11 +129,30 @@ export default function RoomList() {
               countdownTimerRef.current = null;
             }
             
-            // Marquer le jeu comme démarrant mais ne pas naviguer automatiquement
+            // Marquer le jeu comme démarrant
             setGameStarting(true);
             
-            // Launch game at the end of countdown, but require explicit user action
-            startGame().catch(error => {
+            toast({
+              title: "🎮 Partie lancée !",
+              description: "Navigation vers le jeu en cours...",
+            });
+            
+            // Launch game at the end of countdown
+            startGame().then((success) => {
+              if (success) {
+                // Navigation automatique vers le jeu
+                setTimeout(() => {
+                  navigate('/game');
+                }, 1000);
+              } else {
+                setGameStarting(false);
+                toast({
+                  title: "Erreur",
+                  description: "Impossible de démarrer la partie",
+                  variant: "destructive"
+                });
+              }
+            }).catch(error => {
               console.error("Error starting game:", error);
               setGameStarting(false);
               toast({
@@ -145,7 +174,15 @@ export default function RoomList() {
         clearInterval(countdownTimerRef.current);
       }
     };
-  }, [countdown, startGame, toast, gameStarting]);
+  }, [countdown, startGame, toast, gameStarting, navigate]);
+
+  // Navigation automatique quand la partie est en cours
+  useEffect(() => {
+    if (currentRoom?.status === 'playing' && !gameStarting) {
+      console.log("Game is playing, navigating to game");
+      navigate('/game');
+    }
+  }, [currentRoom?.status, navigate, gameStarting]);
 
   // Mise à jour de la fonction handleCreateRoom pour réduire les notifications
   const handleCreateRoom = async () => {
@@ -251,7 +288,7 @@ export default function RoomList() {
   };
 
   const handleJoinGame = () => {
-    navigate('/game?join=true');
+    navigate('/game');
   };
 
   // Debounced leave room to prevent multiple rapid calls

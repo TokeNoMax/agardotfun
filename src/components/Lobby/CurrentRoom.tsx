@@ -52,9 +52,9 @@ export default function CurrentRoom({
                 GAME_START_IN {countdown} seconds...
               </p>
             )}
-            {gameStarting && currentRoom.status === 'playing' && (
-              <p className="text-lg font-bold text-cyber-green mt-2 font-mono">
-                GAME_READY ! Cliquez sur "JOIN_GAME" pour commencer.
+            {gameStarting && (
+              <p className="text-lg font-bold text-cyber-green mt-2 font-mono animate-pulse">
+                🚀 LAUNCHING_GAME... Navigation automatique en cours !
               </p>
             )}
             <div className="mt-4">
@@ -92,24 +92,14 @@ export default function CurrentRoom({
                   {isCurrentPlayerReady() ? "CANCEL_READY" : "SET_READY"}
                 </Button>
                 
-                {gameStarting && currentRoom.status === 'playing' ? (
-                  <Button 
-                    onClick={handleJoinGame}
-                    className="w-full bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold border border-cyber-green/50"
-                  >
-                    <Play className="mr-2 h-4 w-4" />
-                    JOIN_GAME
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={handleStartGame}
-                    disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
-                    className="w-full bg-gradient-to-r from-cyber-magenta to-cyber-purple hover:from-cyber-purple hover:to-cyber-magenta text-white font-mono font-bold border border-cyber-magenta/50"
-                  >
-                    <Play className="mr-2 h-4 w-4" />
-                    START_GAME
-                  </Button>
-                )}
+                <Button 
+                  onClick={handleStartGame}
+                  disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
+                  className="w-full bg-gradient-to-r from-cyber-magenta to-cyber-purple hover:from-cyber-purple hover:to-cyber-magenta text-white font-mono font-bold border border-cyber-magenta/50"
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  {gameStarting ? "LAUNCHING..." : "START_GAME"}
+                </Button>
                 
                 <Button 
                   variant="outline" 
