@@ -74,10 +74,33 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
         throw new Error('Wallet address not found');
       }
 
-      const newPlayer = await playerService.createPlayer({
-        ...playerData,
-        walletAddress
-      });
+      // Create player in database using supabase directly since playerService doesn't have createPlayer
+      const { data, error } = await supabase
+        .from('players')
+        .insert({
+          id: walletAddress,
+          name: playerData.name,
+          color: playerData.color
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating player:', error);
+        throw error;
+      }
+
+      const newPlayer: Player = {
+        id: walletAddress,
+        walletAddress,
+        name: playerData.name,
+        color: playerData.color,
+        size: playerData.size || 30,
+        x: playerData.x || 0,
+        y: playerData.y || 0,
+        isAlive: playerData.isAlive !== false,
+        nftImageUrl: playerData.nftImageUrl
+      };
 
       setPlayer(newPlayer);
       localStorage.setItem('blob-battle-player', JSON.stringify(newPlayer));
@@ -101,7 +124,23 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     if (!player) return;
 
     try {
-      const updatedPlayer = await playerService.updatePlayer(player.id, updates);
+      // Update player in database using supabase directly since playerService doesn't have updatePlayer
+      const { data, error } = await supabase
+        .from('players')
+        .update({
+          name: updates.name,
+          color: updates.color
+        })
+        .eq('id', player.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating player:', error);
+        throw error;
+      }
+
+      const updatedPlayer = { ...player, ...updates };
       setPlayer(updatedPlayer);
       localStorage.setItem('blob-battle-player', JSON.stringify(updatedPlayer));
 
@@ -149,7 +188,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
 
     try {
-      await roomService.joinRoom(roomId, player.id);
+      await playerService.joinRoom(roomId, player);
       await refreshCurrentRoom();
       
       toast({
@@ -171,7 +210,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     if (!player || !currentRoom) return;
 
     try {
-      await roomService.leaveRoom(currentRoom.id, player.id);
+      await playerService.leaveRoom(currentRoom.id, player.id);
       setCurrentRoom(null);
       localStorage.removeItem('blob-battle-current-room');
       
@@ -195,11 +234,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
 
     try {
-      const roomId = await roomService.createRoom({
-        ...roomData,
-        createdBy: player.id
-      });
-
+      const roomId = await roomService.createRoom(roomData.name, roomData.maxPlayers);
       await joinRoom(roomId);
       return roomId;
     } catch (error) {
@@ -217,7 +252,20 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     if (!player) return;
 
     try {
-      const room = await roomService.getCurrentRoom(player.id);
+      // Get current room by checking which room the player is in
+      const { data: playerInRoom, error } = await supabase
+        .from('game_room_players')
+        .select('room_id')
+        .eq('player_id', player.id)
+        .single();
+
+      if (error || !playerInRoom) {
+        setCurrentRoom(null);
+        localStorage.removeItem('blob-battle-current-room');
+        return;
+      }
+
+      const room = await roomService.getRoom(playerInRoom.room_id);
       setCurrentRoom(room);
       
       if (room) {
@@ -245,7 +293,9 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     if (!player || !currentRoom) return;
 
     try {
-      await roomService.togglePlayerReady(currentRoom.id, player.id);
+      const currentPlayer = currentRoom.players && currentRoom.players.find(p => p.id === player.id);
+      const newReadyStatus = !currentPlayer?.ready;
+      await playerService.setPlayerReady(currentRoom.id, player.id, newReadyStatus);
       await refreshCurrentRoom();
     } catch (error) {
       console.error('Error toggling ready:', error);
@@ -262,7 +312,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     if (!player || !currentRoom) return;
 
     try {
-      await roomService.setPlayerReady(currentRoom.id, player.id, ready);
+      await playerService.setPlayerReady(currentRoom.id, player.id, ready);
       await refreshCurrentRoom();
     } catch (error) {
       console.error('Error setting player ready:', error);
@@ -352,7 +402,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
         {
           event: '*',
           schema: 'public',
-          table: 'room_players',
+          table: 'game_room_players',
           filter: `room_id=eq.${currentRoom.id}`
         },
         () => {
