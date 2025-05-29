@@ -8,7 +8,7 @@ interface UseAutoCleanupOptions {
 }
 
 export const useAutoCleanup = (options: UseAutoCleanupOptions = {}) => {
-  const { intervalMinutes = 10, enableLogging = true } = options;
+  const { intervalMinutes = 5, enableLogging = true } = options;
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const triggerCleanup = async () => {
@@ -27,8 +27,10 @@ export const useAutoCleanup = (options: UseAutoCleanupOptions = {}) => {
       }
 
       if (enableLogging && (data?.cleaned > 0 || data?.ghostPlayersRemoved > 0)) {
-        console.log(`Nettoyage automatique amélioré:`, {
+        console.log(`Nettoyage automatique effectué:`, {
           sallesSuprimées: data.cleaned,
+          sallesFantômes: data.ghostRoomsRemoved,
+          sallesInactives: data.inactiveRoomsRemoved,
           joueursFantômesSuprimés: data.ghostPlayersRemoved,
           salles: data.roomNames
         });
@@ -40,12 +42,12 @@ export const useAutoCleanup = (options: UseAutoCleanupOptions = {}) => {
   };
 
   useEffect(() => {
-    // Premier nettoyage après 1 minute pour nettoyer rapidement les salles fantômes
+    // Premier nettoyage après 30 secondes pour nettoyer rapidement les salles fantômes
     const initialTimeout = setTimeout(() => {
       triggerCleanup();
-    }, 1 * 60 * 1000);
+    }, 30 * 1000);
 
-    // Ensuite, nettoyage périodique plus fréquent (toutes les 10 minutes par défaut)
+    // Ensuite, nettoyage périodique plus fréquent (toutes les 5 minutes par défaut)
     intervalRef.current = setInterval(() => {
       triggerCleanup();
     }, intervalMinutes * 60 * 1000);

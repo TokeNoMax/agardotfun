@@ -126,5 +126,74 @@ export const roomService = {
     }
 
     return convertToGameRoom(room, players || []);
+  },
+
+  async updateRoomStatus(roomId: string, status: 'waiting' | 'playing' | 'finished'): Promise<void> {
+    console.log(`Updating room ${roomId} status to ${status}`);
+    
+    const { error } = await supabase
+      .from('game_rooms')
+      .update({ 
+        status,
+        last_activity: new Date().toISOString()
+      })
+      .eq('id', roomId);
+
+    if (error) {
+      console.error("Error updating room status:", error);
+      throw error;
+    }
+
+    console.log(`Room status updated to ${status}`);
+  },
+
+  async checkGhostRooms(): Promise<void> {
+    console.log("Checking for ghost rooms (playing status with no players)...");
+    
+    try {
+      // Récupérer les salles en statut "playing"
+      const { data: playingRooms, error } = await supabase
+        .from('game_rooms')
+        .select(`
+          id,
+          name,
+          status,
+          last_activity,
+          game_room_players(count)
+        `)
+        .eq('status', 'playing');
+
+      if (error) {
+        console.error("Error checking ghost rooms:", error);
+        return;
+      }
+
+      if (!playingRooms || playingRooms.length === 0) {
+        console.log("No playing rooms to check");
+        return;
+      }
+
+      // Identifier les salles fantômes (0 joueurs + inactives > 5 min)
+      const fiveMinutesAgo = new Date();
+      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+
+      const ghostRooms = playingRooms.filter(room => {
+        const playerCount = room.game_room_players?.[0]?.count || 0;
+        const lastActivity = new Date(room.last_activity);
+        return playerCount === 0 && lastActivity < fiveMinutesAgo;
+      });
+
+      if (ghostRooms.length > 0) {
+        console.log(`Found ${ghostRooms.length} ghost rooms, updating status to finished`);
+        
+        for (const room of ghostRooms) {
+          await this.updateRoomStatus(room.id, 'finished');
+        }
+      } else {
+        console.log("No ghost rooms found");
+      }
+    } catch (error) {
+      console.error("Error in ghost room check:", error);
+    }
   }
 };
