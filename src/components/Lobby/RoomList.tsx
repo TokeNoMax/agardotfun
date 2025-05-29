@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -14,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 
 export default function RoomList() {
-  const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
+  const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom, refreshRooms } = useGame();
   const [roomName, setRoomName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState("4");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -50,6 +49,7 @@ export default function RoomList() {
     const initialLoad = async () => {
       console.log("Initial room load started");
       await refreshCurrentRoom();
+      await refreshRooms();
       console.log("Initial room refresh completed");
     };
     
@@ -114,8 +114,8 @@ export default function RoomList() {
               
               console.log("Starting game from countdown...");
               
-              startGame().then((success) => {
-                if (success && !hasNavigated) {
+              startGame().then((result) => {
+                if (result.success && !hasNavigated) {
                   console.log("Game started successfully, navigating immediately");
                   setHasNavigated(true);
                   showToastWithThrottle("🎮 Partie lancée !", "Redirection vers le jeu...");
@@ -124,7 +124,7 @@ export default function RoomList() {
                   navigate('/game');
                 } else {
                   setGameStarting(false);
-                  showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
+                  showToastWithThrottle("Erreur", result.error || "Impossible de démarrer la partie", "destructive");
                 }
               }).catch(error => {
                 console.error("Error starting game:", error);
@@ -173,24 +173,18 @@ export default function RoomList() {
     if (roomName.trim()) {
       try {
         console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max`);
-        const roomId = await createRoom(roomName, parseInt(maxPlayers));
+        const roomId = await createRoom({ name: roomName, maxPlayers: parseInt(maxPlayers) });
         
-        if (roomId) {
-          console.log("Salle créée avec ID:", roomId);
-          setCreateDialogOpen(false);
-          
-          showToastWithThrottle("Salle créée", `Votre salle "${roomName}" a été créée avec succès.`);
-          
-          // Refresh immédiat et rejoindre directement
-          setTimeout(async () => {
-            await refreshCurrentRoom();
-            try {
-              await joinRoom(roomId);
-            } catch (joinError) {
-              console.error("Erreur lors de la connexion automatique:", joinError);
-            }
-          }, 500);
-        }
+        console.log("Salle créée avec ID:", roomId);
+        setCreateDialogOpen(false);
+        
+        showToastWithThrottle("Salle créée", `Votre salle "${roomName}" a été créée avec succès.`);
+        
+        // Refresh immédiat
+        setTimeout(async () => {
+          await refreshCurrentRoom();
+          await refreshRooms();
+        }, 500);
       } catch (error) {
         console.error("Erreur lors de la création:", error);
         showToastWithThrottle("Erreur", "Impossible de créer la salle. Veuillez réessayer.", "destructive");
@@ -201,6 +195,7 @@ export default function RoomList() {
   const handleJoinRoom = async (roomId: string) => {
     console.log("Joining room:", roomId);
     await joinRoom(roomId);
+    await refreshRooms();
   };
 
   const handleStartGame = async () => {
@@ -208,13 +203,13 @@ export default function RoomList() {
     
     try {
       setGameStarting(true);
-      const success = await startGame();
-      if (success && !hasNavigated) {
+      const result = await startGame();
+      if (result.success && !hasNavigated) {
         setHasNavigated(true);
         navigate('/game');
-      } else if (!success) {
+      } else if (!result.success) {
         setGameStarting(false);
-        showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
+        showToastWithThrottle("Erreur", result.error || "Impossible de démarrer la partie", "destructive");
       }
     } catch (error) {
       console.error("Error starting game:", error);
@@ -232,8 +227,9 @@ export default function RoomList() {
 
   const handleLeaveRoom = async () => {
     await leaveRoom();
-    setTimeout(() => {
-      refreshCurrentRoom();
+    setTimeout(async () => {
+      await refreshCurrentRoom();
+      await refreshRooms();
     }, 300);
   };
 
@@ -255,6 +251,7 @@ export default function RoomList() {
     
     try {
       await refreshCurrentRoom();
+      await refreshRooms();
       console.log("Rafraîchissement manuel terminé");
       
       showToastWithThrottle("Actualisé", `${rooms.length} salles trouvées.`);
@@ -408,7 +405,7 @@ export default function RoomList() {
           playerExists={!!player}
           selectedRoomId={selectedRoomId}
           onSelectRoom={handleSelectRoom}
-          refreshRooms={refreshCurrentRoom}
+          refreshRooms={refreshRooms}
         />
       </div>
       

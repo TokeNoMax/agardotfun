@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Player, GameRoom } from '@/types/game';
 import { playerService } from '@/services/player/playerService';
@@ -6,18 +7,35 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { usePlayerHeartbeat } from '@/hooks/usePlayerHeartbeat';
 
+// Default phrases for meme toasts
+export const defaultPhrases = [
+  "{playerName} just got rekt! 💀",
+  "{playerName} became someone's lunch! 🍽️",
+  "RIP {playerName} - gone but not forgotten 😢",
+  "{playerName} got absolutely destroyed! 💥",
+  "Another one bites the dust: {playerName} 🎵",
+  "{playerName} just rage quit... permanently! 😡",
+  "Press F to pay respects to {playerName} 🫡",
+  "{playerName} got sent to the shadow realm! 👻"
+];
+
 interface GameContextType {
   player: Player | null;
   currentRoom: GameRoom | null;
+  rooms: GameRoom[];
+  customPhrases: string[];
   createPlayer: (playerData: Omit<Player, 'id' | 'walletAddress'>) => Promise<void>;
   updatePlayer: (updates: Partial<Player>) => Promise<void>;
+  setPlayerDetails: (name: string, color: string, nftImageUrl?: string) => Promise<void>;
   joinRoom: (roomId: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
-  createRoom: (roomData: { name: string; maxPlayers: number }) => Promise<void>;
+  createRoom: (roomData: { name: string; maxPlayers: number }) => Promise<string>;
   refreshCurrentRoom: () => Promise<void>;
   toggleReady: () => Promise<void>;
-  startGame: () => Promise<void>;
+  setPlayerReady: (ready: boolean) => Promise<void>;
+  startGame: () => Promise<{ success: boolean; error?: string }>;
   refreshRooms: () => Promise<void>;
+  setCustomPhrases: (phrases: string[]) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -37,6 +55,8 @@ interface GameContextProviderProps {
 export function GameContextProvider({ children }: GameContextProviderProps) {
   const [player, setPlayer] = useState<Player | null>(null);
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+  const [rooms, setRooms] = useState<GameRoom[]>([]);
+  const [customPhrases, setCustomPhrases] = useState<string[]>(defaultPhrases);
   const { toast } = useToast();
 
   // Utiliser le heartbeat pour maintenir la connexion active
@@ -100,6 +120,29 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
   };
 
+  const setPlayerDetails = async (name: string, color: string, nftImageUrl?: string) => {
+    const walletAddress = localStorage.getItem('walletAddress');
+    if (!walletAddress) {
+      throw new Error('Wallet address not found');
+    }
+
+    const playerData = {
+      name,
+      color: color as any,
+      size: 30,
+      x: 0,
+      y: 0,
+      isAlive: true,
+      nftImageUrl
+    };
+
+    if (player) {
+      await updatePlayer(playerData);
+    } else {
+      await createPlayer(playerData);
+    }
+  };
+
   const joinRoom = async (roomId: string) => {
     if (!player) {
       throw new Error('Player not found');
@@ -146,18 +189,19 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
   };
 
-  const createRoom = async (roomData: { name: string; maxPlayers: number }) => {
+  const createRoom = async (roomData: { name: string; maxPlayers: number }): Promise<string> => {
     if (!player) {
       throw new Error('Player not found');
     }
 
     try {
-      const room = await roomService.createRoom({
+      const roomId = await roomService.createRoom({
         ...roomData,
         createdBy: player.id
       });
 
-      await joinRoom(room.id);
+      await joinRoom(roomId);
+      return roomId;
     } catch (error) {
       console.error('Error creating room:', error);
       toast({
@@ -188,6 +232,15 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
   };
 
+  const refreshRooms = async () => {
+    try {
+      const allRooms = await roomService.getAllRooms();
+      setRooms(allRooms);
+    } catch (error) {
+      console.error('Error refreshing rooms:', error);
+    }
+  };
+
   const toggleReady = async () => {
     if (!player || !currentRoom) return;
 
@@ -205,46 +258,48 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
   };
 
-  const startGame = async () => {
-    if (!currentRoom) return;
+  const setPlayerReady = async (ready: boolean) => {
+    if (!player || !currentRoom) return;
 
     try {
-      console.log('Starting game for room:', currentRoom.id);
-      
-      const result = await roomService.startGame(currentRoom.id);
-      console.log('Game start result:', result);
-      
-      if (result.success) {
-        await refreshCurrentRoom();
-        
-        toast({
-          title: "GAME_LAUNCHED",
-          description: "Redirection vers le jeu...",
-        });
-        
-        // Navigation immédiate vers le jeu
-        setTimeout(() => {
-          window.location.href = `/game?roomId=${currentRoom.id}`;
-        }, 500);
-        
-        return result;
-      } else {
-        throw new Error(result.error || 'Failed to start game');
-      }
+      await roomService.setPlayerReady(currentRoom.id, player.id, ready);
+      await refreshCurrentRoom();
     } catch (error) {
-      console.error('Error starting game:', error);
+      console.error('Error setting player ready:', error);
       toast({
-        title: "LAUNCH_ERROR",
-        description: "Impossible de démarrer la partie.",
+        title: "STATUS_ERROR",
+        description: "Impossible de changer le statut.",
         variant: "destructive"
       });
       throw error;
     }
   };
 
-  const refreshRooms = async () => {
-    // This function is used by RoomList component to refresh the list
-    // Implementation can be added if needed
+  const startGame = async (): Promise<{ success: boolean; error?: string }> => {
+    if (!currentRoom) return { success: false, error: 'No current room' };
+
+    try {
+      console.log('Starting game for room:', currentRoom.id);
+      
+      await roomService.startGame(currentRoom.id);
+      await refreshCurrentRoom();
+      
+      toast({
+        title: "GAME_LAUNCHED",
+        description: "Redirection vers le jeu...",
+      });
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error starting game:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start game';
+      toast({
+        title: "LAUNCH_ERROR",
+        description: "Impossible de démarrer la partie.",
+        variant: "destructive"
+      });
+      return { success: false, error: errorMessage };
+    }
   };
 
   // Load saved data on mount
@@ -269,6 +324,9 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
         localStorage.removeItem('blob-battle-current-room');
       }
     }
+
+    // Load rooms initially
+    refreshRooms();
   }, []);
 
   // Subscribe to room updates
@@ -311,15 +369,20 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
   const value: GameContextType = {
     player,
     currentRoom,
+    rooms,
+    customPhrases,
     createPlayer,
     updatePlayer,
+    setPlayerDetails,
     joinRoom,
     leaveRoom,
     createRoom,
     refreshCurrentRoom,
     toggleReady,
+    setPlayerReady,
     startGame,
-    refreshRooms
+    refreshRooms,
+    setCustomPhrases
   };
 
   return (
@@ -328,3 +391,6 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     </GameContext.Provider>
   );
 }
+
+// Export the provider with the correct name for App.tsx
+export const GameProvider = GameContextProvider;
