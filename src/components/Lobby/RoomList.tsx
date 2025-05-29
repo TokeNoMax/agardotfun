@@ -26,6 +26,8 @@ export default function RoomList() {
   const [creationErrorCount, setCreationErrorCount] = useState(0);
   const [hasShownRoomFoundToast, setHasShownRoomFoundToast] = useState(false);
   const [hasNavigated, setHasNavigated] = useState(false);
+  const [isGameLaunching, setIsGameLaunching] = useState(false);
+  const [lastToastMessage, setLastToastMessage] = useState<string>("");
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownStartTimeRef = useRef<number | null>(null);
   const lastToastTimeRef = useRef<number>(0);
@@ -35,9 +37,16 @@ export default function RoomList() {
   // Fonction pour éviter les toasts répétitifs
   const showToastWithThrottle = (title: string, description: string, variant?: "default" | "destructive") => {
     const now = Date.now();
-    if (now - lastToastTimeRef.current > 2000) { // Minimum 2 secondes entre les toasts
+    const messageKey = `${title}-${description}`;
+    
+    // Prevent duplicate messages within 5 seconds
+    if (now - lastToastTimeRef.current > 5000 && lastToastMessage !== messageKey) {
       lastToastTimeRef.current = now;
+      setLastToastMessage(messageKey);
       toast({ title, description, variant });
+      
+      // Clear the last message after 5 seconds
+      setTimeout(() => setLastToastMessage(""), 5000);
     }
   };
 
@@ -95,7 +104,8 @@ export default function RoomList() {
       currentRoom.status === 'waiting' && 
       currentRoom.players && 
       currentRoom.players.length >= 2 && 
-      currentRoom.players.every(p => p.ready === true)
+      currentRoom.players.every(p => p.ready === true) &&
+      !isGameLaunching // Prevent multiple launches
     ) {
       // Launch countdown if all players are ready
       if (countdown === null && !gameStarting) {
@@ -117,11 +127,11 @@ export default function RoomList() {
         }
       }
     }
-  }, [currentRoom, countdown, gameStarting]);
+  }, [currentRoom, countdown, gameStarting, isGameLaunching]);
 
   // Handle countdown with proper cleanup
   useEffect(() => {
-    if (countdown !== null && countdown > 0 && !gameStarting) {
+    if (countdown !== null && countdown > 0 && !gameStarting && !isGameLaunching) {
       if (countdownTimerRef.current) {
         clearInterval(countdownTimerRef.current);
       }
@@ -134,29 +144,37 @@ export default function RoomList() {
               countdownTimerRef.current = null;
             }
             
-            setGameStarting(true);
-            
-            showToastWithThrottle("🎮 Lancement en cours...", "Démarrage de la partie...");
-            
-            // Launch game at the end of countdown
-            startGame().then((success) => {
-              if (success) {
-                // Attendre que le statut soit synchronisé avant de naviguer
-                setTimeout(() => {
-                  if (!hasNavigated) {
-                    setHasNavigated(true);
-                    navigate('/game');
-                  }
-                }, 1500); // Délai plus long pour la synchronisation
-              } else {
+            // Prevent multiple game launches
+            if (!isGameLaunching) {
+              setIsGameLaunching(true);
+              setGameStarting(true);
+              
+              console.log("Starting game from countdown...");
+              
+              startGame().then((success) => {
+                if (success) {
+                  // Only navigate after confirming game started
+                  showToastWithThrottle("🎮 Partie lancée !", "Redirection vers le jeu...");
+                  
+                  // Navigate with longer delay to ensure sync
+                  setTimeout(() => {
+                    if (!hasNavigated) {
+                      setHasNavigated(true);
+                      navigate('/game');
+                    }
+                  }, 3000); // Increased delay for better sync
+                } else {
+                  setGameStarting(false);
+                  setIsGameLaunching(false);
+                  showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
+                }
+              }).catch(error => {
+                console.error("Error starting game:", error);
                 setGameStarting(false);
+                setIsGameLaunching(false);
                 showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
-              }
-            }).catch(error => {
-              console.error("Error starting game:", error);
-              setGameStarting(false);
-              showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
-            });
+              });
+            }
             
             return null;
           }
@@ -170,22 +188,23 @@ export default function RoomList() {
         clearInterval(countdownTimerRef.current);
       }
     };
-  }, [countdown, startGame, gameStarting, navigate, hasNavigated]);
+  }, [countdown, startGame, gameStarting, navigate, hasNavigated, isGameLaunching]);
 
   // Navigation automatique améliorée avec guard
   useEffect(() => {
-    if (currentRoom?.status === 'playing' && !gameStarting && !hasNavigated) {
+    if (currentRoom?.status === 'playing' && !gameStarting && !hasNavigated && !isGameLaunching) {
       console.log("Game is playing, navigating to game");
       setHasNavigated(true);
       navigate('/game');
     }
-  }, [currentRoom?.status, navigate, gameStarting, hasNavigated]);
+  }, [currentRoom?.status, navigate, gameStarting, hasNavigated, isGameLaunching]);
 
   // Reset navigation flag when leaving room
   useEffect(() => {
     if (!currentRoom) {
       setHasNavigated(false);
       setGameStarting(false);
+      setIsGameLaunching(false);
     }
   }, [currentRoom]);
 
@@ -251,18 +270,21 @@ export default function RoomList() {
   };
 
   const handleStartGame = async () => {
-    if (gameStarting) return; // Empêcher les démarrages multiples
+    if (gameStarting || isGameLaunching) return; // Empêcher les démarrages multiples
     
     try {
+      setIsGameLaunching(true);
       setGameStarting(true);
       const success = await startGame();
       if (!success) {
         setGameStarting(false);
+        setIsGameLaunching(false);
         showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
       }
     } catch (error) {
       console.error("Error starting game:", error);
       setGameStarting(false);
+      setIsGameLaunching(false);
       showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
     }
   };

@@ -83,8 +83,22 @@ export const roomService = {
 
     console.log("Game started successfully");
     
-    // Wait a moment to ensure the update is propagated
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Wait for database synchronization with longer delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Verify the status was actually updated
+    const { data: room } = await supabase
+      .from('game_rooms')
+      .select('status')
+      .eq('id', roomId)
+      .single();
+      
+    if (room?.status !== 'playing') {
+      console.error("Room status not updated correctly:", room?.status);
+      throw new Error("Failed to update room status");
+    }
+    
+    console.log("Room status verified as playing");
   },
 
   async getRoom(roomId: string): Promise<GameRoom | null> {
