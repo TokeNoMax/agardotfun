@@ -79,10 +79,19 @@ export default function PlayerCustomization() {
       return;
     }
 
+    if (name.trim().length > 15) {
+      toast({
+        title: "Erreur",
+        description: "Le nom ne peut pas dépasser 15 caractères.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      console.log("Creating player with:", {
+      console.log("Submitting player configuration:", {
         name: name.trim(),
         color: selectedColor,
         walletAddress: publicKey.toString(),
@@ -103,7 +112,7 @@ export default function PlayerCustomization() {
       console.error("Error creating player:", error);
       toast({
         title: "Erreur de configuration",
-        description: "Impossible de configurer votre joueur. Vérifiez votre connexion et réessayez.",
+        description: error instanceof Error ? error.message : "Impossible de configurer votre joueur. Vérifiez votre connexion et réessayez.",
         variant: "destructive"
       });
     } finally {
@@ -173,6 +182,7 @@ export default function PlayerCustomization() {
             maxLength={15}
             disabled={isLoading}
           />
+          <p className="text-xs text-gray-500">{name.length}/15 caractères</p>
         </div>
         
         <Tabs defaultValue="color" className="w-full">

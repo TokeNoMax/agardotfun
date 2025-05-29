@@ -10,6 +10,7 @@ import { Player, PlayerColor, GameRoom } from "@/types/game";
 import { useToast } from "@/hooks/use-toast";
 import { gameRoomService } from "@/services/gameRoomService";
 import { useGameRoomSubscriptions } from "@/hooks/useGameRoomSubscriptions";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 // Default custom phrases
 const defaultPhrases: string[] = [
@@ -27,7 +28,7 @@ const defaultPhrases: string[] = [
 
 interface GameContextType {
   player: Player | null;
-  setPlayerDetails: (name: string, color: PlayerColor, walletAddress: string) => Promise<void>;
+  setPlayerDetails: (name: string, color: PlayerColor, nftImageUrl?: string) => Promise<void>;
   rooms: GameRoom[];
   createRoom: (roomName: string, maxPlayers: number) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
@@ -65,6 +66,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { publicKey, connected } = useWallet();
 
   // Fonction pour nettoyer l'état local
   const clearLocalState = useCallback(() => {
@@ -159,61 +161,132 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   });
 
   const setPlayerDetails = useCallback(
-    async (name: string, color: PlayerColor, walletAddress: string) => {
+    async (name: string, color: PlayerColor, nftImageUrl?: string) => {
+      if (!connected || !publicKey) {
+        console.error("Wallet not connected");
+        toast({
+          title: "Erreur",
+          description: "Votre wallet doit être connecté pour configurer votre joueur",
+          variant: "destructive"
+        });
+        throw new Error("Wallet not connected");
+      }
+
+      const walletAddress = publicKey.toString();
+      
+      if (!walletAddress || walletAddress.trim() === '') {
+        console.error("Invalid wallet address");
+        toast({
+          title: "Erreur",
+          description: "Adresse wallet invalide",
+          variant: "destructive"
+        });
+        throw new Error("Invalid wallet address");
+      }
+
       const newPlayer: Player = {
-        id: walletAddress, // Use wallet address as ID directly
+        id: walletAddress,
         walletAddress: walletAddress,
-        name: name,
+        name: name.trim(),
         color: color,
         size: 20,
         x: 0,
         y: 0,
         isAlive: true,
+        nftImageUrl: nftImageUrl?.trim() || undefined
       };
 
+      console.log("Creating player with details:", newPlayer);
       setPlayer(newPlayer);
       localStorage.setItem("blob-battle-player", JSON.stringify(newPlayer));
       
-      console.log("Player details set with Solana address as ID:", newPlayer);
+      console.log("Player details set successfully:", newPlayer.name, "with wallet:", newPlayer.walletAddress);
     },
-    []
+    [connected, publicKey, toast]
   );
 
   const createRoom = useCallback(
     async (roomName: string, maxPlayers: number) => {
       if (!player) {
         console.error("Player not initialized");
-        return "";
+        toast({
+          title: "Erreur",
+          description: "Veuillez d'abord configurer votre joueur",
+          variant: "destructive"
+        });
+        throw new Error("Player not initialized");
+      }
+
+      if (!connected || !publicKey) {
+        console.error("Wallet not connected");
+        toast({
+          title: "Erreur",
+          description: "Votre wallet doit être connecté pour créer une salle",
+          variant: "destructive"
+        });
+        throw new Error("Wallet not connected");
       }
 
       try {
         const adjustedMaxPlayers = Math.max(2, maxPlayers);
-        console.log("Creating room:", roomName, "with max players:", adjustedMaxPlayers);
+        console.log("Creating room:", roomName, "with max players:", adjustedMaxPlayers, "by player:", player.name);
         
         const roomId = await gameRoomService.createRoom(roomName, adjustedMaxPlayers);
+        console.log("Room created with ID:", roomId);
         
         // Actualiser la liste des salles
         await refreshRooms();
         
+        toast({
+          title: "Salle créée",
+          description: `La salle "${roomName}" a été créée avec succès`
+        });
+        
         return roomId;
       } catch (error) {
         console.error("Error creating room:", error);
+        toast({
+          title: "Erreur de création",
+          description: error instanceof Error ? error.message : "Impossible de créer la salle",
+          variant: "destructive"
+        });
         throw error;
       }
     },
-    [player, refreshRooms]
+    [player, refreshRooms, connected, publicKey, toast]
   );
 
   const joinRoom = useCallback(
     async (roomId: string) => {
       if (!player) {
         console.error("Player not initialized");
-        return;
+        toast({
+          title: "Erreur",
+          description: "Veuillez d'abord configurer votre joueur",
+          variant: "destructive"
+        });
+        throw new Error("Player not initialized");
+      }
+
+      if (!connected || !publicKey) {
+        console.error("Wallet not connected");
+        toast({
+          title: "Erreur",
+          description: "Votre wallet doit être connecté pour rejoindre une salle",
+          variant: "destructive"
+        });
+        throw new Error("Wallet not connected");
       }
 
       try {
-        console.log(`Joining room: ${roomId} with player ID: ${player.walletAddress}`);
+        console.log(`Attempting to join room: ${roomId} with player:`, {
+          name: player.name,
+          walletAddress: player.walletAddress,
+          id: player.id
+        });
+        
         await gameRoomService.joinRoom(roomId, player);
+        console.log("Successfully joined room:", roomId);
         
         // Récupérer les détails de la salle mise à jour
         const room = await gameRoomService.getRoom(roomId);
@@ -226,18 +299,22 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
             title: "Salle rejointe",
             description: `Vous avez rejoint la salle "${room.name}"`
           });
+          
+          console.log("Room joined successfully, current players:", room.players?.length);
+        } else {
+          throw new Error("Impossible de récupérer les détails de la salle");
         }
       } catch (error) {
         console.error("Error joining room:", error);
         toast({
           title: "Erreur",
-          description: "Impossible de rejoindre la salle",
+          description: error instanceof Error ? error.message : "Impossible de rejoindre la salle",
           variant: "destructive"
         });
         throw error;
       }
     },
-    [player, toast]
+    [player, toast, connected, publicKey]
   );
 
   const startGame = useCallback(async () => {
