@@ -17,7 +17,7 @@ import {
   SheetTitle, 
   SheetTrigger 
 } from "@/components/ui/sheet";
-import { useAutoCleanup } from "@/hooks/use-auto-cleanup";
+import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 
 export default function Lobby() {
   const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();

@@ -1,511 +1,330 @@
-import React, {
-  createContext,
-  useState,
-  useEffect,
-  useContext,
-  useCallback,
-  useRef,
-} from "react";
-import { useNavigate } from "react-router-dom";
-import { Player, PlayerColor, GameRoom } from "@/types/game";
-import { useToast } from "@/hooks/use-toast";
-import { gameRoomService } from "@/services/gameRoomService";
-import { useGameRoomSubscriptions } from "@/hooks/useGameRoomSubscriptions";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
-
-// Default custom phrases
-const defaultPhrases: string[] = [
-  "{playerName} s'est fait éliminer !",
-  "{playerName} a été mangé !",
-  "{playerName} a rejoint le paradis des blobs !",
-  "On ne verra plus {playerName} de sitôt !",
-  "{playerName} a disparu de la carte !",
-  "Adieu {playerName} !",
-  "{playerName} n'était pas assez gros !",
-  "{playerName} a servi de goûter !",
-  "Le blob {playerName} est maintenant digéré !",
-  "{playerName} est hors-jeu !"
-];
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Player, GameRoom } from '@/types/game';
+import { playerService } from '@/services/player/playerService';
+import { roomService } from '@/services/room/roomService';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { usePlayerHeartbeat } from '@/hooks/usePlayerHeartbeat';
 
 interface GameContextType {
   player: Player | null;
-  setPlayerDetails: (name: string, color: PlayerColor, nftImageUrl?: string) => Promise<void>;
-  rooms: GameRoom[];
-  createRoom: (roomName: string, maxPlayers: number) => Promise<string>;
-  joinRoom: (roomId: string) => Promise<void>;
   currentRoom: GameRoom | null;
-  startGame: () => Promise<boolean>;
+  createPlayer: (playerData: Omit<Player, 'id' | 'walletAddress'>) => Promise<void>;
+  updatePlayer: (updates: Partial<Player>) => Promise<void>;
+  joinRoom: (roomId: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
-  setPlayerReady: (ready: boolean) => Promise<void>;
-  socket: null; // Maintenu pour compatibilité mais toujours null
+  createRoom: (roomData: { name: string; maxPlayers: number }) => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
-  customPhrases: string[];
-  setCustomPhrases: (phrases: string[] | ((prev: string[]) => string[])) => void;
+  toggleReady: () => Promise<void>;
+  startGame: () => Promise<void>;
+  refreshRooms: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
-export const GameContextProvider = ({ children }: { children: React.ReactNode }) => {
-  const [player, setPlayer] = useState<Player | null>(() => {
-    const storedPlayer = localStorage.getItem("blob-battle-player");
-    return storedPlayer ? JSON.parse(storedPlayer) : null;
-  });
-  const [rooms, setRooms] = useState<GameRoom[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(() => {
-    const storedRoom = localStorage.getItem("blob-battle-current-room");
-    return storedRoom ? JSON.parse(storedRoom) : null;
-  });
-  const [customPhrases, setCustomPhrases] = useState<string[]>(() => {
-    const storedPhrases = localStorage.getItem("blob-battle-custom-phrases");
-    return storedPhrases ? JSON.parse(storedPhrases) : defaultPhrases;
-  });
-  const [sessionVerified, setSessionVerified] = useState(false);
-  const [isLeavingRoom, setIsLeavingRoom] = useState(false);
-  
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { publicKey, connected } = useWallet();
-  const isUnmountedRef = useRef(false);
-
-  // Vérifier et corriger le joueur si l'adresse wallet est manquante
-  useEffect(() => {
-    if (player && (!player.walletAddress || player.walletAddress.trim() === '')) {
-      console.log("Player has empty wallet address, clearing player data");
-      setPlayer(null);
-      localStorage.removeItem("blob-battle-player");
-      if (!isLeavingRoom) {
-        toast({
-          title: "Configuration invalide",
-          description: "Veuillez reconnecter votre wallet et reconfigurer votre joueur",
-          variant: "destructive"
-        });
-      }
-    }
-  }, [player, toast, isLeavingRoom]);
-
-  // Fonction pour nettoyer l'état local
-  const clearLocalState = useCallback(() => {
-    console.log("Clearing local state due to session mismatch");
-    setCurrentRoom(null);
-    localStorage.removeItem("blob-battle-current-room");
-    localStorage.removeItem('blob-battle-game-state');
-  }, []);
-
-  // Vérification de session au démarrage
-  useEffect(() => {
-    const verifySession = async () => {
-      if (!player || !currentRoom || sessionVerified || isLeavingRoom) {
-        setSessionVerified(true);
-        return;
-      }
-
-      console.log("Verifying session for player", player.walletAddress, "in room", currentRoom.id);
-
-      try {
-        // Vérifier si la salle existe encore
-        const roomExists = await gameRoomService.verifyRoomExists(currentRoom.id);
-        if (!roomExists) {
-          console.log("Room no longer exists, clearing local state");
-          clearLocalState();
-          if (!isLeavingRoom) {
-            toast({
-              title: "Session expirée",
-              description: "La salle que vous avez rejointe n'existe plus",
-              variant: "destructive"
-            });
-          }
-          setSessionVerified(true);
-          return;
-        }
-
-        // Vérifier si le joueur est toujours dans la salle
-        const playerInRoom = await gameRoomService.verifyPlayerInRoom(currentRoom.id, player.walletAddress);
-        if (!playerInRoom) {
-          console.log("Player no longer in room, clearing local state");
-          clearLocalState();
-          if (!isLeavingRoom) {
-            toast({
-              title: "Session expirée",
-              description: "Vous avez été déconnecté de la salle",
-              variant: "destructive"
-            });
-          }
-        } else {
-          console.log("Session verified successfully");
-        }
-      } catch (error) {
-        console.error("Error verifying session:", error);
-        // En cas d'erreur, on garde l'état local mais on log l'erreur
-      } finally {
-        setSessionVerified(true);
-      }
-    };
-
-    verifySession();
-  }, [player, currentRoom, sessionVerified, clearLocalState, toast, isLeavingRoom]);
-
-  // Save custom phrases to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem("blob-battle-custom-phrases", JSON.stringify(customPhrases));
-  }, [customPhrases]);
-
-  // Callbacks pour les subscriptions temps réel
-  const handleRoomsUpdate = useCallback((updatedRooms: GameRoom[]) => {
-    if (isUnmountedRef.current || isLeavingRoom) return;
-    console.log("Rooms updated from Supabase:", updatedRooms.length);
-    setRooms(updatedRooms);
-  }, [isLeavingRoom]);
-
-  const handleRoomUpdate = useCallback((room: GameRoom) => {
-    if (isUnmountedRef.current || isLeavingRoom) return;
-    console.log("Current room updated:", room.id);
-    setCurrentRoom(room);
-    localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
-    localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-  }, [isLeavingRoom]);
-
-  const handleGameStarted = useCallback((room: GameRoom) => {
-    if (isUnmountedRef.current || isLeavingRoom) return;
-    console.log("Game started in room:", room.id);
-    localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-    
-    if (!window.location.href.includes('local=true')) {
-      navigate("/game");
-    }
-  }, [navigate, isLeavingRoom]);
-
-  // Utiliser les subscriptions temps réel
-  const { refreshRooms, refreshCurrentRoom, cleanupSubscriptions } = useGameRoomSubscriptions({
-    onRoomsUpdate: handleRoomsUpdate,
-    onRoomUpdate: handleRoomUpdate,
-    onGameStarted: handleGameStarted,
-    currentRoomId: currentRoom?.id
-  });
-
-  // Ajouter le heartbeat pour maintenir la connexion active
-  usePlayerHeartbeat({
-    roomId: currentRoom?.id,
-    playerId: player?.walletAddress,
-    intervalSeconds: 25, // Heartbeat toutes les 25 secondes
-    enableLogging: false
-  });
-
-  const setPlayerDetails = useCallback(
-    async (name: string, color: PlayerColor, nftImageUrl?: string) => {
-      console.log("Setting player details - wallet connected:", connected, "publicKey:", publicKey?.toString());
-      
-      if (!connected || !publicKey) {
-        console.error("Wallet not connected when setting player details");
-        toast({
-          title: "Erreur de connexion",
-          description: "Votre wallet doit être connecté pour configurer votre joueur. Veuillez reconnecter votre wallet.",
-          variant: "destructive"
-        });
-        throw new Error("Wallet not connected");
-      }
-
-      const walletAddress = publicKey.toString();
-      
-      if (!walletAddress || walletAddress.trim() === '') {
-        console.error("Invalid wallet address when setting player details:", walletAddress);
-        toast({
-          title: "Erreur d'adresse",
-          description: "Adresse wallet invalide. Veuillez reconnecter votre wallet.",
-          variant: "destructive"
-        });
-        throw new Error("Invalid wallet address");
-      }
-
-      const newPlayer: Player = {
-        id: walletAddress,
-        walletAddress: walletAddress,
-        name: name.trim(),
-        color: color,
-        size: 20,
-        x: 0,
-        y: 0,
-        isAlive: true,
-        nftImageUrl: nftImageUrl?.trim() || undefined
-      };
-
-      console.log("Creating player with validated wallet address:", {
-        name: newPlayer.name,
-        walletAddress: newPlayer.walletAddress,
-        connected,
-        publicKeyExists: !!publicKey
-      });
-      
-      setPlayer(newPlayer);
-      localStorage.setItem("blob-battle-player", JSON.stringify(newPlayer));
-      
-      console.log("Player details set successfully with wallet:", newPlayer.walletAddress);
-      
-      toast({
-        title: "Joueur configuré",
-        description: `Votre blob "${name}" a été configuré avec succès !`
-      });
-    },
-    [connected, publicKey, toast]
-  );
-
-  const createRoom = useCallback(
-    async (roomName: string, maxPlayers: number) => {
-      if (!player) {
-        console.error("Player not initialized");
-        toast({
-          title: "Erreur",
-          description: "Veuillez d'abord configurer votre joueur",
-          variant: "destructive"
-        });
-        throw new Error("Player not initialized");
-      }
-
-      if (!connected || !publicKey) {
-        console.error("Wallet not connected");
-        toast({
-          title: "Erreur",
-          description: "Votre wallet doit être connecté pour créer une salle",
-          variant: "destructive"
-        });
-        throw new Error("Wallet not connected");
-      }
-
-      try {
-        const adjustedMaxPlayers = Math.max(2, maxPlayers);
-        console.log("Creating room:", roomName, "with max players:", adjustedMaxPlayers, "by player:", player.name);
-        
-        const roomId = await gameRoomService.createRoom(roomName, adjustedMaxPlayers);
-        console.log("Room created with ID:", roomId);
-        
-        await refreshRooms();
-        
-        toast({
-          title: "Salle créée",
-          description: `La salle "${roomName}" a été créée avec succès`
-        });
-        
-        return roomId;
-      } catch (error) {
-        console.error("Error creating room:", error);
-        toast({
-          title: "Erreur de création",
-          description: error instanceof Error ? error.message : "Impossible de créer la salle",
-          variant: "destructive"
-        });
-        throw error;
-      }
-    },
-    [player, refreshRooms, connected, publicKey, toast]
-  );
-
-  const joinRoom = useCallback(
-    async (roomId: string) => {
-      console.log("Attempting to join room with player:", {
-        playerExists: !!player,
-        walletConnected: connected,
-        publicKeyExists: !!publicKey,
-        playerWalletAddress: player?.walletAddress
-      });
-
-      if (!player) {
-        console.error("Player not initialized when joining room");
-        toast({
-          title: "Erreur de configuration",
-          description: "Veuillez d'abord configurer votre joueur",
-          variant: "destructive"
-        });
-        throw new Error("Player not initialized");
-      }
-
-      if (!connected || !publicKey) {
-        console.error("Wallet not connected when joining room");
-        toast({
-          title: "Erreur de connexion",
-          description: "Votre wallet doit être connecté pour rejoindre une salle. Veuillez reconnecter votre wallet.",
-          variant: "destructive"
-        });
-        throw new Error("Wallet not connected");
-      }
-
-      if (!player.walletAddress || player.walletAddress.trim() === '') {
-        console.error("Player has empty wallet address when joining room");
-        toast({
-          title: "Configuration invalide",
-          description: "Votre configuration de joueur est invalide. Veuillez reconfigurer votre joueur.",
-          variant: "destructive"
-        });
-        
-        setPlayer(null);
-        localStorage.removeItem("blob-battle-player");
-        throw new Error("Invalid player configuration");
-      }
-
-      const currentWalletAddress = publicKey.toString();
-      if (player.walletAddress !== currentWalletAddress) {
-        console.error("Player wallet address mismatch:", {
-          playerWallet: player.walletAddress,
-          connectedWallet: currentWalletAddress
-        });
-        toast({
-          title: "Adresse wallet différente",
-          description: "L'adresse de votre wallet a changé. Veuillez reconfigurer votre joueur.",
-          variant: "destructive"
-        });
-        
-        setPlayer(null);
-        localStorage.removeItem("blob-battle-player");
-        throw new Error("Wallet address mismatch");
-      }
-
-      try {
-        console.log(`Attempting to join room: ${roomId} with validated player:`, {
-          name: player.name,
-          walletAddress: player.walletAddress,
-          id: player.id
-        });
-        
-        await gameRoomService.joinRoom(roomId, player);
-        console.log("Successfully joined room:", roomId);
-        
-        const room = await gameRoomService.getRoom(roomId);
-        if (room) {
-          setCurrentRoom(room);
-          localStorage.setItem("blob-battle-current-room", JSON.stringify(room));
-          localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
-          
-          toast({
-            title: "Salle rejointe",
-            description: `Vous avez rejoint la salle "${room.name}"`
-          });
-          
-          console.log("Room joined successfully, current players:", room.players?.length);
-        } else {
-          throw new Error("Impossible de récupérer les détails de la salle");
-        }
-      } catch (error) {
-        console.error("Error joining room:", error);
-        toast({
-          title: "Erreur",
-          description: error instanceof Error ? error.message : "Impossible de rejoindre la salle",
-          variant: "destructive"
-        });
-        throw error;
-      }
-    },
-    [player, toast, connected, publicKey]
-  );
-
-  // Fonction startGame optimisée avec meilleure vérification
-  const startGame = useCallback(async () => {
-    if (!currentRoom) {
-      console.error("No current room");
-      return false;
-    }
-    
-    try {
-      console.log("Starting game for room:", currentRoom.id);
-      await gameRoomService.startGame(currentRoom.id);
-      
-      // Mettre à jour l'état local immédiatement
-      const updatedRoom = { ...currentRoom, status: 'playing' as const };
-      setCurrentRoom(updatedRoom);
-      localStorage.setItem("blob-battle-current-room", JSON.stringify(updatedRoom));
-      localStorage.setItem('blob-battle-game-state', JSON.stringify(updatedRoom));
-      
-      console.log("Game started successfully, local state updated");
-      return true;
-    } catch (error) {
-      console.error("Error starting game:", error);
-      return false;
-    }
-  }, [currentRoom]);
-
-  const leaveRoom = useCallback(async () => {
-    if (!player || !currentRoom) {
-      console.error("Player or currentRoom not initialized");
-      return;
-    }
-    
-    setIsLeavingRoom(true);
-    
-    try {
-      console.log("Leaving room:", currentRoom.id);
-      
-      cleanupSubscriptions();
-      
-      setCurrentRoom(null);
-      localStorage.removeItem("blob-battle-current-room");
-      localStorage.removeItem('blob-battle-game-state');
-      
-      await gameRoomService.leaveRoom(currentRoom.id, player.walletAddress);
-      
-      console.log("Room left successfully");
-    } catch (error) {
-      console.error("Error leaving room:", error);
-    } finally {
-      setIsLeavingRoom(false);
-    }
-  }, [player, currentRoom, cleanupSubscriptions]);
-
-  const setPlayerReady = useCallback(
-    async (ready: boolean) => {
-      if (!player || !currentRoom) {
-        console.error("Player or currentRoom not initialized");
-        return;
-      }
-
-      try {
-        console.log(`Setting player ready status to ${ready}`);
-        await gameRoomService.setPlayerReady(currentRoom.id, player.walletAddress, ready);
-      } catch (error) {
-        console.error("Error setting player ready:", error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de mettre à jour le statut",
-          variant: "destructive"
-        });
-      }
-    },
-    [player, currentRoom, toast]
-  );
-
-  // Cleanup sur unmount
-  useEffect(() => {
-    return () => {
-      isUnmountedRef.current = true;
-    };
-  }, []);
-
-  return (
-    <GameContext.Provider
-      value={{
-        player,
-        setPlayerDetails,
-        rooms,
-        createRoom,
-        joinRoom,
-        currentRoom,
-        startGame,
-        leaveRoom,
-        setPlayerReady,
-        socket: null, // Maintenu pour compatibilité
-        refreshCurrentRoom,
-        customPhrases,
-        setCustomPhrases,
-      }}
-    >
-      {children}
-    </GameContext.Provider>
-  );
-};
-
-const useGame = (): GameContextType => {
+export const useGame = () => {
   const context = useContext(GameContext);
   if (context === undefined) {
-    throw new Error("useGame must be used within a GameProvider");
+    throw new Error('useGame must be used within a GameContextProvider');
   }
   return context;
 };
 
-export { GameContextProvider, useGame, defaultPhrases };
+interface GameContextProviderProps {
+  children: ReactNode;
+}
+
+export function GameContextProvider({ children }: GameContextProviderProps) {
+  const [player, setPlayer] = useState<Player | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+  const { toast } = useToast();
+
+  // Utiliser le heartbeat pour maintenir la connexion active
+  usePlayerHeartbeat({
+    roomId: currentRoom?.id,
+    playerId: player?.id,
+    intervalSeconds: 30,
+    enableLogging: false
+  });
+
+  const createPlayer = async (playerData: Omit<Player, 'id' | 'walletAddress'>) => {
+    try {
+      const walletAddress = localStorage.getItem('walletAddress');
+      if (!walletAddress) {
+        throw new Error('Wallet address not found');
+      }
+
+      const newPlayer = await playerService.createPlayer({
+        ...playerData,
+        walletAddress
+      });
+
+      setPlayer(newPlayer);
+      localStorage.setItem('blob-battle-player', JSON.stringify(newPlayer));
+
+      toast({
+        title: "BLOB_PROTOCOL_ACTIVATED",
+        description: `Joueur ${newPlayer.name} créé avec succès !`,
+      });
+    } catch (error) {
+      console.error('Error creating player:', error);
+      toast({
+        title: "PROTOCOL_ERROR",
+        description: "Impossible de créer le joueur.",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const updatePlayer = async (updates: Partial<Player>) => {
+    if (!player) return;
+
+    try {
+      const updatedPlayer = await playerService.updatePlayer(player.id, updates);
+      setPlayer(updatedPlayer);
+      localStorage.setItem('blob-battle-player', JSON.stringify(updatedPlayer));
+
+      toast({
+        title: "BLOB_UPDATED",
+        description: "Configuration mise à jour !",
+      });
+    } catch (error) {
+      console.error('Error updating player:', error);
+      toast({
+        title: "UPDATE_ERROR",
+        description: "Impossible de mettre à jour le joueur.",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const joinRoom = async (roomId: string) => {
+    if (!player) {
+      throw new Error('Player not found');
+    }
+
+    try {
+      await roomService.joinRoom(roomId, player.id);
+      await refreshCurrentRoom();
+      
+      toast({
+        title: "ROOM_JOINED",
+        description: "Connexion à la salle établie !",
+      });
+    } catch (error) {
+      console.error('Error joining room:', error);
+      toast({
+        title: "CONNECTION_ERROR",
+        description: "Impossible de rejoindre la salle.",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const leaveRoom = async () => {
+    if (!player || !currentRoom) return;
+
+    try {
+      await roomService.leaveRoom(currentRoom.id, player.id);
+      setCurrentRoom(null);
+      localStorage.removeItem('blob-battle-current-room');
+      
+      toast({
+        title: "DISCONNECTED",
+        description: "Vous avez quitté la salle.",
+      });
+    } catch (error) {
+      console.error('Error leaving room:', error);
+      toast({
+        title: "DISCONNECTION_ERROR", 
+        description: "Erreur lors de la déconnexion.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const createRoom = async (roomData: { name: string; maxPlayers: number }) => {
+    if (!player) {
+      throw new Error('Player not found');
+    }
+
+    try {
+      const room = await roomService.createRoom({
+        ...roomData,
+        createdBy: player.id
+      });
+
+      await joinRoom(room.id);
+    } catch (error) {
+      console.error('Error creating room:', error);
+      toast({
+        title: "CREATION_ERROR",
+        description: "Impossible de créer la salle.",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const refreshCurrentRoom = async () => {
+    if (!player) return;
+
+    try {
+      const room = await roomService.getCurrentRoom(player.id);
+      setCurrentRoom(room);
+      
+      if (room) {
+        localStorage.setItem('blob-battle-current-room', JSON.stringify(room));
+      } else {
+        localStorage.removeItem('blob-battle-current-room');
+      }
+    } catch (error) {
+      console.error('Error refreshing current room:', error);
+      setCurrentRoom(null);
+      localStorage.removeItem('blob-battle-current-room');
+    }
+  };
+
+  const toggleReady = async () => {
+    if (!player || !currentRoom) return;
+
+    try {
+      await roomService.togglePlayerReady(currentRoom.id, player.id);
+      await refreshCurrentRoom();
+    } catch (error) {
+      console.error('Error toggling ready:', error);
+      toast({
+        title: "STATUS_ERROR",
+        description: "Impossible de changer le statut.",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const startGame = async () => {
+    if (!currentRoom) return;
+
+    try {
+      console.log('Starting game for room:', currentRoom.id);
+      
+      const result = await roomService.startGame(currentRoom.id);
+      console.log('Game start result:', result);
+      
+      if (result.success) {
+        await refreshCurrentRoom();
+        
+        toast({
+          title: "GAME_LAUNCHED",
+          description: "Redirection vers le jeu...",
+        });
+        
+        // Navigation immédiate vers le jeu
+        setTimeout(() => {
+          window.location.href = `/game?roomId=${currentRoom.id}`;
+        }, 500);
+        
+        return result;
+      } else {
+        throw new Error(result.error || 'Failed to start game');
+      }
+    } catch (error) {
+      console.error('Error starting game:', error);
+      toast({
+        title: "LAUNCH_ERROR",
+        description: "Impossible de démarrer la partie.",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  const refreshRooms = async () => {
+    // This function is used by RoomList component to refresh the list
+    // Implementation can be added if needed
+  };
+
+  // Load saved data on mount
+  useEffect(() => {
+    const savedPlayer = localStorage.getItem('blob-battle-player');
+    const savedRoom = localStorage.getItem('blob-battle-current-room');
+    
+    if (savedPlayer) {
+      try {
+        setPlayer(JSON.parse(savedPlayer));
+      } catch (error) {
+        console.error('Error parsing saved player:', error);
+        localStorage.removeItem('blob-battle-player');
+      }
+    }
+    
+    if (savedRoom) {
+      try {
+        setCurrentRoom(JSON.parse(savedRoom));
+      } catch (error) {
+        console.error('Error parsing saved room:', error);
+        localStorage.removeItem('blob-battle-current-room');
+      }
+    }
+  }, []);
+
+  // Subscribe to room updates
+  useEffect(() => {
+    if (!currentRoom) return;
+
+    const channel = supabase
+      .channel(`room-${currentRoom.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_rooms',
+          filter: `id=eq.${currentRoom.id}`
+        },
+        () => {
+          refreshCurrentRoom();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'room_players',
+          filter: `room_id=eq.${currentRoom.id}`
+        },
+        () => {
+          refreshCurrentRoom();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentRoom?.id]);
+
+  const value: GameContextType = {
+    player,
+    currentRoom,
+    createPlayer,
+    updatePlayer,
+    joinRoom,
+    leaveRoom,
+    createRoom,
+    refreshCurrentRoom,
+    toggleReady,
+    startGame,
+    refreshRooms
+  };
+
+  return (
+    <GameContext.Provider value={value}>
+      {children}
+    </GameContext.Provider>
+  );
+}
