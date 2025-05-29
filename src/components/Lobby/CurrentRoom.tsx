@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { GameRoom } from "@/types/game";
+import { Zap, Users, Play, LogOut } from "lucide-react";
 
 interface CurrentRoomProps {
   currentRoom: GameRoom;
@@ -30,91 +31,107 @@ export default function CurrentRoom({
 }: CurrentRoomProps) {
   
   return (
-    <div className="bg-indigo-50 border-2 border-indigo-300 rounded-lg p-6 mb-6 shadow-md">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h3 className="text-2xl font-semibold text-indigo-800">{currentRoom.name}</h3>
-          <p className="text-gray-600">
-            {currentRoom.players && currentRoom.players.length}/{currentRoom.maxPlayers} joueurs • {currentRoom.status === 'waiting' ? 'En attente' : currentRoom.status === 'playing' ? 'En cours' : 'Terminé'}
-          </p>
-          {countdown !== null && (
-            <p className="text-lg font-bold text-green-600 mt-2 animate-pulse">
-              Démarrage dans {countdown} secondes...
+    <div className="relative mb-6">
+      <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
+      <div className="relative bg-black/80 backdrop-blur-sm border-2 border-cyber-cyan/50 rounded-lg p-6 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h3 className="text-2xl font-bold text-cyber-cyan font-mono mb-2">{currentRoom.name}</h3>
+            <p className="text-gray-300 font-mono">
+              <Users className="inline h-4 w-4 mr-1" />
+              {currentRoom.players && currentRoom.players.length}/{currentRoom.maxPlayers} nodes • 
+              <span className={`ml-2 ${
+                currentRoom.status === 'waiting' ? 'text-cyber-yellow' : 
+                currentRoom.status === 'playing' ? 'text-cyber-green' : 'text-gray-400'
+              }`}>
+                {currentRoom.status === 'waiting' ? 'WAITING' : currentRoom.status === 'playing' ? 'PLAYING' : 'FINISHED'}
+              </span>
             </p>
-          )}
-          {gameStarting && currentRoom.status === 'playing' && (
-            <p className="text-lg font-bold text-green-600 mt-2">
-              La partie est prête ! Cliquez sur "Rejoindre la partie" pour commencer.
-            </p>
-          )}
-          <div className="mt-3">
-            <p className="text-sm font-medium">Joueurs:</p>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {currentRoom.players && currentRoom.players.map(player => (
-                <span 
-                  key={player.id} 
-                  className={`px-3 py-1 rounded-full text-sm ${
-                    player.ready 
-                      ? 'bg-green-100 text-green-800 border border-green-300' 
-                      : 'bg-white border border-gray-200'
-                  }`}
-                  style={{
-                    boxShadow: player.ready ? '0 0 0 1px rgba(34, 197, 94, 0.1)' : 'none'
-                  }}
-                >
-                  {player.name} {player.ready ? '✓' : ''}
-                </span>
-              ))}
+            {countdown !== null && (
+              <p className="text-lg font-bold text-cyber-green mt-2 animate-pulse font-mono">
+                GAME_START_IN {countdown} seconds...
+              </p>
+            )}
+            {gameStarting && currentRoom.status === 'playing' && (
+              <p className="text-lg font-bold text-cyber-green mt-2 font-mono">
+                GAME_READY ! Cliquez sur "JOIN_GAME" pour commencer.
+              </p>
+            )}
+            <div className="mt-4">
+              <p className="text-sm font-medium text-cyber-cyan font-mono mb-2">CONNECTED_NODES:</p>
+              <div className="flex flex-wrap gap-2">
+                {currentRoom.players && currentRoom.players.map(player => (
+                  <span 
+                    key={player.id} 
+                    className={`px-3 py-1 rounded-full text-sm font-mono border ${
+                      player.ready 
+                        ? 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' 
+                        : 'bg-black/50 border-cyber-cyan/30 text-gray-300'
+                    }`}
+                  >
+                    {player.name} {player.ready ? '✓' : '○'}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex flex-col gap-3 min-w-[200px]">
-          {isCurrentPlayerInRoom() ? (
-            <>
-              <Button 
-                onClick={handleToggleReady}
-                className="w-full"
-                variant={isCurrentPlayerReady() ? "outline" : "default"}
-                disabled={gameStarting}
-              >
-                {isCurrentPlayerReady() ? "Annuler prêt" : "Je suis prêt"}
-              </Button>
-              
-              {gameStarting && currentRoom.status === 'playing' ? (
+          <div className="flex flex-col gap-3 min-w-[200px]">
+            {isCurrentPlayerInRoom() ? (
+              <>
                 <Button 
-                  onClick={handleJoinGame}
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={handleToggleReady}
+                  className={`w-full font-mono font-bold ${
+                    isCurrentPlayerReady() 
+                      ? "bg-cyber-yellow/20 text-cyber-yellow border border-cyber-yellow/50 hover:bg-cyber-yellow/30" 
+                      : "bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black border border-cyber-green/50"
+                  }`}
+                  variant={isCurrentPlayerReady() ? "outline" : "default"}
+                  disabled={gameStarting}
                 >
-                  Rejoindre la partie
+                  <Zap className="mr-2 h-4 w-4" />
+                  {isCurrentPlayerReady() ? "CANCEL_READY" : "SET_READY"}
                 </Button>
-              ) : (
+                
+                {gameStarting && currentRoom.status === 'playing' ? (
+                  <Button 
+                    onClick={handleJoinGame}
+                    className="w-full bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold border border-cyber-green/50"
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    JOIN_GAME
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleStartGame}
+                    disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
+                    className="w-full bg-gradient-to-r from-cyber-magenta to-cyber-purple hover:from-cyber-purple hover:to-cyber-magenta text-white font-mono font-bold border border-cyber-magenta/50"
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    START_GAME
+                  </Button>
+                )}
+                
                 <Button 
-                  onClick={handleStartGame}
-                  disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
-                  className="w-full"
+                  variant="outline" 
+                  onClick={handleLeaveRoom}
+                  className="w-full font-mono font-bold text-cyber-magenta border-cyber-magenta/50 hover:bg-cyber-magenta/10 hover:border-cyber-magenta"
+                  disabled={gameStarting}
                 >
-                  Démarrer la partie
+                  <LogOut className="mr-2 h-4 w-4" />
+                  LEAVE_ROOM
                 </Button>
-              )}
-              
+              </>
+            ) : (
               <Button 
-                variant="outline" 
-                onClick={handleLeaveRoom}
-                className="w-full"
-                disabled={gameStarting}
+                onClick={() => handleJoinRoom(currentRoom.id)}
+                disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
+                className="w-full bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold border border-cyber-cyan/50"
               >
-                Quitter la salle
+                <Users className="mr-2 h-4 w-4" />
+                JOIN_ROOM
               </Button>
-            </>
-          ) : (
-            <Button 
-              onClick={() => handleJoinRoom(currentRoom.id)}
-              disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
-              className="w-full"
-            >
-              Rejoindre la salle
-            </Button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

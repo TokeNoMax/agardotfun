@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { RefreshCw, AlertCircle, CheckCircle, Users } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Users, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -58,14 +59,14 @@ export default function AvailableRooms({
       await refreshRooms();
       console.log("Refresh completed, rooms:", rooms);
       toast({
-        title: "Actualisé",
+        title: "ROOMS_REFRESHED",
         description: `${Array.isArray(rooms) ? rooms.length : 0} salles trouvées.`
       });
     } catch (error) {
       console.error("Error during refresh:", error);
       setHasSuccessfulConnection(false);
       toast({
-        title: "Erreur de connexion",
+        title: "CONNECTION_ERROR",
         description: "Impossible de récupérer les salles. Vérifiez votre connexion.",
         variant: "destructive"
       });
@@ -115,39 +116,40 @@ export default function AvailableRooms({
 
   return (
     <div className="mb-4">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="text-lg font-medium">Salles disponibles ({roomsToDisplay.length})</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-bold text-cyber-cyan font-mono">AVAILABLE_ROOMS ({roomsToDisplay.length})</h3>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           onClick={handleRefresh}
           disabled={isRefreshing}
           title="Actualiser les salles"
+          className="text-cyber-cyan hover:text-cyber-magenta hover:bg-cyber-cyan/10 border border-cyber-cyan/30 hover:border-cyber-magenta/50 transition-all duration-300"
         >
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
       
-      {/* Indicateur de statut de connexion */}
+      {/* Connection status indicator */}
       {hasSuccessfulConnection && (
-        <Alert className="mb-4 border-green-200 bg-green-50">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-800">Connecté à Supabase</AlertTitle>
-          <AlertDescription className="text-green-700">
+        <Alert className="mb-4 border-cyber-green/30 bg-cyber-green/10">
+          <CheckCircle className="h-4 w-4 text-cyber-green" />
+          <AlertTitle className="text-cyber-green font-mono">SUPABASE_CONNECTED</AlertTitle>
+          <AlertDescription className="text-cyber-green font-mono">
             Connexion réussie au système de salles de jeu.
           </AlertDescription>
         </Alert>
       )}
       
       {roomsToDisplay.length > 0 ? (
-        <div className="border rounded-md overflow-hidden">
+        <div className="border border-cyber-cyan/30 rounded-lg overflow-hidden bg-black/50 backdrop-blur-sm">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Joueurs</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+              <TableRow className="border-cyber-cyan/30">
+                <TableHead className="text-cyber-cyan font-mono">ROOM_NAME</TableHead>
+                <TableHead className="text-cyber-cyan font-mono">NODES</TableHead>
+                <TableHead className="text-cyber-cyan font-mono">STATUS</TableHead>
+                <TableHead className="text-right text-cyber-cyan font-mono">ACTION</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -159,24 +161,29 @@ export default function AvailableRooms({
                 return (
                   <TableRow 
                     key={room.id} 
-                    className={selectedRoomId === room.id ? "bg-indigo-50 hover:bg-indigo-100" : ""}
+                    className={`border-cyber-cyan/20 hover:bg-cyber-cyan/5 transition-colors ${
+                      selectedRoomId === room.id ? "bg-cyber-cyan/10" : ""
+                    }`}
                     onClick={() => onSelectRoom(room.id)}
                   >
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium text-gray-300 font-mono">
                       <div className="flex items-center gap-2">
-                        {room.name || "Salle sans nom"}
+                        {room.name || "UNNAMED_ROOM"}
                         {isEmpty && (
-                          <Users className="h-4 w-4 text-blue-500" />
+                          <Users className="h-4 w-4 text-cyber-blue animate-pulse" />
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span className={isEmpty ? 'text-blue-600 font-medium' : ''}>
+                    <TableCell className="font-mono">
+                      <span className={isEmpty ? 'text-cyber-blue font-bold' : 'text-gray-300'}>
                         {playerCount}/{room.maxPlayers || 4}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusInfo.variant} className={statusInfo.className}>
+                      <Badge 
+                        variant="outline" 
+                        className={`font-mono ${statusInfo.className} border`}
+                      >
                         {statusInfo.text}
                       </Badge>
                     </TableCell>
@@ -188,9 +195,13 @@ export default function AvailableRooms({
                           handleJoinRoom(room.id);
                         }}
                         disabled={!playerExists || (room.players && room.players.length >= (room.maxPlayers || 4)) || room.status !== 'waiting'}
-                        className={isEmpty ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                        className={`font-mono font-bold ${isEmpty 
+                          ? 'bg-gradient-to-r from-cyber-blue to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-blue text-black border border-cyber-blue/50' 
+                          : 'bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black border border-cyber-green/50'
+                        }`}
                       >
-                        {isEmpty ? 'Rejoindre (vide)' : 'Rejoindre'}
+                        <Zap className="mr-1 h-3 w-3" />
+                        {isEmpty ? 'JOIN_EMPTY' : 'JOIN_ROOM'}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -200,51 +211,55 @@ export default function AvailableRooms({
           </Table>
         </div>
       ) : (
-        <div className="text-center py-8 border rounded-md bg-gray-50">
+        <div className="text-center py-8 border border-cyber-cyan/30 rounded-lg bg-black/50 backdrop-blur-sm">
           {!hasSuccessfulConnection ? (
             <div className="flex flex-col items-center justify-center">
-              <AlertCircle className="h-12 w-12 text-amber-500 mb-4" />
-              <p className="text-gray-700 font-medium">Connexion en cours...</p>
-              <p className="text-gray-500 mt-2">Connexion au système de salles de jeu.</p>
+              <AlertCircle className="h-12 w-12 text-cyber-yellow mb-4 animate-pulse" />
+              <p className="text-cyber-yellow font-bold font-mono">CONNECTION_INITIALIZING...</p>
+              <p className="text-gray-400 mt-2 font-mono">Connexion au système de salles de jeu.</p>
               <Button 
-                className="mt-4" 
+                className="mt-4 bg-gradient-to-r from-cyber-yellow to-cyber-orange hover:from-cyber-orange hover:to-cyber-yellow text-black font-mono font-bold" 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
               >
                 {isRefreshing ? (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Connexion...
+                    CONNECTING...
                   </>
                 ) : (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    Réessayer
+                    RETRY_CONNECTION
                   </>
                 )}
               </Button>
             </div>
           ) : (
-            <>
-              <p className="text-gray-500">Aucune salle disponible. Créez-en une pour commencer à jouer !</p>
+            <div className="space-y-4">
+              <div className="flex flex-col items-center">
+                <Users className="h-12 w-12 text-cyber-cyan mb-4 animate-pulse" />
+                <p className="text-gray-400 font-mono">NO_ROOMS_AVAILABLE</p>
+                <p className="text-gray-500 text-sm font-mono mt-1">Créez une salle pour commencer à jouer !</p>
+              </div>
               <Button 
-                className="mt-4" 
+                className="bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold" 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
               >
                 {isRefreshing ? (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Actualisation...
+                    SCANNING...
                   </>
                 ) : (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    Actualiser
+                    SCAN_ROOMS
                   </>
                 )}
               </Button>
-            </>
+            </div>
           )}
         </div>
       )}

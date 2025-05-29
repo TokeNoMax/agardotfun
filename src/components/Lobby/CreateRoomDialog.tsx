@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useGame } from "@/context/GameContext";
+import { Plus, Zap } from "lucide-react";
 
 interface CreateRoomDialogProps {
   open: boolean;
@@ -102,7 +103,6 @@ export default function CreateRoomDialog({
 
   return (
     <Dialog open={open} onOpenChange={(state) => {
-      // Ne permet pas de fermer le dialog pendant la création
       if (isCreating && !state) {
         console.log("Tentative de fermeture pendant la création bloquée");
         return;
@@ -110,63 +110,85 @@ export default function CreateRoomDialog({
       onOpenChange(state);
     }}>
       <DialogTrigger asChild>
-        <Button disabled={!playerExists}>Créer une salle</Button>
+        <Button 
+          disabled={!playerExists}
+          className="bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold border border-cyber-green/50"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          CREATE_ROOM
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] bg-black/95 backdrop-blur-md border-2 border-cyber-green/50 shadow-[0_0_20px_rgba(0,255,0,0.2)]">
         <DialogHeader>
-          <DialogTitle>Créer une nouvelle salle</DialogTitle>
-          <DialogDescription>
-            Créez votre propre salle de jeu et invitez d'autres joueurs à vous rejoindre
+          <DialogTitle className="text-cyber-green font-mono text-xl">CREATE_NEW_ROOM</DialogTitle>
+          <DialogDescription className="text-gray-400 font-mono">
+            Créez votre propre salle de jeu et invitez d'autres <span className="text-cyber-cyan">NODES</span> à vous rejoindre
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="name">Nom de la salle <span className="text-red-500">*</span></Label>
+            <Label htmlFor="name" className="text-cyber-cyan font-mono">
+              ROOM_NAME <span className="text-cyber-magenta">*</span>
+            </Label>
             <Input
               id="name"
               placeholder="Entrer le nom de la salle"
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
-              className={roomName.trim() === "" ? "border-red-300" : ""}
+              className={`bg-black/50 border font-mono ${
+                roomName.trim() === "" ? "border-cyber-magenta/50" : "border-cyber-cyan/30"
+              } text-cyber-cyan focus:border-cyber-cyan`}
               autoComplete="off"
             />
             {roomName.trim() === "" && (
-              <p className="text-sm text-red-500">Le nom de la salle est requis</p>
+              <p className="text-sm text-cyber-magenta font-mono">ROOM_NAME_REQUIRED</p>
             )}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="players">Joueurs maximum <span className="text-red-500">*</span></Label>
+            <Label htmlFor="players" className="text-cyber-cyan font-mono">
+              MAX_NODES <span className="text-cyber-magenta">*</span>
+            </Label>
             <Select value={maxPlayers} onValueChange={setMaxPlayers}>
-              <SelectTrigger id="players" className={maxPlayers === "" ? "border-red-300" : ""}>
+              <SelectTrigger 
+                id="players" 
+                className={`bg-black/50 border font-mono ${
+                  maxPlayers === "" ? "border-cyber-magenta/50" : "border-cyber-cyan/30"
+                } text-cyber-cyan`}
+              >
                 <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2">2 Joueurs</SelectItem>
-                <SelectItem value="4">4 Joueurs</SelectItem>
-                <SelectItem value="6">6 Joueurs</SelectItem>
-                <SelectItem value="8">8 Joueurs</SelectItem>
+              <SelectContent className="bg-black/95 backdrop-blur-md border-cyber-cyan/30">
+                <SelectItem value="2" className="font-mono text-cyber-cyan">2 Nodes</SelectItem>
+                <SelectItem value="4" className="font-mono text-cyber-cyan">4 Nodes</SelectItem>
+                <SelectItem value="6" className="font-mono text-cyber-cyan">6 Nodes</SelectItem>
+                <SelectItem value="8" className="font-mono text-cyber-cyan">8 Nodes</SelectItem>
               </SelectContent>
             </Select>
             {maxPlayers === "" && (
-              <p className="text-sm text-red-500">Le nombre maximum de joueurs est requis</p>
+              <p className="text-sm text-cyber-magenta font-mono">MAX_NODES_REQUIRED</p>
             )}
           </div>
         </div>
         <DialogFooter>
           {isCreating ? (
-            <Button disabled className="relative">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <Button 
+              disabled 
+              className="relative bg-cyber-yellow/50 text-black font-mono font-bold"
+            >
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Création en cours...
+              CREATING_ROOM...
             </Button>
           ) : (
             <Button 
               onClick={handleCreateRoomWithValidation} 
               disabled={!isFormValid}
+              className="bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold"
             >
-              Créer
+              <Zap className="mr-2 h-4 w-4" />
+              CREATE
             </Button>
           )}
         </DialogFooter>
