@@ -173,7 +173,6 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     console.log("Game started in room:", room.id);
     localStorage.setItem('blob-battle-game-state', JSON.stringify(room));
     
-    // Navigation automatique vers le jeu quand il démarre
     if (!window.location.href.includes('local=true')) {
       navigate("/game");
     }
@@ -274,7 +273,6 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         const roomId = await gameRoomService.createRoom(roomName, adjustedMaxPlayers);
         console.log("Room created with ID:", roomId);
         
-        // Actualiser la liste des salles
         await refreshRooms();
         
         toast({
@@ -325,7 +323,6 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         throw new Error("Wallet not connected");
       }
 
-      // Vérifier que le joueur a une adresse wallet valide
       if (!player.walletAddress || player.walletAddress.trim() === '') {
         console.error("Player has empty wallet address when joining room");
         toast({
@@ -334,13 +331,11 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
           variant: "destructive"
         });
         
-        // Nettoyer le joueur invalide
         setPlayer(null);
         localStorage.removeItem("blob-battle-player");
         throw new Error("Invalid player configuration");
       }
 
-      // Vérifier que l'adresse wallet du joueur correspond à celle du wallet connecté
       const currentWalletAddress = publicKey.toString();
       if (player.walletAddress !== currentWalletAddress) {
         console.error("Player wallet address mismatch:", {
@@ -353,7 +348,6 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
           variant: "destructive"
         });
         
-        // Nettoyer le joueur avec l'ancienne adresse
         setPlayer(null);
         localStorage.removeItem("blob-battle-player");
         throw new Error("Wallet address mismatch");
@@ -369,7 +363,6 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         await gameRoomService.joinRoom(roomId, player);
         console.log("Successfully joined room:", roomId);
         
-        // Récupérer les détails de la salle mise à jour
         const room = await gameRoomService.getRoom(roomId);
         if (room) {
           setCurrentRoom(room);
@@ -398,6 +391,7 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     [player, toast, connected, publicKey]
   );
 
+  // Fonction startGame optimisée avec meilleure vérification
   const startGame = useCallback(async () => {
     if (!currentRoom) {
       console.error("No current room");
@@ -407,6 +401,14 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     try {
       console.log("Starting game for room:", currentRoom.id);
       await gameRoomService.startGame(currentRoom.id);
+      
+      // Mettre à jour l'état local immédiatement
+      const updatedRoom = { ...currentRoom, status: 'playing' as const };
+      setCurrentRoom(updatedRoom);
+      localStorage.setItem("blob-battle-current-room", JSON.stringify(updatedRoom));
+      localStorage.setItem('blob-battle-game-state', JSON.stringify(updatedRoom));
+      
+      console.log("Game started successfully, local state updated");
       return true;
     } catch (error) {
       console.error("Error starting game:", error);
@@ -425,21 +427,17 @@ const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     try {
       console.log("Leaving room:", currentRoom.id);
       
-      // Nettoyer immédiatement les subscriptions
       cleanupSubscriptions();
       
-      // Nettoyer l'état local
       setCurrentRoom(null);
       localStorage.removeItem("blob-battle-current-room");
       localStorage.removeItem('blob-battle-game-state');
       
-      // Ensuite faire l'appel API
       await gameRoomService.leaveRoom(currentRoom.id, player.walletAddress);
       
       console.log("Room left successfully");
     } catch (error) {
       console.error("Error leaving room:", error);
-      // Pas de toast d'erreur pour éviter le clignotement
     } finally {
       setIsLeavingRoom(false);
     }

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -21,15 +22,9 @@ export default function RoomList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [gameStarting, setGameStarting] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [lastCreatedRoomId, setLastCreatedRoomId] = useState<string | null>(null);
-  const [lastCreatedRoomName, setLastCreatedRoomName] = useState<string | null>(null);
-  const [creationErrorCount, setCreationErrorCount] = useState(0);
-  const [hasShownRoomFoundToast, setHasShownRoomFoundToast] = useState(false);
-  const [hasNavigated, setHasNavigated] = useState(false);
-  const [isGameLaunching, setIsGameLaunching] = useState(false);
   const [lastToastMessage, setLastToastMessage] = useState<string>("");
+  const [hasNavigated, setHasNavigated] = useState(false);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownStartTimeRef = useRef<number | null>(null);
   const lastToastTimeRef = useRef<number>(0);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -39,14 +34,14 @@ export default function RoomList() {
     const now = Date.now();
     const messageKey = `${title}-${description}`;
     
-    // Prevent duplicate messages within 5 seconds
-    if (now - lastToastTimeRef.current > 5000 && lastToastMessage !== messageKey) {
+    // Prevent duplicate messages within 3 seconds
+    if (now - lastToastTimeRef.current > 3000 && lastToastMessage !== messageKey) {
       lastToastTimeRef.current = now;
       setLastToastMessage(messageKey);
       toast({ title, description, variant });
       
-      // Clear the last message after 5 seconds
-      setTimeout(() => setLastToastMessage(""), 5000);
+      // Clear the last message after 3 seconds
+      setTimeout(() => setLastToastMessage(""), 3000);
     }
   };
 
@@ -61,34 +56,6 @@ export default function RoomList() {
     initialLoad();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
-  // Utiliser directement les salles de rooms au lieu de stableWaitingRooms
-  useEffect(() => {
-    console.log("Rooms updated:", rooms.length);
-    if (rooms && rooms.length > 0) {
-      console.log("Room IDs:", rooms.map(r => `${r.id} (${r.name}) - ${r.status}`).join(", "));
-      
-      // Vérifier si notre salle récemment créée est présente dans la liste
-      if (lastCreatedRoomId && !hasShownRoomFoundToast) {
-        const foundRoom = rooms.find(r => r.id === lastCreatedRoomId);
-        if (foundRoom) {
-          console.log(`La salle créée ${lastCreatedRoomId} est présente dans la liste!`);
-          // Notification de confirmation (une seule fois)
-          setHasShownRoomFoundToast(true);
-          showToastWithThrottle("Salle trouvée", `Votre salle "${foundRoom.name}" est maintenant disponible.`);
-          
-          // Réinitialiser le tracking après confirmation
-          setTimeout(() => {
-            setLastCreatedRoomId(null);
-            setLastCreatedRoomName(null);
-            setHasShownRoomFoundToast(false);
-          }, 5000);
-        } else {
-          console.log(`La salle créée ${lastCreatedRoomId} (${lastCreatedRoomName}) n'est pas dans la liste!`);
-        }
-      }
-    }
-  }, [rooms, lastCreatedRoomId, lastCreatedRoomName, hasShownRoomFoundToast]);
 
   // Clear selection when currentRoom changes
   useEffect(() => {
@@ -97,7 +64,7 @@ export default function RoomList() {
     }
   }, [currentRoom]);
 
-  // Check if all players are ready with proper null checks
+  // Logique simplifiée pour le countdown - 3 secondes au lieu de 5
   useEffect(() => {
     if (
       currentRoom && 
@@ -105,33 +72,31 @@ export default function RoomList() {
       currentRoom.players && 
       currentRoom.players.length >= 2 && 
       currentRoom.players.every(p => p.ready === true) &&
-      !isGameLaunching // Prevent multiple launches
+      !gameStarting
     ) {
       // Launch countdown if all players are ready
-      if (countdown === null && !gameStarting) {
-        console.log("All players ready, starting countdown");
-        setCountdown(5);
-        countdownStartTimeRef.current = Date.now();
+      if (countdown === null) {
+        console.log("All players ready, starting 3-second countdown");
+        setCountdown(3); // Réduit de 5 à 3 secondes
         
-        showToastWithThrottle("Tous les joueurs sont prêts !", "La partie démarre dans 5 secondes...");
+        showToastWithThrottle("Tous les joueurs sont prêts !", "La partie démarre dans 3 secondes...");
       }
     } else {
       // Cancel countdown if a player is no longer ready
       if (countdown !== null) {
         console.log("Player not ready anymore, cancelling countdown");
         setCountdown(null);
-        countdownStartTimeRef.current = null;
         if (countdownTimerRef.current) {
           clearInterval(countdownTimerRef.current);
           countdownTimerRef.current = null;
         }
       }
     }
-  }, [currentRoom, countdown, gameStarting, isGameLaunching]);
+  }, [currentRoom, countdown, gameStarting]);
 
-  // Handle countdown with proper cleanup
+  // Handle countdown avec navigation immédiate
   useEffect(() => {
-    if (countdown !== null && countdown > 0 && !gameStarting && !isGameLaunching) {
+    if (countdown !== null && countdown > 0 && !gameStarting) {
       if (countdownTimerRef.current) {
         clearInterval(countdownTimerRef.current);
       }
@@ -144,34 +109,26 @@ export default function RoomList() {
               countdownTimerRef.current = null;
             }
             
-            // Prevent multiple game launches
-            if (!isGameLaunching) {
-              setIsGameLaunching(true);
+            if (!gameStarting) {
               setGameStarting(true);
               
               console.log("Starting game from countdown...");
               
               startGame().then((success) => {
-                if (success) {
-                  // Only navigate after confirming game started
+                if (success && !hasNavigated) {
+                  console.log("Game started successfully, navigating immediately");
+                  setHasNavigated(true);
                   showToastWithThrottle("🎮 Partie lancée !", "Redirection vers le jeu...");
                   
-                  // Navigate with longer delay to ensure sync
-                  setTimeout(() => {
-                    if (!hasNavigated) {
-                      setHasNavigated(true);
-                      navigate('/game');
-                    }
-                  }, 3000); // Increased delay for better sync
+                  // Navigation immédiate sans délai
+                  navigate('/game');
                 } else {
                   setGameStarting(false);
-                  setIsGameLaunching(false);
                   showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
                 }
               }).catch(error => {
                 console.error("Error starting game:", error);
                 setGameStarting(false);
-                setIsGameLaunching(false);
                 showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
               });
             }
@@ -188,27 +145,25 @@ export default function RoomList() {
         clearInterval(countdownTimerRef.current);
       }
     };
-  }, [countdown, startGame, gameStarting, navigate, hasNavigated, isGameLaunching]);
+  }, [countdown, startGame, gameStarting, navigate, hasNavigated]);
 
-  // Navigation automatique améliorée avec guard
+  // Navigation automatique si le jeu est en cours
   useEffect(() => {
-    if (currentRoom?.status === 'playing' && !gameStarting && !hasNavigated && !isGameLaunching) {
+    if (currentRoom?.status === 'playing' && !gameStarting && !hasNavigated) {
       console.log("Game is playing, navigating to game");
       setHasNavigated(true);
       navigate('/game');
     }
-  }, [currentRoom?.status, navigate, gameStarting, hasNavigated, isGameLaunching]);
+  }, [currentRoom?.status, navigate, gameStarting, hasNavigated]);
 
   // Reset navigation flag when leaving room
   useEffect(() => {
     if (!currentRoom) {
       setHasNavigated(false);
       setGameStarting(false);
-      setIsGameLaunching(false);
     }
   }, [currentRoom]);
 
-  // Mise à jour de la fonction handleCreateRoom pour réduire les notifications
   const handleCreateRoom = async () => {
     if (!player) {
       showToastWithThrottle("Erreur", "Veuillez définir votre nom et votre couleur avant de créer une salle", "destructive");
@@ -217,74 +172,53 @@ export default function RoomList() {
     
     if (roomName.trim()) {
       try {
-        console.log(`Tentative de création de salle: "${roomName}" avec ${maxPlayers} joueurs max`);
+        console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max`);
         const roomId = await createRoom(roomName, parseInt(maxPlayers));
         
         if (roomId) {
-          console.log("ID de salle reçu:", roomId);
-          // Stocker l'ID de la dernière salle créée pour suivi
-          setLastCreatedRoomId(roomId);
-          setLastCreatedRoomName(roomName);
-          setHasShownRoomFoundToast(false);
+          console.log("Salle créée avec ID:", roomId);
           setCreateDialogOpen(false);
           
-          // Notification simplifiée de création
-          showToastWithThrottle("Salle créée", "Recherche de votre salle...");
+          showToastWithThrottle("Salle créée", `Votre salle "${roomName}" a été créée avec succès.`);
           
-          // Séquence simplifiée de rafraîchissement
+          // Refresh immédiat et rejoindre directement
           setTimeout(async () => {
             await refreshCurrentRoom();
-            console.log("Rafraîchissement après création");
-            
-            // Vérifier si la salle est trouvée et rejoindre directement si nécessaire
-            setTimeout(async () => {
-              const isRoomFound = rooms.some(r => r.id === roomId);
-              if (!isRoomFound) {
-                console.log("Tentative de rejoindre directement avec l'ID");
-                try {
-                  await joinRoom(roomId);
-                } catch (joinError) {
-                  console.error("Erreur de connexion directe:", joinError);
-                  showToastWithThrottle("Erreur de connexion", "Impossible de se connecter à la salle créée.", "destructive");
-                }
-              }
-            }, 1500);
-          }, 1000);
-        } else {
-          console.error("Création de salle échouée: pas d'ID retourné");
-          showToastWithThrottle("Erreur", "La création de la salle a échoué.", "destructive");
-          setCreationErrorCount(prev => prev + 1);
+            try {
+              await joinRoom(roomId);
+            } catch (joinError) {
+              console.error("Erreur lors de la connexion automatique:", joinError);
+            }
+          }, 500);
         }
       } catch (error) {
         console.error("Erreur lors de la création:", error);
-        showToastWithThrottle("Erreur lors de la création", "Impossible de créer la salle. Veuillez réessayer.", "destructive");
-        setCreationErrorCount(prev => prev + 1);
+        showToastWithThrottle("Erreur", "Impossible de créer la salle. Veuillez réessayer.", "destructive");
       }
     }
   };
 
-  // Wrap with throttling to prevent too many rapid calls
   const handleJoinRoom = async (roomId: string) => {
     console.log("Joining room:", roomId);
     await joinRoom(roomId);
   };
 
   const handleStartGame = async () => {
-    if (gameStarting || isGameLaunching) return; // Empêcher les démarrages multiples
+    if (gameStarting) return;
     
     try {
-      setIsGameLaunching(true);
       setGameStarting(true);
       const success = await startGame();
-      if (!success) {
+      if (success && !hasNavigated) {
+        setHasNavigated(true);
+        navigate('/game');
+      } else if (!success) {
         setGameStarting(false);
-        setIsGameLaunching(false);
         showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
       }
     } catch (error) {
       console.error("Error starting game:", error);
       setGameStarting(false);
-      setIsGameLaunching(false);
       showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
     }
   };
@@ -296,10 +230,8 @@ export default function RoomList() {
     }
   };
 
-  // Debounced leave room to prevent multiple rapid calls
   const handleLeaveRoom = async () => {
     await leaveRoom();
-    // Force refresh rooms après avoir quitté
     setTimeout(() => {
       refreshCurrentRoom();
     }, 300);
@@ -308,7 +240,6 @@ export default function RoomList() {
   const handleToggleReady = async () => {
     if (!currentRoom || !player) return;
     
-    // Find player in room to know current state with null check
     const currentPlayer = currentRoom.players && currentRoom.players.find(p => p.id === player.id);
     if (currentPlayer) {
       await setPlayerReady(!currentPlayer.ready);
@@ -317,7 +248,6 @@ export default function RoomList() {
     }
   };
 
-  // Fonction de rafraîchissement optimisée
   const handleRefresh = async () => {
     if (isRefreshing) return;
     
@@ -330,7 +260,7 @@ export default function RoomList() {
       showToastWithThrottle("Actualisé", `${rooms.length} salles trouvées.`);
     } catch (error) {
       console.error("Erreur lors du rafraîchissement:", error);
-      showToastWithThrottle("Erreur de rafraîchissement", "Impossible de récupérer les salles.", "destructive");
+      showToastWithThrottle("Erreur", "Impossible de récupérer les salles.", "destructive");
     } finally {
       setIsRefreshing(false);
     }
@@ -351,16 +281,10 @@ export default function RoomList() {
     return currentRoom.players.some(p => p.id === player.id);
   };
   
-  // Get the selected room details - use rooms directly
   const selectedRoom = selectedRoomId ? rooms.find(r => r.id === selectedRoomId) : null;
 
-  // Vérifier si une salle a été créée mais n'apparaît pas dans la liste
-  const isLastCreatedRoomMissing = lastCreatedRoomId !== null && 
-                                  !rooms.some(r => r.id === lastCreatedRoomId);
-
-  // Activer le nettoyage automatique
   useAutoCleanup({ 
-    intervalMinutes: 15, // Nettoyage toutes les 15 minutes depuis le frontend
+    intervalMinutes: 15,
     enableLogging: true 
   });
 
@@ -385,7 +309,6 @@ export default function RoomList() {
             open={createDialogOpen}
             onOpenChange={(open) => {
               if (open) {
-                // Réinitialiser les valeurs du formulaire à l'ouverture
                 setRoomName("");
                 setMaxPlayers("4");
               }
@@ -402,48 +325,6 @@ export default function RoomList() {
       </div>
       
       <div className="p-6">
-        {/* Message si trop d'erreurs de création */}
-        {creationErrorCount >= 2 && (
-          <div className="mb-4 p-3 bg-cyber-magenta/20 border border-cyber-magenta/50 rounded-md">
-            <p className="text-cyber-magenta text-sm font-mono">
-              <strong>CREATION_ERROR :</strong> Multiple failures detected. 
-              Check your connection or refresh the page.
-            </p>
-          </div>
-        )}
-        
-        {/* Message de débogage optimisé */}
-        {isLastCreatedRoomMissing && (
-          <div className="mb-4 p-3 bg-cyber-yellow/20 border border-cyber-yellow/50 rounded-md">
-            <p className="text-cyber-yellow text-sm font-mono">
-              <strong>ROOM_NOT_VISIBLE :</strong> Last created room 
-              "{lastCreatedRoomName}" not found in list.
-            </p>
-            <div className="flex gap-2 mt-2">
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="border-cyber-cyan/50 text-cyber-cyan hover:bg-cyber-cyan/10 font-mono"
-              >
-                {isRefreshing ? "REFRESHING..." : "REFRESH"}
-              </Button>
-              
-              {lastCreatedRoomId && (
-                <Button 
-                  size="sm" 
-                  onClick={() => joinRoom(lastCreatedRoomId)}
-                  disabled={!player}
-                  className="bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono"
-                >
-                  JOIN_DIRECT
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-      
         {/* Current room panel */}
         {currentRoom ? (
           <CurrentRoom 

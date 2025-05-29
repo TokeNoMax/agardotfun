@@ -83,10 +83,10 @@ export const roomService = {
 
     console.log("Game started successfully");
     
-    // Wait for database synchronization with longer delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Attendre brièvement pour la synchronisation
+    await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Verify the status was actually updated
+    // Vérifier que le statut a été mis à jour
     const { data: room } = await supabase
       .from('game_rooms')
       .select('status')

@@ -14,6 +14,7 @@ export default function Game() {
   const [hasVerifiedSession, setHasVerifiedSession] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lastToastTime, setLastToastTime] = useState(0);
+  const [navigationTime, setNavigationTime] = useState(Date.now());
   
   // Check if we're in local mode
   const isLocalMode = new URLSearchParams(location.search).get('local') === 'true';
@@ -21,13 +22,13 @@ export default function Game() {
   // Throttled toast to prevent spam
   const showThrottledToast = useCallback((title: string, description: string, variant?: "default" | "destructive") => {
     const now = Date.now();
-    if (now - lastToastTime > 3000) { // 3 second throttle
+    if (now - lastToastTime > 5000) { // 5 second throttle pour éviter le spam
       setLastToastTime(now);
       toast({ title, description, variant });
     }
   }, [toast, lastToastTime]);
   
-  // Improved session check function with better retry logic
+  // Session check améliorée pour accepter le statut 'waiting' pendant la transition
   const checkGameSession = useCallback(async () => {
     // Skip validation for local mode
     if (isLocalMode) {
@@ -39,7 +40,7 @@ export default function Game() {
     setIsLoading(true);
     
     try {
-      // If we've already verified and room is playing, skip recheck
+      // Si déjà vérifié et statut valide, éviter les vérifications répétées
       if (hasVerifiedSession && currentRoom?.status === 'playing') {
         setIsLoading(false);
         return true;
@@ -71,24 +72,31 @@ export default function Game() {
         return false;
       }
       
-      // Allow access if game is playing OR starting (improved transition handling)
+      // Logique améliorée pour accepter 'waiting' pendant la transition
+      const timeSinceNavigation = Date.now() - navigationTime;
+      
       if (currentRoom.status === 'playing') {
         console.log("Game is playing, access granted");
         setIsLoading(false);
         setHasVerifiedSession(true);
         setRetryCount(0);
         return true;
+      } else if (currentRoom.status === 'waiting' && timeSinceNavigation < 10000) {
+        // Accepter 'waiting' pendant les 10 premières secondes après navigation
+        console.log("Game status is waiting but within transition period, allowing access");
+        setIsLoading(false);
+        setHasVerifiedSession(true);
+        setRetryCount(0);
+        return true;
       } else if (currentRoom.status === 'waiting') {
-        // More lenient retry logic for waiting status
-        if (retryCount < 5) { // Increased retry count
-          console.log(`Game not started yet, retry ${retryCount + 1}/5`);
+        // Retry logic pour waiting status après la période de grâce
+        if (retryCount < 3) {
+          console.log(`Game not started yet, retry ${retryCount + 1}/3`);
           setRetryCount(prev => prev + 1);
           
-          // Progressive backoff: longer waits for later retries
-          const retryDelay = Math.min(1000 + (retryCount * 500), 3000);
           setTimeout(() => {
             checkGameSession();
-          }, retryDelay);
+          }, 1500);
           return false;
         }
         
@@ -105,11 +113,11 @@ export default function Game() {
     } catch (error) {
       console.error("Error checking game session:", error);
       
-      // More robust retry logic with exponential backoff
+      // Retry logic with exponential backoff
       if (retryCount < 3) {
         console.log(`Network error, retry ${retryCount + 1}/3`);
         setRetryCount(prev => prev + 1);
-        const retryDelay = 1000 * Math.pow(2, retryCount); // Exponential backoff
+        const retryDelay = 1000 * Math.pow(2, retryCount);
         setTimeout(() => {
           checkGameSession();
         }, retryDelay);
@@ -120,7 +128,7 @@ export default function Game() {
       navigate('/lobby');
       return false;
     }
-  }, [currentRoom, player, navigate, isLocalMode, hasVerifiedSession, refreshCurrentRoom, retryCount, showThrottledToast]);
+  }, [currentRoom, player, navigate, isLocalMode, hasVerifiedSession, refreshCurrentRoom, retryCount, showThrottledToast, navigationTime]);
   
   // Effect to check and restore session if necessary
   useEffect(() => {
@@ -137,7 +145,7 @@ export default function Game() {
           <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-lg font-medium">Connexion à la partie...</p>
           {retryCount > 0 && (
-            <p className="text-sm text-gray-500 mt-2">Tentative {retryCount}/5</p>
+            <p className="text-sm text-gray-500 mt-2">Tentative {retryCount}/3</p>
           )}
         </div>
       </div>
