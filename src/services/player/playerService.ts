@@ -19,7 +19,7 @@ export const playerService = {
         walletAddress: player.walletAddress,
         player: player
       });
-      throw new Error("L'adresse wallet du joueur est requise pour rejoindre une salle. Veuillez reconnecter votre wallet et reconfigurer votre joueur.");
+      throw new Error("L'adresse wallet du joueur est requise pour rejoindre une salle.");
     }
 
     if (!player.name || player.name.trim() === '') {
@@ -61,9 +61,9 @@ export const playerService = {
         .from('players')
         .select('id')
         .eq('id', player.walletAddress)
-        .single();
+        .maybeSingle();
 
-      if (playerCheckError && playerCheckError.code !== 'PGRST116') {
+      if (playerCheckError) {
         console.error("Error checking player:", playerCheckError);
         throw new Error(`Erreur lors de la vérification du joueur: ${playerCheckError.message}`);
       }
@@ -85,20 +85,37 @@ export const playerService = {
         }
         console.log("Player created successfully in database");
       } else {
-        console.log("Player already exists in database");
+        console.log("Player already exists in database, updating info...");
+        // Mettre à jour les infos du joueur existant
+        const { error: updatePlayerError } = await supabase
+          .from('players')
+          .update({
+            name: player.name.trim(),
+            color: player.color
+          })
+          .eq('id', player.walletAddress);
+
+        if (updatePlayerError) {
+          console.error("Error updating player:", updatePlayerError);
+          // Ne pas faire échouer l'opération pour une erreur de mise à jour
+        }
       }
 
       // Vérifier si la salle est pleine
       console.log("Checking room capacity...");
       const { data: roomData, error: roomError } = await supabase
         .from('game_rooms')
-        .select('max_players')
+        .select('max_players, status')
         .eq('id', roomId)
         .single();
 
       if (roomError) {
         console.error("Error getting room info:", roomError);
         throw new Error("Impossible de vérifier les informations de la salle");
+      }
+
+      if (roomData.status !== 'waiting') {
+        throw new Error("Cette salle n'accepte plus de nouveaux joueurs");
       }
 
       const { data: currentPlayers, error: playersError } = await supabase

@@ -24,7 +24,9 @@ export const useGameRoomSubscriptions = ({
     if (isUnmountedRef.current) return;
     
     try {
+      console.log("Refreshing all rooms...");
       const rooms = await gameRoomService.getAllRooms();
+      console.log("Found rooms:", rooms.length);
       if (!isUnmountedRef.current) {
         onRoomsUpdate(rooms);
       }
@@ -39,12 +41,15 @@ export const useGameRoomSubscriptions = ({
     if (!currentRoomId || isUnmountedRef.current) return;
     
     try {
+      console.log("Refreshing current room:", currentRoomId);
       const room = await gameRoomService.getRoom(currentRoomId);
       if (room && !isUnmountedRef.current) {
+        console.log("Current room data:", room);
         onRoomUpdate(room);
         
         // Vérifier si le jeu vient de démarrer
         if (room.status === 'playing') {
+          console.log("Game started detected for room:", currentRoomId);
           onGameStarted(room);
         }
       }
@@ -70,9 +75,9 @@ export const useGameRoomSubscriptions = ({
     isUnmountedRef.current = false;
     console.log("Setting up real-time subscriptions...");
 
-    // Subscription pour les changements de salles
-    const roomsChannel = supabase
-      .channel('game_rooms_changes')
+    // Créer un seul channel pour toutes les subscriptions
+    const channel = supabase
+      .channel('game_multiplayer_updates')
       .on(
         'postgres_changes',
         {
@@ -82,8 +87,16 @@ export const useGameRoomSubscriptions = ({
         },
         (payload) => {
           if (!isUnmountedRef.current) {
-            console.log('Game rooms changed:', payload);
-            refreshRooms();
+            console.log('Game rooms table changed:', payload.eventType, payload);
+            // Rafraîchir après un court délai pour éviter les doublons
+            setTimeout(() => {
+              if (!isUnmountedRef.current) {
+                refreshRooms();
+                if (currentRoomId) {
+                  refreshCurrentRoom();
+                }
+              }
+            }, 100);
           }
         }
       )
@@ -96,20 +109,35 @@ export const useGameRoomSubscriptions = ({
         },
         (payload) => {
           if (!isUnmountedRef.current) {
-            console.log('Game room players changed:', payload);
-            refreshRooms();
-            if (currentRoomId) {
-              refreshCurrentRoom();
-            }
+            console.log('Game room players table changed:', payload.eventType, payload);
+            // Rafraîchir après un court délai pour éviter les doublons
+            setTimeout(() => {
+              if (!isUnmountedRef.current) {
+                refreshRooms();
+                if (currentRoomId) {
+                  refreshCurrentRoom();
+                }
+              }
+            }, 100);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to realtime updates');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Error subscribing to realtime updates');
+        }
+      });
 
-    channelRef.current = roomsChannel;
+    channelRef.current = channel;
 
-    // Charger les salles initiales
+    // Charger les données initiales
     refreshRooms();
+    if (currentRoomId) {
+      refreshCurrentRoom();
+    }
 
     return () => {
       cleanupSubscriptions();

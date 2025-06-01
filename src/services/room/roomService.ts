@@ -35,7 +35,9 @@ export const roomService = {
 
     const gameRooms = rooms.map(room => {
       const roomPlayers = players?.filter(p => p.room_id === room.id) || [];
-      return convertToGameRoom(room, roomPlayers);
+      const convertedRoom = convertToGameRoom(room, roomPlayers);
+      console.log(`Room ${room.name}: ${roomPlayers.length} players`, roomPlayers.map(p => p.player_name));
+      return convertedRoom;
     });
 
     console.log(`Found ${gameRooms.length} rooms`);
@@ -83,9 +85,6 @@ export const roomService = {
 
     console.log("Game started successfully");
     
-    // Attendre brièvement pour la synchronisation
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
     // Vérifier que le statut a été mis à jour
     const { data: room } = await supabase
       .from('game_rooms')
@@ -125,7 +124,9 @@ export const roomService = {
       throw playersError;
     }
 
-    return convertToGameRoom(room, players || []);
+    const convertedRoom = convertToGameRoom(room, players || []);
+    console.log(`Room ${room.name} has ${players?.length || 0} players`);
+    return convertedRoom;
   },
 
   async updateRoomStatus(roomId: string, status: 'waiting' | 'playing' | 'finished'): Promise<void> {
@@ -148,19 +149,13 @@ export const roomService = {
   },
 
   async checkGhostRooms(): Promise<void> {
-    console.log("Checking for ghost rooms (playing status with no players)...");
+    console.log("Checking for ghost rooms...");
     
     try {
       // Récupérer les salles en statut "playing"
       const { data: playingRooms, error } = await supabase
         .from('game_rooms')
-        .select(`
-          id,
-          name,
-          status,
-          last_activity,
-          game_room_players(count)
-        `)
+        .select('id, name, status, last_activity')
         .eq('status', 'playing');
 
       if (error) {
@@ -173,24 +168,27 @@ export const roomService = {
         return;
       }
 
-      // Identifier les salles fantômes (0 joueurs + inactives > 5 min)
-      const fiveMinutesAgo = new Date();
-      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+      // Pour chaque salle en cours, vérifier le nombre de joueurs
+      for (const room of playingRooms) {
+        const { data: players, error: playersError } = await supabase
+          .from('game_room_players')
+          .select('player_id')
+          .eq('room_id', room.id);
 
-      const ghostRooms = playingRooms.filter(room => {
-        const playerCount = room.game_room_players?.[0]?.count || 0;
+        if (playersError) {
+          console.error(`Error checking players for room ${room.id}:`, playersError);
+          continue;
+        }
+
+        const playerCount = players?.length || 0;
         const lastActivity = new Date(room.last_activity);
-        return playerCount === 0 && lastActivity < fiveMinutesAgo;
-      });
+        const fiveMinutesAgo = new Date();
+        fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
 
-      if (ghostRooms.length > 0) {
-        console.log(`Found ${ghostRooms.length} ghost rooms, updating status to finished`);
-        
-        for (const room of ghostRooms) {
+        if (playerCount === 0 && lastActivity < fiveMinutesAgo) {
+          console.log(`Ghost room detected: ${room.name} (${room.id})`);
           await this.updateRoomStatus(room.id, 'finished');
         }
-      } else {
-        console.log("No ghost rooms found");
       }
     } catch (error) {
       console.error("Error in ghost room check:", error);
