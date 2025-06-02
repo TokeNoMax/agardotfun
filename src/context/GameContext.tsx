@@ -1,6 +1,7 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { Player, GameRoom } from '@/types/game';
+import { Player, GameRoom, PlayerColor } from '@/types/game';
 import { playerService } from '@/services/player/playerService';
 import { roomService } from '@/services/room/roomService';
 import { supabase } from '@/integrations/supabase/client';
@@ -187,7 +188,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
 
       const playerData = {
         name,
-        color: color as any,
+        color: color as PlayerColor,
         size: 30,
         x: 0,
         y: 0,
@@ -414,7 +415,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
             id: dbPlayer.id,
             walletAddress: dbPlayer.id,
             name: dbPlayer.name,
-            color: dbPlayer.color,
+            color: dbPlayer.color as PlayerColor,
             size: 30,
             x: 0,
             y: 0,
