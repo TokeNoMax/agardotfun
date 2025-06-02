@@ -1,5 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { Player, GameRoom } from '@/types/game';
 import { playerService } from '@/services/player/playerService';
 import { roomService } from '@/services/room/roomService';
@@ -58,8 +58,11 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [customPhrases, setCustomPhrases] = useState<string[]>(defaultPhrases);
   const { toast } = useToast();
+  
+  // Integrate Solana wallet
+  const { connected, publicKey } = useWallet();
 
-  // Utiliser le heartbeat pour maintenir la connexion active
+  // Use heartbeat for maintaining active connection
   usePlayerHeartbeat({
     roomId: currentRoom?.id,
     playerId: player?.id,
@@ -69,12 +72,14 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
 
   const createPlayer = async (playerData: Omit<Player, 'id' | 'walletAddress'>) => {
     try {
-      const walletAddress = localStorage.getItem('walletAddress');
-      if (!walletAddress) {
-        throw new Error('Wallet address not found');
+      if (!connected || !publicKey) {
+        throw new Error('Wallet not connected');
       }
 
-      // Create player in database using supabase directly since playerService doesn't have createPlayer
+      const walletAddress = publicKey.toString();
+      console.log('Creating player with wallet address:', walletAddress);
+
+      // Create player in database using supabase directly
       const { data, error } = await supabase
         .from('players')
         .insert({
@@ -121,10 +126,10 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
   };
 
   const updatePlayer = async (updates: Partial<Player>) => {
-    if (!player) return;
+    if (!player || !connected || !publicKey) return;
 
     try {
-      // Update player in database using supabase directly since playerService doesn't have updatePlayer
+      // Update player in database using supabase directly
       const { data, error } = await supabase
         .from('players')
         .update({
@@ -160,10 +165,12 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
   };
 
   const setPlayerDetails = async (name: string, color: string, nftImageUrl?: string) => {
-    const walletAddress = localStorage.getItem('walletAddress');
-    if (!walletAddress) {
-      throw new Error('Wallet address not found');
+    if (!connected || !publicKey) {
+      throw new Error('Wallet not connected');
     }
+
+    const walletAddress = publicKey.toString();
+    console.log('Setting player details for wallet:', walletAddress);
 
     const playerData = {
       name,
@@ -175,7 +182,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
       nftImageUrl
     };
 
-    if (player) {
+    if (player && player.walletAddress === walletAddress) {
       await updatePlayer(playerData);
     } else {
       await createPlayer(playerData);
@@ -188,6 +195,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
 
     try {
+      console.log('Joining room with player:', player);
       await playerService.joinRoom(roomId, player);
       await refreshCurrentRoom();
       
@@ -352,30 +360,44 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
   };
 
-  // Load saved data on mount
+  // Effect to handle wallet connection changes
   useEffect(() => {
+    if (!connected || !publicKey) {
+      console.log('Wallet disconnected, clearing player state');
+      setPlayer(null);
+      setCurrentRoom(null);
+      localStorage.removeItem('blob-battle-player');
+      localStorage.removeItem('blob-battle-current-room');
+      return;
+    }
+
+    const walletAddress = publicKey.toString();
+    console.log('Wallet connected:', walletAddress);
+
+    // Try to load saved player data, but verify it matches current wallet
     const savedPlayer = localStorage.getItem('blob-battle-player');
-    const savedRoom = localStorage.getItem('blob-battle-current-room');
-    
     if (savedPlayer) {
       try {
-        setPlayer(JSON.parse(savedPlayer));
+        const parsedPlayer = JSON.parse(savedPlayer);
+        if (parsedPlayer.walletAddress === walletAddress) {
+          console.log('Loaded saved player for current wallet');
+          setPlayer(parsedPlayer);
+        } else {
+          console.log('Saved player belongs to different wallet, clearing');
+          localStorage.removeItem('blob-battle-player');
+          localStorage.removeItem('blob-battle-current-room');
+          setPlayer(null);
+          setCurrentRoom(null);
+        }
       } catch (error) {
         console.error('Error parsing saved player:', error);
         localStorage.removeItem('blob-battle-player');
       }
     }
-    
-    if (savedRoom) {
-      try {
-        setCurrentRoom(JSON.parse(savedRoom));
-      } catch (error) {
-        console.error('Error parsing saved room:', error);
-        localStorage.removeItem('blob-battle-current-room');
-      }
-    }
+  }, [connected, publicKey]);
 
-    // Load rooms initially
+  // Load initial data
+  useEffect(() => {
     refreshRooms();
   }, []);
 

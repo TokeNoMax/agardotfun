@@ -28,13 +28,13 @@ export default function PlayerCustomization() {
 
   // Pre-fill form with player data if exists
   useEffect(() => {
-    if (player) {
+    if (player && connected && publicKey && player.walletAddress === publicKey.toString()) {
       setName(player.name);
       setSelectedColor(player.color);
       setNftImageUrl(player.nftImageUrl || "");
       setPreviewImage(player.nftImageUrl || null);
     }
-  }, [player]);
+  }, [player, connected, publicKey]);
 
   // Handle NFT image URL change and validation
   const handleNftImageChange = (url: string) => {
@@ -91,7 +91,7 @@ export default function PlayerCustomization() {
     setIsLoading(true);
     
     try {
-      console.log("Submitting player configuration with wallet verification:", {
+      console.log("Submitting player configuration:", {
         name: name.trim(),
         color: selectedColor,
         walletAddress: publicKey.toString(),
@@ -107,7 +107,7 @@ export default function PlayerCustomization() {
 
       console.log("Player configuration successful");
     } catch (error) {
-      console.error("Error creating player:", error);
+      console.error("Error creating/updating player:", error);
       toast({
         title: "CONFIGURATION_ERROR",
         description: error instanceof Error ? error.message : "Impossible de configurer votre joueur. Vérifiez votre connexion wallet et réessayez.",
@@ -282,7 +282,7 @@ export default function PlayerCustomization() {
         </Tabs>
         
         <div className="pt-2">
-          {player ? (
+          {player && player.walletAddress === publicKey.toString() ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div 
