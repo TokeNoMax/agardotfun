@@ -108,9 +108,23 @@ export default function PlayerCustomization() {
       console.log("Player configuration successful");
     } catch (error) {
       console.error("Error creating/updating player:", error);
+      
+      // More specific error handling
+      let errorMessage = "Impossible de configurer votre joueur.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('duplicate key')) {
+          errorMessage = "Une erreur de synchronisation s'est produite. Réessayez dans quelques secondes.";
+        } else if (error.message.includes('Wallet not connected')) {
+          errorMessage = "Votre wallet s'est déconnecté. Reconnectez-vous et réessayez.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "CONFIGURATION_ERROR",
-        description: error instanceof Error ? error.message : "Impossible de configurer votre joueur. Vérifiez votre connexion wallet et réessayez.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

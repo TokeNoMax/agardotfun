@@ -172,20 +172,41 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     const walletAddress = publicKey.toString();
     console.log('Setting player details for wallet:', walletAddress);
 
-    const playerData = {
-      name,
-      color: color as any,
-      size: 30,
-      x: 0,
-      y: 0,
-      isAlive: true,
-      nftImageUrl
-    };
+    try {
+      // First check if player already exists in database
+      const { data: existingPlayer, error: checkError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', walletAddress)
+        .maybeSingle();
 
-    if (player && player.walletAddress === walletAddress) {
-      await updatePlayer(playerData);
-    } else {
-      await createPlayer(playerData);
+      if (checkError) {
+        console.error('Error checking existing player:', checkError);
+        throw checkError;
+      }
+
+      const playerData = {
+        name,
+        color: color as any,
+        size: 30,
+        x: 0,
+        y: 0,
+        isAlive: true,
+        nftImageUrl
+      };
+
+      if (existingPlayer) {
+        // Player exists, update it
+        console.log('Player exists, updating...');
+        await updatePlayer(playerData);
+      } else {
+        // Player doesn't exist, create it
+        console.log('Player does not exist, creating...');
+        await createPlayer(playerData);
+      }
+    } catch (error) {
+      console.error('Error in setPlayerDetails:', error);
+      throw error;
     }
   };
 
@@ -374,26 +395,42 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     const walletAddress = publicKey.toString();
     console.log('Wallet connected:', walletAddress);
 
-    // Try to load saved player data, but verify it matches current wallet
-    const savedPlayer = localStorage.getItem('blob-battle-player');
-    if (savedPlayer) {
+    // Load player from database when wallet connects
+    const loadPlayer = async () => {
       try {
-        const parsedPlayer = JSON.parse(savedPlayer);
-        if (parsedPlayer.walletAddress === walletAddress) {
-          console.log('Loaded saved player for current wallet');
-          setPlayer(parsedPlayer);
-        } else {
-          console.log('Saved player belongs to different wallet, clearing');
-          localStorage.removeItem('blob-battle-player');
-          localStorage.removeItem('blob-battle-current-room');
-          setPlayer(null);
-          setCurrentRoom(null);
+        const { data: dbPlayer, error } = await supabase
+          .from('players')
+          .select('*')
+          .eq('id', walletAddress)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error loading player from database:', error);
+          return;
+        }
+
+        if (dbPlayer) {
+          const loadedPlayer: Player = {
+            id: dbPlayer.id,
+            walletAddress: dbPlayer.id,
+            name: dbPlayer.name,
+            color: dbPlayer.color,
+            size: 30,
+            x: 0,
+            y: 0,
+            isAlive: true
+          };
+          
+          console.log('Loaded player from database:', loadedPlayer);
+          setPlayer(loadedPlayer);
+          localStorage.setItem('blob-battle-player', JSON.stringify(loadedPlayer));
         }
       } catch (error) {
-        console.error('Error parsing saved player:', error);
-        localStorage.removeItem('blob-battle-player');
+        console.error('Error in loadPlayer:', error);
       }
-    }
+    };
+
+    loadPlayer();
   }, [connected, publicKey]);
 
   // Load initial data
