@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -10,6 +11,8 @@ import { Player, SafeZone } from "@/types/game";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useGameSync } from "@/hooks/useGameSync";
+import { PlayerPosition } from "@/services/realtime/gameSync";
 
 export default function GameUI() {
   const { currentRoom, leaveRoom, player } = useGame();
@@ -29,6 +32,21 @@ export default function GameUI() {
   const location = useLocation();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+
+  // Game sync hooks for real-time synchronization
+  const {
+    isConnected: gameSyncConnected,
+    syncPlayerPosition,
+    broadcastCollision,
+    broadcastPlayerElimination
+  } = useGameSync({
+    roomId: currentRoom?.id,
+    playerId: player?.id,
+    isEnabled: !localMode && !!currentRoom && !!player,
+    onPlayerUpdate: handlePlayerPositionUpdate,
+    onPlayerEliminated: handlePlayerEliminated,
+    onGameStateUpdate: handleGameStateUpdate
+  });
   
   // Check URL parameters and set modes
   useEffect(() => {
@@ -91,6 +109,41 @@ export default function GameUI() {
     }
   }, [currentRoom, player, navigate, localMode]);
 
+  // Handle real-time player position updates
+  function handlePlayerPositionUpdate(playerId: string, position: PlayerPosition) {
+    console.log('Received player position update:', playerId, position);
+    if (canvasRef.current) {
+      canvasRef.current.updatePlayerPosition(playerId, position);
+    }
+  }
+
+  // Handle real-time player elimination
+  function handlePlayerEliminated(eliminatedPlayerId: string, eliminatorPlayerId: string) {
+    console.log('Player eliminated via sync:', eliminatedPlayerId, 'by', eliminatorPlayerId);
+    if (canvasRef.current) {
+      canvasRef.current.eliminatePlayer(eliminatedPlayerId, eliminatorPlayerId);
+    }
+    
+    // Show toast notification
+    const eliminatedPlayer = currentRoom?.players.find(p => p.id === eliminatedPlayerId);
+    const eliminatorPlayer = currentRoom?.players.find(p => p.id === eliminatorPlayerId);
+    
+    if (eliminatedPlayer && eliminatorPlayer) {
+      toast({
+        title: "Élimination !",
+        description: `${eliminatorPlayer.name} a absorbé ${eliminatedPlayer.name} !`,
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  }
+
+  // Handle game state updates
+  function handleGameStateUpdate(gameState: any) {
+    console.log('Game state update received:', gameState);
+    // Handle any global game state changes here
+  }
+
   // Handle zone updates from Canvas
   const handleZoneUpdate = (zone: SafeZone, playerInZone: boolean) => {
     setCurrentZone(zone);
@@ -105,6 +158,26 @@ export default function GameUI() {
       canvasRef.current.setMobileDirection(direction);
     } else {
       console.warn('GameUI: Canvas ref not available');
+    }
+  };
+
+  // Handle player position sync (called by Canvas)
+  const handlePlayerPositionSync = async (position: PlayerPosition) => {
+    if (!localMode && gameSyncConnected) {
+      await syncPlayerPosition(position);
+    }
+  };
+
+  // Handle collision detection (called by Canvas)
+  const handlePlayerCollision = async (
+    eliminatedPlayerId: string, 
+    eliminatorPlayerId: string, 
+    eliminatedSize: number, 
+    eliminatorNewSize: number
+  ) => {
+    if (!localMode && gameSyncConnected) {
+      console.log('Broadcasting collision from GameUI:', { eliminatedPlayerId, eliminatorPlayerId });
+      await broadcastCollision(eliminatedPlayerId, eliminatorPlayerId, eliminatedSize, eliminatorNewSize);
     }
   };
 
@@ -211,6 +284,11 @@ export default function GameUI() {
         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
           Vous: {localMode ? localPlayer?.name : player?.name}
         </div>
+        {!localMode && (
+          <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameSyncConnected ? 'text-green-400' : 'text-red-400'}`}>
+            Sync: {gameSyncConnected ? 'Connecté' : 'Déconnecté'}
+          </div>
+        )}
       </div>
       
       {/* Zone Counter for Zone Battle mode */}
@@ -254,6 +332,8 @@ export default function GameUI() {
           localPlayer={localPlayer}
           isZoneMode={isZoneMode}
           onZoneUpdate={handleZoneUpdate}
+          onPlayerPositionSync={handlePlayerPositionSync}
+          onPlayerCollision={handlePlayerCollision}
         />
       </div>
       
