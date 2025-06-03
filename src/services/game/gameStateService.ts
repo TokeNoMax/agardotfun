@@ -7,6 +7,7 @@ export interface GameState {
   consumedFoods: string[];
   gameStartTime: number;
   lastSyncTime: number;
+  [key: string]: any; // Add index signature to make it compatible with Json type
 }
 
 export class GameStateService {
@@ -28,7 +29,7 @@ export class GameStateService {
       .from('game_rooms')
       .update({
         game_seed: mapSeed,
-        game_state: initialGameState
+        game_state: initialGameState as any // Cast to any to satisfy Json type
       })
       .eq('id', roomId);
 
@@ -64,7 +65,27 @@ export class GameStateService {
       };
     }
 
-    return data.game_state as GameState;
+    // Safely cast the game_state with proper type checking
+    const gameState = data.game_state as unknown as GameState;
+    
+    // Validate the structure and provide defaults if needed
+    if (!gameState || typeof gameState !== 'object') {
+      console.warn("Invalid game state found, reinitializing...");
+      const newSeed = await this.initializeGameState(roomId);
+      return {
+        mapSeed: newSeed,
+        consumedFoods: [],
+        gameStartTime: Date.now(),
+        lastSyncTime: Date.now()
+      };
+    }
+
+    return {
+      mapSeed: gameState.mapSeed || data.game_seed,
+      consumedFoods: Array.isArray(gameState.consumedFoods) ? gameState.consumedFoods : [],
+      gameStartTime: gameState.gameStartTime || Date.now(),
+      lastSyncTime: gameState.lastSyncTime || Date.now()
+    };
   }
 
   static async consumeFood(roomId: string, foodId: string): Promise<void> {
@@ -85,7 +106,7 @@ export class GameStateService {
         const { error } = await supabase
           .from('game_rooms')
           .update({
-            game_state: updatedState
+            game_state: updatedState as any // Cast to any to satisfy Json type
           })
           .eq('id', roomId);
 

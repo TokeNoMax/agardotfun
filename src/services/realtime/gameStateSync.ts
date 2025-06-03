@@ -44,24 +44,36 @@ export class GameStateSyncService {
     console.log('Game room updated:', payload);
     
     if (payload.new && payload.new.game_state) {
-      const gameState: GameState = payload.new.game_state;
-      this.callbacks.onGameStateUpdate?.(gameState);
+      // Safely cast and validate the game state
+      const gameState = payload.new.game_state as unknown as GameState;
       
-      // Check for newly consumed foods
-      if (payload.old && payload.old.game_state) {
-        const oldState: GameState = payload.old.game_state;
-        const newFoods = gameState.consumedFoods.filter(
-          foodId => !oldState.consumedFoods.includes(foodId)
-        );
+      // Validate the structure before using it
+      if (gameState && typeof gameState === 'object' && gameState.mapSeed) {
+        this.callbacks.onGameStateUpdate?.(gameState);
         
-        newFoods.forEach(foodId => {
-          this.callbacks.onFoodConsumed?.(foodId);
-        });
-      }
-      
-      // Check for map seed changes
-      if (payload.new.game_seed !== payload.old?.game_seed) {
-        this.callbacks.onMapUpdate?.(payload.new.game_seed);
+        // Check for newly consumed foods
+        if (payload.old && payload.old.game_state) {
+          const oldState = payload.old.game_state as unknown as GameState;
+          
+          // Safely handle consumedFoods arrays
+          const newFoods = Array.isArray(gameState.consumedFoods) ? gameState.consumedFoods : [];
+          const oldFoods = Array.isArray(oldState.consumedFoods) ? oldState.consumedFoods : [];
+          
+          const newlyConsumedFoods = newFoods.filter(
+            foodId => !oldFoods.includes(foodId)
+          );
+          
+          newlyConsumedFoods.forEach(foodId => {
+            this.callbacks.onFoodConsumed?.(foodId);
+          });
+        }
+        
+        // Check for map seed changes
+        if (payload.new.game_seed !== payload.old?.game_seed) {
+          this.callbacks.onMapUpdate?.(payload.new.game_seed);
+        }
+      } else {
+        console.warn('Invalid game state structure received:', gameState);
       }
     }
   }
