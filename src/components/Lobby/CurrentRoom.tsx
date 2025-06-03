@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { GameRoom } from "@/types/game";
 import { Zap, Users, Play, LogOut } from "lucide-react";
+import GhostRoomDetector from "./GhostRoomDetector";
 
 interface CurrentRoomProps {
   currentRoom: GameRoom;
@@ -29,9 +30,18 @@ export default function CurrentRoom({
   isCurrentPlayerReady,
   isCurrentPlayerInRoom
 }: CurrentRoomProps) {
+  const { player } = useGame();
   
   return (
     <div className="relative mb-6">
+      {/* Ghost Room Detector */}
+      {player && currentRoom && (
+        <GhostRoomDetector 
+          currentRoom={currentRoom} 
+          playerId={player.id} 
+        />
+      )}
+      
       <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
       <div className="relative bg-black/80 backdrop-blur-sm border-2 border-cyber-cyan/50 rounded-lg p-6 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

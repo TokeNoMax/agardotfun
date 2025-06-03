@@ -47,7 +47,7 @@ export const useGameRoomSubscriptions = ({
         console.log("Current room data:", room);
         onRoomUpdate(room);
         
-        // Vérifier si le jeu vient de démarrer
+        // Check if game just started
         if (room.status === 'playing') {
           console.log("Game started detected for room:", currentRoomId);
           onGameStarted(room);
@@ -60,7 +60,31 @@ export const useGameRoomSubscriptions = ({
     }
   }, [currentRoomId, onRoomUpdate, onGameStarted]);
 
-  // Fonction pour nettoyer immédiatement les subscriptions
+  // Immediate cleanup for critical events (player departures)
+  const handleCriticalUpdate = useCallback(async (eventType: string) => {
+    if (isUnmountedRef.current) return;
+    
+    console.log(`Critical update detected: ${eventType}`);
+    
+    // For deletions, refresh immediately without delay
+    if (eventType === 'DELETE') {
+      await Promise.all([
+        refreshRooms(),
+        currentRoomId ? refreshCurrentRoom() : Promise.resolve()
+      ]);
+    } else {
+      // For other events, use a shorter delay
+      setTimeout(async () => {
+        if (!isUnmountedRef.current) {
+          await refreshRooms();
+          if (currentRoomId) {
+            await refreshCurrentRoom();
+          }
+        }
+      }, 50);
+    }
+  }, [refreshRooms, refreshCurrentRoom, currentRoomId]);
+
   const cleanupSubscriptions = useCallback(() => {
     console.log("Cleaning up subscriptions immediately...");
     isUnmountedRef.current = true;
@@ -73,11 +97,10 @@ export const useGameRoomSubscriptions = ({
 
   useEffect(() => {
     isUnmountedRef.current = false;
-    console.log("Setting up real-time subscriptions...");
+    console.log("Setting up enhanced real-time subscriptions...");
 
-    // Créer un seul channel pour toutes les subscriptions
     const channel = supabase
-      .channel('game_multiplayer_updates')
+      .channel('game_multiplayer_updates_enhanced')
       .on(
         'postgres_changes',
         {
@@ -88,15 +111,7 @@ export const useGameRoomSubscriptions = ({
         (payload) => {
           if (!isUnmountedRef.current) {
             console.log('Game rooms table changed:', payload.eventType, payload);
-            // Rafraîchir après un court délai pour éviter les doublons
-            setTimeout(() => {
-              if (!isUnmountedRef.current) {
-                refreshRooms();
-                if (currentRoomId) {
-                  refreshCurrentRoom();
-                }
-              }
-            }, 100);
+            handleCriticalUpdate(payload.eventType);
           }
         }
       )
@@ -110,30 +125,23 @@ export const useGameRoomSubscriptions = ({
         (payload) => {
           if (!isUnmountedRef.current) {
             console.log('Game room players table changed:', payload.eventType, payload);
-            // Rafraîchir après un court délai pour éviter les doublons
-            setTimeout(() => {
-              if (!isUnmountedRef.current) {
-                refreshRooms();
-                if (currentRoomId) {
-                  refreshCurrentRoom();
-                }
-              }
-            }, 100);
+            // Player departures are critical events
+            handleCriticalUpdate(payload.eventType);
           }
         }
       )
       .subscribe((status) => {
-        console.log('Subscription status:', status);
+        console.log('Enhanced subscription status:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to realtime updates');
+          console.log('Successfully subscribed to enhanced realtime updates');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('Error subscribing to realtime updates');
+          console.error('Error subscribing to enhanced realtime updates');
         }
       });
 
     channelRef.current = channel;
 
-    // Charger les données initiales
+    // Load initial data
     refreshRooms();
     if (currentRoomId) {
       refreshCurrentRoom();
@@ -142,7 +150,7 @@ export const useGameRoomSubscriptions = ({
     return () => {
       cleanupSubscriptions();
     };
-  }, [refreshRooms, refreshCurrentRoom, currentRoomId, cleanupSubscriptions]);
+  }, [refreshRooms, refreshCurrentRoom, currentRoomId, cleanupSubscriptions, handleCriticalUpdate]);
 
   return {
     refreshRooms,

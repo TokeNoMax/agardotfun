@@ -66,9 +66,34 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
   usePlayerHeartbeat({
     roomId: currentRoom?.id,
     playerId: player?.id,
-    intervalSeconds: 30,
+    intervalSeconds: 20, // More frequent heartbeat
     enableLogging: false
   });
+
+  // Enhanced broadcast for critical events
+  const broadcastPlayerDeparture = async (roomId: string, playerId: string) => {
+    try {
+      const channel = supabase.channel(`room-${roomId}-departures`);
+      await channel.subscribe();
+      
+      await channel.send({
+        type: 'broadcast',
+        event: 'player_left',
+        payload: { 
+          playerId, 
+          timestamp: new Date().toISOString(),
+          action: 'force_refresh'
+        }
+      });
+      
+      // Clean up channel after broadcast
+      setTimeout(() => {
+        supabase.removeChannel(channel);
+      }, 1000);
+    } catch (error) {
+      console.error("Error broadcasting player departure:", error);
+    }
+  };
 
   const createPlayer = async (playerData: Omit<Player, 'id' | 'walletAddress'>) => {
     try {
@@ -278,6 +303,11 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     if (!player || !currentRoom) return;
 
     try {
+      console.log(`Player ${player.id} leaving room ${currentRoom.id}`);
+      
+      // Broadcast departure immediately to other players
+      await broadcastPlayerDeparture(currentRoom.id, player.id);
+      
       await playerService.leaveRoom(currentRoom.id, player.id);
       setCurrentRoom(null);
       localStorage.removeItem('blob-battle-current-room');
@@ -345,6 +375,11 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
       
       if (room) {
         localStorage.setItem('blob-battle-current-room', JSON.stringify(room));
+        
+        // Check for ghost room condition
+        if (room.status === 'playing' && room.players && room.players.length <= 1) {
+          console.log("Ghost room detected during refresh:", room.id);
+        }
       } else {
         localStorage.removeItem('blob-battle-current-room');
       }
@@ -426,6 +461,27 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
       return { success: false, error: errorMessage };
     }
   };
+
+  // Enhanced subscription to listen for departure broadcasts
+  useEffect(() => {
+    if (!currentRoom) return;
+
+    const channel = supabase
+      .channel(`room-${currentRoom.id}-departures`)
+      .on('broadcast', { event: 'player_left' }, (payload) => {
+        console.log('Player departure broadcast received:', payload);
+        // Force immediate refresh when another player leaves
+        setTimeout(() => {
+          refreshCurrentRoom();
+          refreshRooms();
+        }, 100);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentRoom?.id]);
 
   // Effect to handle wallet connection changes
   useEffect(() => {

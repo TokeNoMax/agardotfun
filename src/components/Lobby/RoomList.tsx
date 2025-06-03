@@ -23,6 +23,7 @@ export default function RoomList() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [lastToastMessage, setLastToastMessage] = useState<string>("");
   const [hasNavigated, setHasNavigated] = useState(false);
+  const [emergencyRefreshing, setEmergencyRefreshing] = useState(false);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastToastTimeRef = useRef<number>(0);
   const { toast } = useToast();
@@ -263,6 +264,32 @@ export default function RoomList() {
     }
   };
 
+  const handleEmergencyRefresh = async () => {
+    if (emergencyRefreshing) return;
+    
+    setEmergencyRefreshing(true);
+    
+    try {
+      showToastWithThrottle("EMERGENCY_SYNC", "Synchronisation d'urgence en cours...");
+      
+      // Clear local storage first
+      localStorage.removeItem('blob-battle-current-room');
+      
+      // Force refresh everything
+      await Promise.all([
+        refreshCurrentRoom(),
+        refreshRooms()
+      ]);
+      
+      showToastWithThrottle("SYNC_COMPLETE", "Synchronisation d'urgence terminée !");
+    } catch (error) {
+      console.error("Erreur lors de la synchronisation d'urgence:", error);
+      showToastWithThrottle("SYNC_ERROR", "Erreur lors de la synchronisation d'urgence.", "destructive");
+    } finally {
+      setEmergencyRefreshing(false);
+    }
+  };
+
   const handleSelectRoom = (roomId: string) => {
     setSelectedRoomId(prev => prev === roomId ? null : roomId);
   };
@@ -300,6 +327,17 @@ export default function RoomList() {
             className="text-cyber-cyan hover:text-cyber-magenta hover:bg-cyber-cyan/10 border border-cyber-cyan/30 hover:border-cyber-magenta/50 transition-all duration-300"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleEmergencyRefresh}
+            disabled={emergencyRefreshing}
+            title="Synchronisation d'urgence"
+            className="text-red-400 hover:text-red-300 hover:bg-red-400/10 border border-red-400/30 hover:border-red-300/50 transition-all duration-300"
+          >
+            <RefreshCw className={`h-4 w-4 ${emergencyRefreshing ? 'animate-spin' : ''}`} />
           </Button>
           
           <CreateRoomDialog 
