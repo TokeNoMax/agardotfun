@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from "react";
+
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -55,6 +56,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [gameOverCalled, setGameOverCalled] = useState(false);
   const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
+  const [gameInitialized, setGameInitialized] = useState(false);
   
   // Mobile-specific state
   const isMobile = useIsMobile();
@@ -143,9 +145,31 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     });
   };
 
-  // Game initialization
+  // NEW: Handle player elimination with immediate game over
+  const handlePlayerElimination = useCallback((eliminatedPlayer: Player, killerPlayer: Player) => {
+    console.log(`Player ${eliminatedPlayer.name} was eliminated by ${killerPlayer.name}`);
+    
+    if (!isLocalMode && !gameOverCalled) {
+      setGameOverCalled(true);
+      // In multiplayer, game ends immediately when someone is eaten
+      onGameOver(killerPlayer);
+    }
+  }, [isLocalMode, gameOverCalled, onGameOver]);
+
+  // SEPARATED: Game initialization effect (runs only once)
   useEffect(() => {
-    console.log("Canvas: Initializing game", { isLocalMode, localPlayer: !!localPlayer, isZoneMode });
+    console.log("Canvas: Game initialization check", { 
+      gameInitialized, 
+      isLocalMode, 
+      localPlayer: !!localPlayer, 
+      currentRoom: !!currentRoom,
+      currentPlayer: !!currentPlayer 
+    });
+    
+    if (gameInitialized) {
+      console.log("Canvas: Already initialized, skipping");
+      return;
+    }
     
     // Clear any existing game loops
     if (gameLoopRef.current) {
@@ -157,9 +181,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       (currentRoom?.status === 'playing' && !!currentPlayer);
     
     if (!shouldInitialize) {
-      console.log("Canvas: Not initializing - conditions not met");
+      console.log("Canvas: Not ready for initialization");
       return;
     }
+    
+    console.log("Canvas: Initializing game for the first time");
     
     let initialPlayers: Player[] = [];
     
@@ -234,6 +260,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       setCameraPosition({ x: playerRef.current.x, y: playerRef.current.y });
     }
 
+    setGameInitialized(true);
+    console.log("Canvas: Game initialization completed");
+
     return () => {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
@@ -245,7 +274,38 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         animationFrameRef.current = null;
       }
     };
-  }, [currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode]);
+  }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized]);
+
+  // SEPARATED: Room updates effect (for multiplayer sync without reset)
+  useEffect(() => {
+    if (!gameInitialized || isLocalMode || !currentRoom) return;
+    
+    console.log("Canvas: Syncing with room updates without reset");
+    
+    // Update existing players without full reset
+    setPlayers(prevPlayers => {
+      const updatedPlayers = [...prevPlayers];
+      
+      // Handle new players joining
+      currentRoom.players.forEach(roomPlayer => {
+        const existingIndex = updatedPlayers.findIndex(p => p.id === roomPlayer.id);
+        if (existingIndex === -1) {
+          // New player joined - add them without reset
+          const newPlayer = {
+            ...roomPlayer,
+            x: Math.random() * (GAME_WIDTH - 100) + 50,
+            y: Math.random() * (GAME_HEIGHT - 100) + 50,
+            isAlive: true,
+            size: 15
+          };
+          updatedPlayers.push(newPlayer);
+          console.log("Canvas: New player joined:", newPlayer.name);
+        }
+      });
+      
+      return updatedPlayers;
+    });
+  }, [currentRoom?.players, gameInitialized, isLocalMode]);
 
   // Mouse movement handler (PC only)
   useEffect(() => {
@@ -262,15 +322,14 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile]);
 
-  // Game loop - optimized for local mode with smoothing and zone logic
+  // Game loop - optimized with immediate game over logic
   useEffect(() => {
-    // Make sure we have a player reference
-    if (!playerRef.current) {
-      console.log("Canvas: No player ref, skipping game loop");
+    if (!gameInitialized || !playerRef.current) {
+      console.log("Canvas: Game loop not ready");
       return;
     }
     
-    console.log("Canvas: Starting game loop with Zone Battle:", isZoneMode);
+    console.log("Canvas: Starting game loop");
     
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
@@ -434,7 +493,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         
         // In local mode we don't have enemy players, so we skip player collision logic
         if (!isLocalMode) {
-          // Check collisions with other players
+          // Check collisions with other players - IMPROVED with immediate game over
           for (let i = 0; i < updatedPlayers.length; i++) {
             if (i === ourPlayerIndex || !updatedPlayers[i].isAlive) continue;
             
@@ -450,9 +509,17 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
                 // Our player eats the other player
                 otherPlayer.isAlive = false;
                 me.size += otherPlayer.size / 2;
+                
+                // IMMEDIATE game over in multiplayer
+                handlePlayerElimination(otherPlayer, me);
+                
               } else if (otherPlayer.size > me.size * 1.2) {
                 // We get eaten
                 me.isAlive = false;
+                
+                // IMMEDIATE game over in multiplayer
+                handlePlayerElimination(me, otherPlayer);
+                
               } else {
                 // If similar size, bounce off each other with limited movement
                 const angle = Math.atan2(dy, dx);
@@ -482,16 +549,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           return prev + (targetZoom - prev) * 0.05; // Smooth zoom transition
         });
         
-        // Game over condition - for local mode, we don't end the game automatically
-        if (!isLocalMode && !gameOverCalled) {
-          const alivePlayers = updatedPlayers.filter(p => p.isAlive);
-          if (updatedPlayers.length > 1 && alivePlayers.length <= 1) {
-            const winner = alivePlayers.length === 1 ? alivePlayers[0] : null;
-            setGameOverCalled(true);
-            onGameOver(winner);
-          }
-        }
-        
         return updatedPlayers;
       });
       
@@ -506,7 +563,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [cameraZoom, cameraPosition, mousePosition, players, onGameOver, currentRoom, currentPlayer, isLocalMode, localPlayer, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination]);
 
   // Rendering - completely optimized with NFT image support
   useEffect(() => {

@@ -27,25 +27,45 @@ export default function GameOverModal({
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Game Over!</DialogTitle>
+          <DialogTitle className="text-2xl text-center">Game Over!</DialogTitle>
           <DialogDescription className="text-lg">
             {winner ? (
               <>
                 <div className="flex flex-col items-center py-6">
                   <div 
-                    className={`w-24 h-24 rounded-full mb-4 bg-game-${winner.color}`}
+                    className={`w-24 h-24 rounded-full mb-4 bg-game-${winner.color} flex items-center justify-center`}
+                    style={{ backgroundColor: `#${getColorHex(winner.color)}` }}
                   >
-                    <span className="flex items-center justify-center h-full text-white font-bold text-2xl">
-                      #{winner.name.substring(0, 2)}
-                    </span>
+                    {winner.nftImageUrl ? (
+                      <img 
+                        src={winner.nftImageUrl} 
+                        alt={winner.name}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-white font-bold text-2xl">
+                        {winner.name.substring(0, 2).toUpperCase()}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xl font-medium">
-                    <span className="font-bold">{winner.name}</span> is the winner!
-                  </p>
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-green-600 mb-2">
+                      🏆 VICTOIRE! 🏆
+                    </p>
+                    <p className="text-lg font-medium">
+                      <span className="font-bold text-primary">{winner.name}</span> domine la bataille !
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Un adversaire a été éliminé par absorption
+                    </p>
+                  </div>
                 </div>
               </>
             ) : (
-              <p className="text-center py-6">The game ended in a draw.</p>
+              <div className="text-center py-6">
+                <p className="text-xl mb-4">🤝</p>
+                <p className="text-lg">La partie s'est terminée sans vainqueur</p>
+              </div>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -56,13 +76,13 @@ export default function GameOverModal({
               onClick={onBackToLobby} 
               className="flex-1"
             >
-              Back to Lobby
+              Retour au Lobby
             </Button>
             <Button 
               onClick={onPlayAgain} 
               className="flex-1"
             >
-              Play Again
+              Rejouer
             </Button>
           </div>
         </DialogFooter>
@@ -70,3 +90,18 @@ export default function GameOverModal({
     </Dialog>
   );
 }
+
+// Helper function to get color hex
+const getColorHex = (color: string): string => {
+  const colorMap: Record<string, string> = {
+    blue: '3498db',
+    red: 'e74c3c',
+    green: '2ecc71',
+    yellow: 'f1c40f',
+    purple: '9b59b6',
+    orange: 'e67e22',
+    cyan: '1abc9c',
+    pink: 'fd79a8'
+  };
+  return colorMap[color] || '3498db';
+};
