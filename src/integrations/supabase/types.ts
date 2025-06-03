@@ -15,11 +15,14 @@ export type Database = {
           is_alive: boolean
           is_ready: boolean
           joined_at: string
+          last_position_update: string | null
           player_color: string
           player_id: string
           player_name: string
           room_id: string
           size: number
+          velocity_x: number | null
+          velocity_y: number | null
           x: number
           y: number
         }
@@ -28,11 +31,14 @@ export type Database = {
           is_alive?: boolean
           is_ready?: boolean
           joined_at?: string
+          last_position_update?: string | null
           player_color: string
           player_id: string
           player_name: string
           room_id: string
           size?: number
+          velocity_x?: number | null
+          velocity_y?: number | null
           x?: number
           y?: number
         }
@@ -41,11 +47,14 @@ export type Database = {
           is_alive?: boolean
           is_ready?: boolean
           joined_at?: string
+          last_position_update?: string | null
           player_color?: string
           player_id?: string
           player_name?: string
           room_id?: string
           size?: number
+          velocity_x?: number | null
+          velocity_y?: number | null
           x?: number
           y?: number
         }
@@ -69,6 +78,8 @@ export type Database = {
       game_rooms: {
         Row: {
           created_at: string
+          game_seed: string | null
+          game_state: Json | null
           id: string
           last_activity: string
           max_players: number
@@ -78,6 +89,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          game_seed?: string | null
+          game_state?: Json | null
           id?: string
           last_activity?: string
           max_players?: number
@@ -87,6 +100,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          game_seed?: string | null
+          game_state?: Json | null
           id?: string
           last_activity?: string
           max_players?: number
