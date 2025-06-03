@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Player, GameRoom, PlayerColor } from '@/types/game';
@@ -80,27 +79,63 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
       const walletAddress = publicKey.toString();
       console.log('Creating player with wallet address:', walletAddress);
 
-      // Create player in database using supabase directly
-      const { data, error } = await supabase
+      // First check if player already exists
+      const { data: existingPlayer, error: checkError } = await supabase
         .from('players')
-        .insert({
-          id: walletAddress,
-          name: playerData.name,
-          color: playerData.color
-        })
-        .select()
-        .single();
+        .select('*')
+        .eq('id', walletAddress)
+        .maybeSingle();
 
-      if (error) {
-        console.error('Error creating player:', error);
-        throw error;
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing player:', checkError);
+        throw checkError;
+      }
+
+      let playerResult;
+
+      if (existingPlayer) {
+        console.log('Player exists, updating...');
+        // Update existing player
+        const { data, error } = await supabase
+          .from('players')
+          .update({
+            name: playerData.name,
+            color: playerData.color
+          })
+          .eq('id', walletAddress)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error updating existing player:', error);
+          throw error;
+        }
+        playerResult = data;
+      } else {
+        console.log('Creating new player...');
+        // Create new player
+        const { data, error } = await supabase
+          .from('players')
+          .insert({
+            id: walletAddress,
+            name: playerData.name,
+            color: playerData.color
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating new player:', error);
+          throw error;
+        }
+        playerResult = data;
       }
 
       const newPlayer: Player = {
         id: walletAddress,
         walletAddress,
-        name: playerData.name,
-        color: playerData.color,
+        name: playerResult.name,
+        color: playerResult.color as PlayerColor,
         size: playerData.size || 30,
         x: playerData.x || 0,
         y: playerData.y || 0,
@@ -119,7 +154,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
       console.error('Error creating player:', error);
       toast({
         title: "PROTOCOL_ERROR",
-        description: "Impossible de créer le joueur.",
+        description: "Impossible de créer le joueur. Vérifiez votre connexion.",
         variant: "destructive"
       });
       throw error;
@@ -130,7 +165,8 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     if (!player || !connected || !publicKey) return;
 
     try {
-      // Update player in database using supabase directly
+      console.log('Updating player:', player.id, updates);
+
       const { data, error } = await supabase
         .from('players')
         .update({
@@ -174,14 +210,14 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     console.log('Setting player details for wallet:', walletAddress);
 
     try {
-      // First check if player already exists in database
+      // Check if player already exists in database
       const { data: existingPlayer, error: checkError } = await supabase
         .from('players')
         .select('*')
         .eq('id', walletAddress)
         .maybeSingle();
 
-      if (checkError) {
+      if (checkError && checkError.code !== 'PGRST116') {
         console.error('Error checking existing player:', checkError);
         throw checkError;
       }
@@ -197,11 +233,9 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
       };
 
       if (existingPlayer) {
-        // Player exists, update it
         console.log('Player exists, updating...');
         await updatePlayer(playerData);
       } else {
-        // Player doesn't exist, create it
         console.log('Player does not exist, creating...');
         await createPlayer(playerData);
       }
@@ -219,6 +253,10 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     try {
       console.log('Joining room with player:', player);
       await playerService.joinRoom(roomId, player);
+      
+      // Wait a bit for the database to update
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       await refreshCurrentRoom();
       
       toast({
@@ -229,7 +267,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
       console.error('Error joining room:', error);
       toast({
         title: "CONNECTION_ERROR",
-        description: "Impossible de rejoindre la salle.",
+        description: "Impossible de rejoindre la salle. Réessayez.",
         variant: "destructive"
       });
       throw error;
@@ -264,14 +302,21 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
     }
 
     try {
+      console.log('Creating room:', roomData, 'with player:', player);
       const roomId = await roomService.createRoom(roomData.name, roomData.maxPlayers);
+      
+      // Wait a bit for the room to be created
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('Room created, joining:', roomId);
       await joinRoom(roomId);
+      
       return roomId;
     } catch (error) {
       console.error('Error creating room:', error);
       toast({
         title: "CREATION_ERROR",
-        description: "Impossible de créer la salle.",
+        description: "Impossible de créer la salle. Réessayez.",
         variant: "destructive"
       });
       throw error;
@@ -405,7 +450,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
           .eq('id', walletAddress)
           .maybeSingle();
 
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
           console.error('Error loading player from database:', error);
           return;
         }
@@ -425,6 +470,8 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
           console.log('Loaded player from database:', loadedPlayer);
           setPlayer(loadedPlayer);
           localStorage.setItem('blob-battle-player', JSON.stringify(loadedPlayer));
+        } else {
+          console.log('No existing player found for wallet:', walletAddress);
         }
       } catch (error) {
         console.error('Error in loadPlayer:', error);

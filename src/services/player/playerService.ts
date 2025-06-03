@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Player } from "@/types/game";
 import { verificationService } from "../room/verificationService";
@@ -13,96 +12,27 @@ export const playerService = {
       playerObject: player
     });
     
-    // Vérifications essentielles avec des messages d'erreur plus détaillés
+    // Vérifications essentielles
     if (!player.walletAddress || player.walletAddress.trim() === '') {
-      console.error("CRITICAL: Player wallet address is missing or empty", {
-        walletAddress: player.walletAddress,
-        player: player
-      });
+      console.error("CRITICAL: Player wallet address is missing or empty");
       throw new Error("L'adresse wallet du joueur est requise pour rejoindre une salle.");
     }
 
     if (!player.name || player.name.trim() === '') {
-      console.error("CRITICAL: Player name is missing or empty", {
-        playerName: player.name,
-        player: player
-      });
+      console.error("CRITICAL: Player name is missing or empty");
       throw new Error("Le nom du joueur est requis pour rejoindre une salle");
     }
 
     if (!roomId || roomId.trim() === '') {
-      console.error("CRITICAL: Room ID is missing or empty", {
-        roomId: roomId
-      });
+      console.error("CRITICAL: Room ID is missing or empty");
       throw new Error("L'ID de la salle est requis");
     }
 
     console.log("✅ Initial validation passed for player:", player.walletAddress);
     
-    // Vérifier d'abord si le joueur est déjà dans cette salle
-    const isPlayerAlreadyInRoom = await verificationService.verifyPlayerInRoom(roomId, player.walletAddress);
-    if (isPlayerAlreadyInRoom) {
-      console.log(`Player ${player.walletAddress} is already in room ${roomId}`);
-      await activityService.updateRoomActivity(roomId);
-      return;
-    }
-    
     try {
-      // Vérifier si la salle existe
-      const roomExists = await verificationService.verifyRoomExists(roomId);
-      if (!roomExists) {
-        console.error(`Room ${roomId} does not exist`);
-        throw new Error("Cette salle n'existe pas ou n'est plus disponible");
-      }
-
-      // Vérifier si le joueur existe dans la table players
-      console.log("Checking if player exists in database...");
-      const { data: existingPlayer, error: playerCheckError } = await supabase
-        .from('players')
-        .select('id')
-        .eq('id', player.walletAddress)
-        .maybeSingle();
-
-      if (playerCheckError) {
-        console.error("Error checking player:", playerCheckError);
-        throw new Error(`Erreur lors de la vérification du joueur: ${playerCheckError.message}`);
-      }
-
-      if (!existingPlayer) {
-        console.log("Creating new player in database...");
-        // Créer le joueur s'il n'existe pas
-        const { error: createPlayerError } = await supabase
-          .from('players')
-          .insert({
-            id: player.walletAddress,
-            name: player.name.trim(),
-            color: player.color
-          });
-
-        if (createPlayerError) {
-          console.error("Error creating player:", createPlayerError);
-          throw new Error(`Impossible de créer le joueur: ${createPlayerError.message}`);
-        }
-        console.log("Player created successfully in database");
-      } else {
-        console.log("Player already exists in database, updating info...");
-        // Mettre à jour les infos du joueur existant
-        const { error: updatePlayerError } = await supabase
-          .from('players')
-          .update({
-            name: player.name.trim(),
-            color: player.color
-          })
-          .eq('id', player.walletAddress);
-
-        if (updatePlayerError) {
-          console.error("Error updating player:", updatePlayerError);
-          // Ne pas faire échouer l'opération pour une erreur de mise à jour
-        }
-      }
-
-      // Vérifier si la salle est pleine
-      console.log("Checking room capacity...");
+      // Vérifier si la salle existe et obtenir ses informations
+      console.log("Checking room capacity and status...");
       const { data: roomData, error: roomError } = await supabase
         .from('game_rooms')
         .select('max_players, status')
@@ -111,13 +41,33 @@ export const playerService = {
 
       if (roomError) {
         console.error("Error getting room info:", roomError);
-        throw new Error("Impossible de vérifier les informations de la salle");
+        throw new Error("Cette salle n'existe pas ou n'est plus disponible");
       }
 
       if (roomData.status !== 'waiting') {
         throw new Error("Cette salle n'accepte plus de nouveaux joueurs");
       }
 
+      // Vérifier si le joueur est déjà dans cette salle
+      const { data: existingPlayerInRoom, error: playerInRoomError } = await supabase
+        .from('game_room_players')
+        .select('player_id')
+        .eq('room_id', roomId)
+        .eq('player_id', player.walletAddress)
+        .maybeSingle();
+
+      if (playerInRoomError && playerInRoomError.code !== 'PGRST116') {
+        console.error("Error checking player in room:", playerInRoomError);
+        throw new Error("Erreur lors de la vérification du joueur dans la salle");
+      }
+
+      if (existingPlayerInRoom) {
+        console.log(`Player ${player.walletAddress} is already in room ${roomId}`);
+        await activityService.updateRoomActivity(roomId);
+        return;
+      }
+
+      // Vérifier le nombre de joueurs actuels
       const { data: currentPlayers, error: playersError } = await supabase
         .from('game_room_players')
         .select('player_id')
@@ -131,6 +81,36 @@ export const playerService = {
       if (currentPlayers && currentPlayers.length >= (roomData?.max_players || 4)) {
         console.error("Room is full");
         throw new Error("Cette salle est complète");
+      }
+
+      // S'assurer que le joueur existe dans la table players
+      console.log("Ensuring player exists in players table...");
+      const { data: existingPlayer, error: playerCheckError } = await supabase
+        .from('players')
+        .select('id')
+        .eq('id', player.walletAddress)
+        .maybeSingle();
+
+      if (playerCheckError && playerCheckError.code !== 'PGRST116') {
+        console.error("Error checking player:", playerCheckError);
+        throw new Error(`Erreur lors de la vérification du joueur: ${playerCheckError.message}`);
+      }
+
+      if (!existingPlayer) {
+        console.log("Creating player in database...");
+        const { error: createPlayerError } = await supabase
+          .from('players')
+          .insert({
+            id: player.walletAddress,
+            name: player.name.trim(),
+            color: player.color
+          });
+
+        if (createPlayerError) {
+          console.error("Error creating player:", createPlayerError);
+          throw new Error(`Impossible de créer le joueur: ${createPlayerError.message}`);
+        }
+        console.log("Player created successfully in database");
       }
 
       console.log("Adding player to room...");
