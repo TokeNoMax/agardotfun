@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -23,6 +22,8 @@ export default function GameUI() {
   const [currentZone, setCurrentZone] = useState<SafeZone | null>(null);
   const [isPlayerInZone, setIsPlayerInZone] = useState<boolean>(true);
   const [timeUntilShrink, setTimeUntilShrink] = useState<number>(0);
+  const [gameStartTime] = useState<number>(Date.now());
+  const [eliminationType, setEliminationType] = useState<'absorption' | 'zone' | 'timeout'>('absorption');
   const canvasRef = useRef<CanvasRef>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -107,9 +108,26 @@ export default function GameUI() {
     }
   };
 
-  const handleGameOver = (winner: Player | null) => {
+  const handleGameOver = (winner: Player | null, eliminationType: 'absorption' | 'zone' | 'timeout' = 'absorption') => {
     setWinner(winner);
+    setEliminationType(eliminationType);
     setIsGameOver(true);
+    
+    // Show immediate victory toast
+    if (winner) {
+      const gameMode = localMode ? (isZoneMode ? 'zone' : 'local') : 'multiplayer';
+      const victoryMessages = {
+        multiplayer: `🏆 ${winner.name} remporte la bataille !`,
+        zone: `🛡️ ${winner.name} survit à la zone mortelle !`,
+        local: `🎉 Excellent travail ${winner.name} !`
+      };
+      
+      toast({
+        title: "VICTOIRE !",
+        description: victoryMessages[gameMode as keyof typeof victoryMessages],
+        duration: 5000,
+      });
+    }
     
     // Store game result in localStorage
     if (currentRoom) {
@@ -153,8 +171,14 @@ export default function GameUI() {
   
   // Handle player eaten event - show toast with meme
   const handlePlayerEaten = (eatenPlayer: Player, eaterPlayer: Player) => {
-    // We already handle this in the Leaderboard component with animated toasts
-    // This is just a hook for future functionality if needed
+    // Show immediate elimination toast
+    toast({
+      title: "Élimination !",
+      description: `${eaterPlayer.name} a absorbé ${eatenPlayer.name} !`,
+      variant: "destructive",
+      duration: 3000,
+    });
+    
     console.log(`${eatenPlayer.name} was eaten by ${eaterPlayer.name}`);
   };
   
@@ -244,6 +268,10 @@ export default function GameUI() {
         winner={winner}
         onPlayAgain={handlePlayAgain}
         onBackToLobby={handleBackToLobby}
+        gameMode={localMode ? (isZoneMode ? 'zone' : 'local') : 'multiplayer'}
+        gameDuration={Date.now() - gameStartTime}
+        finalSize={winner?.size}
+        eliminationType={eliminationType}
       />
     </div>
   );
