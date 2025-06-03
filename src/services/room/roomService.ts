@@ -1,8 +1,8 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { GameRoom } from "@/types/game";
 import { convertToGameRoom } from "../database/converters";
 import { activityService } from "./activityService";
+import { GameStateService } from "../game/gameStateService";
 
 export const roomService = {
   async getAllRooms(): Promise<GameRoom[]> {
@@ -70,6 +70,9 @@ export const roomService = {
   async startGame(roomId: string): Promise<void> {
     console.log(`Starting game in room ${roomId}`);
     
+    // Initialize game state with map seed
+    await GameStateService.initializeGameState(roomId);
+    
     const { error } = await supabase
       .from('game_rooms')
       .update({ 
@@ -83,12 +86,12 @@ export const roomService = {
       throw error;
     }
 
-    console.log("Game started successfully");
+    console.log("Game started successfully with synchronized map");
     
-    // Vérifier que le statut a été mis à jour
+    // Verify that the status was updated
     const { data: room } = await supabase
       .from('game_rooms')
-      .select('status')
+      .select('status, game_seed')
       .eq('id', roomId)
       .single();
       
@@ -97,7 +100,7 @@ export const roomService = {
       throw new Error("Failed to update room status");
     }
     
-    console.log("Room status verified as playing");
+    console.log("Room status verified as playing with seed:", room.game_seed);
   },
 
   async getRoom(roomId: string): Promise<GameRoom | null> {
@@ -152,7 +155,6 @@ export const roomService = {
     console.log("Checking for ghost rooms...");
     
     try {
-      // Récupérer les salles en statut "playing"
       const { data: playingRooms, error } = await supabase
         .from('game_rooms')
         .select('id, name, status, last_activity')
@@ -168,7 +170,6 @@ export const roomService = {
         return;
       }
 
-      // Pour chaque salle en cours, vérifier le nombre de joueurs
       for (const room of playingRooms) {
         const { data: players, error: playersError } = await supabase
           .from('game_room_players')

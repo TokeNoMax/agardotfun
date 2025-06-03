@@ -3,12 +3,13 @@ import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PlayerPosition } from "@/services/realtime/gameSync";
+import { MapGenerator, GeneratedMap } from "@/services/game/mapGenerator";
+import { GameStateService, GameState } from "@/services/game/gameStateService";
+import { GameStateSyncService } from "@/services/realtime/gameStateSync";
 
-// Constants - Augmenté la taille du jeu et ajouté des constantes pour la grille
+// Constants
 const GAME_WIDTH = 3000;
 const GAME_HEIGHT = 3000;
-const FOOD_COUNT = 150; // Augmenté pour la plus grande carte
-const RUG_COUNT = 10; // Augmenté pour la plus grande carte
 const FOOD_SIZE = 5;
 const RUG_SIZE = 40;
 const FOOD_VALUE = 1;
@@ -16,15 +17,15 @@ const RUG_PENALTY = 5;
 const GRID_SIZE = 150;
 const GRID_COLOR = "#333333";
 
-// Speed configuration constants for better gameplay balance
-const BASE_SPEED = 3.5; // Base speed for small blobs
-const MIN_SPEED_RATIO = 0.25; // Minimum speed ratio (25% of base speed for very large blobs)
-const SPEED_REDUCTION_FACTOR = 0.025; // How much speed decreases per size unit
+// Speed configuration constants
+const BASE_SPEED = 3.5;
+const MIN_SPEED_RATIO = 0.25;
+const SPEED_REDUCTION_FACTOR = 0.025;
 
 // Zone Battle constants
-const ZONE_SHRINK_INTERVAL = 120000; // 2 minutes in milliseconds
+const ZONE_SHRINK_INTERVAL = 120000;
 const ZONE_DAMAGE_PER_SECOND = 3;
-const ZONE_SHRINK_PERCENTAGE = 0.2; // 20% reduction
+const ZONE_SHRINK_PERCENTAGE = 0.2;
 const INITIAL_ZONE_RADIUS = 1400;
 
 interface CanvasProps {
@@ -57,6 +58,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [foods, setFoods] = useState<Food[]>([]);
   const [rugs, setRugs] = useState<Rug[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [gameMap, setGameMap] = useState<GeneratedMap | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
   const [cameraZoom, setCameraZoom] = useState<number>(1);
   const [cameraPosition, setCameraPosition] = useState({ x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -74,14 +77,17 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [lastDamageTime, setLastDamageTime] = useState<number>(0);
   const [lastPositionSync, setLastPositionSync] = useState<number>(0);
 
-  // NFT Image cache for performance
+  // NFT Image cache
   const [imageCache, setImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
+
+  // Game sync service
+  const gameStateSyncRef = useRef<GameStateSyncService | null>(null);
 
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Expose methods to parent component for real-time sync
+  // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     setMobileDirection: (direction: { x: number; y: number } | null) => {
       console.log('Canvas: Setting mobile direction:', direction);
@@ -147,10 +153,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     });
   };
 
-  // Helper function to calculate speed based on blob size
+  // Calculate speed based on blob size
   const calculateSpeed = (size: number): number => {
-    // Progressive speed reduction: larger blobs are significantly slower
-    const sizeAboveBase = Math.max(0, size - 15); // Start reduction after size 15
+    const sizeAboveBase = Math.max(0, size - 15);
     const speedReduction = sizeAboveBase * SPEED_REDUCTION_FACTOR;
     const speedFactor = Math.max(MIN_SPEED_RATIO, 1 - speedReduction);
     return BASE_SPEED * speedFactor;
@@ -164,7 +169,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       y: GAME_HEIGHT / 2,
       currentRadius: INITIAL_ZONE_RADIUS,
       maxRadius: INITIAL_ZONE_RADIUS,
-      nextShrinkTime: now + 30000, // 30 seconds grace period
+      nextShrinkTime: now + 30000,
       isActive: true,
       shrinkInterval: ZONE_SHRINK_INTERVAL,
       damagePerSecond: ZONE_DAMAGE_PER_SECOND,
@@ -181,7 +186,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     return distance <= zone.currentRadius - player.size;
   };
 
-  // Mouse position handler (PC only)
+  // Mouse position handler
   const updateMousePosition = (clientX: number, clientY: number) => {
     if (!canvasRef.current || isMobile) return;
     
@@ -192,23 +197,68 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     });
   };
 
-  // NEW: Handle player elimination with immediate game over
+  // Handle player elimination
   const handlePlayerElimination = useCallback((eliminatedPlayer: Player, killerPlayer: Player) => {
     console.log(`Player ${eliminatedPlayer.name} was eliminated by ${killerPlayer.name}`);
     
-    // In multiplayer, sync the collision
     if (!isLocalMode && onPlayerCollision) {
       onPlayerCollision(eliminatedPlayer.id, killerPlayer.id, eliminatedPlayer.size, killerPlayer.size + eliminatedPlayer.size / 2);
     }
     
     if (!isLocalMode && !gameOverCalled) {
       setGameOverCalled(true);
-      // In multiplayer, game ends immediately when someone is eaten
       onGameOver(killerPlayer);
     }
   }, [isLocalMode, gameOverCalled, onGameOver, onPlayerCollision]);
 
-  // SEPARATED: Game initialization effect (runs only once)
+  // Handle food consumption with sync
+  const handleFoodConsumption = useCallback(async (foodId: string) => {
+    if (!isLocalMode && currentRoom && gameState) {
+      await GameStateService.consumeFood(currentRoom.id, foodId);
+    }
+  }, [isLocalMode, currentRoom, gameState]);
+
+  // Initialize game state sync
+  useEffect(() => {
+    if (isLocalMode || !currentRoom || currentRoom.status !== 'playing') {
+      return;
+    }
+
+    console.log("Setting up game state sync for room:", currentRoom.id);
+
+    const gameStateSync = new GameStateSyncService(currentRoom.id, {
+      onGameStateUpdate: (newGameState: GameState) => {
+        console.log("Game state updated:", newGameState);
+        setGameState(newGameState);
+        
+        // Update map if seed changed
+        if (gameState?.mapSeed !== newGameState.mapSeed) {
+          const newMap = MapGenerator.generateMap(newGameState.mapSeed);
+          setGameMap(newMap);
+          console.log("Map regenerated with new seed:", newGameState.mapSeed);
+        }
+      },
+      onFoodConsumed: (foodId: string) => {
+        console.log("Food consumed by another player:", foodId);
+        setFoods(prevFoods => prevFoods.filter(food => food.id !== foodId));
+      },
+      onMapUpdate: (mapSeed: string) => {
+        console.log("Map updated with seed:", mapSeed);
+        const newMap = MapGenerator.generateMap(mapSeed);
+        setGameMap(newMap);
+      }
+    });
+
+    gameStateSyncRef.current = gameStateSync;
+    gameStateSync.connect();
+
+    return () => {
+      gameStateSync.disconnect();
+      gameStateSyncRef.current = null;
+    };
+  }, [currentRoom?.id, currentRoom?.status, isLocalMode]);
+
+  // Game initialization effect
   useEffect(() => {
     console.log("Canvas: Game initialization check", { 
       gameInitialized, 
@@ -223,7 +273,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       return;
     }
     
-    // Clear any existing game loops
     if (gameLoopRef.current) {
       cancelAnimationFrame(gameLoopRef.current);
       gameLoopRef.current = null;
@@ -239,81 +288,108 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     
     console.log("Canvas: Initializing game for the first time");
     
-    let initialPlayers: Player[] = [];
-    
-    if (isLocalMode && localPlayer) {
-      console.log("Canvas: Setting up local player for Zone Battle:", isZoneMode);
-      initialPlayers = [{
-        ...localPlayer,
-        x: GAME_WIDTH / 2,
-        y: GAME_HEIGHT / 2,
-        isAlive: true,
-        size: 15
-      }];
-      playerRef.current = initialPlayers[0];
+    const initializeGame = async () => {
+      let initialPlayers: Player[] = [];
       
-      // Preload NFT image if available
-      if (localPlayer.nftImageUrl) {
-        preloadImage(localPlayer.nftImageUrl).catch(console.error);
-      }
-    } else if (currentRoom) {
-      initialPlayers = currentRoom.players.map(p => ({
-        ...p,
-        x: Math.random() * (GAME_WIDTH - 100) + 50,
-        y: Math.random() * (GAME_HEIGHT - 100) + 50,
-        isAlive: true,
-        size: 15
-      }));
-      
-      const ourPlayer = initialPlayers.find(p => p.id === currentPlayer?.id);
-      if (ourPlayer) {
-        playerRef.current = ourPlayer;
-      }
-      
-      // Preload all players' NFT images
-      initialPlayers.forEach(player => {
-        if (player.nftImageUrl) {
-          preloadImage(player.nftImageUrl).catch(console.error);
+      if (isLocalMode && localPlayer) {
+        console.log("Canvas: Setting up local player for Zone Battle:", isZoneMode);
+        initialPlayers = [{
+          ...localPlayer,
+          x: GAME_WIDTH / 2,
+          y: GAME_HEIGHT / 2,
+          isAlive: true,
+          size: 15
+        }];
+        playerRef.current = initialPlayers[0];
+        
+        if (localPlayer.nftImageUrl) {
+          preloadImage(localPlayer.nftImageUrl).catch(console.error);
         }
-      });
-    }
-    
-    setPlayers(initialPlayers);
-    
-    // Initialize safe zone for Zone Battle mode
-    if (isZoneMode) {
-      const zone = initializeSafeZone();
-      setSafeZone(zone);
-      setGameStartTime(Date.now());
-      setLastDamageTime(Date.now());
-      console.log("Canvas: Zone Battle initialized with safe zone:", zone);
-    }
-    
-    // Generate foods
-    const initialFoods = Array(FOOD_COUNT).fill(0).map(() => ({
-      id: Math.random().toString(36).substring(2, 9),
-      x: Math.random() * GAME_WIDTH,
-      y: Math.random() * GAME_HEIGHT,
-      size: FOOD_SIZE
-    }));
-    setFoods(initialFoods);
-    
-    // Generate rugs
-    const initialRugs = Array(RUG_COUNT).fill(0).map(() => ({
-      id: Math.random().toString(36).substring(2, 9),
-      x: Math.random() * GAME_WIDTH,
-      y: Math.random() * GAME_HEIGHT,
-      size: RUG_SIZE
-    }));
-    setRugs(initialRugs);
-    
-    // Center camera on player
-    if (playerRef.current) {
-      setCameraPosition({ x: playerRef.current.x, y: playerRef.current.y });
-    }
 
-    setGameInitialized(true);
-    console.log("Canvas: Game initialization completed");
+        // Generate local map
+        const localSeed = MapGenerator.generateSeed("local");
+        const localMap = MapGenerator.generateMap(localSeed);
+        setGameMap(localMap);
+        setFoods(localMap.foods);
+        setRugs(localMap.rugs);
+        
+      } else if (currentRoom) {
+        // Get or initialize game state
+        const roomGameState = await GameStateService.getGameState(currentRoom.id);
+        if (roomGameState) {
+          setGameState(roomGameState);
+          
+          // Generate map from seed
+          const map = MapGenerator.generateMap(roomGameState.mapSeed);
+          setGameMap(map);
+          
+          // Filter out consumed foods
+          const availableFoods = map.foods.filter(food => 
+            !roomGameState.consumedFoods.includes(food.id)
+          );
+          setFoods(availableFoods);
+          setRugs(map.rugs);
+          
+          console.log(`Map loaded: ${availableFoods.length}/${map.foods.length} foods available`);
+        }
+
+        // Initialize players with spawn points
+        initialPlayers = currentRoom.players.map((p, index) => {
+          let spawnPoint = { x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2 };
+          
+          if (gameMap) {
+            spawnPoint = MapGenerator.getSpawnPoint(gameMap.spawnPoints, index);
+          }
+          
+          return {
+            ...p,
+            x: spawnPoint.x,
+            y: spawnPoint.y,
+            isAlive: true,
+            size: 15
+          };
+        });
+        
+        const ourPlayer = initialPlayers.find(p => p.id === currentPlayer?.id);
+        if (ourPlayer) {
+          playerRef.current = ourPlayer;
+          
+          // Sync spawn position to database
+          const playerIndex = initialPlayers.findIndex(p => p.id === currentPlayer?.id);
+          if (playerIndex >= 0) {
+            await GameStateService.syncPlayerSpawn(currentRoom.id, currentPlayer!.id, playerIndex);
+          }
+        }
+        
+        // Preload all players' NFT images
+        initialPlayers.forEach(player => {
+          if (player.nftImageUrl) {
+            preloadImage(player.nftImageUrl).catch(console.error);
+          }
+        });
+      }
+      
+      setPlayers(initialPlayers);
+      
+      // Initialize safe zone for Zone Battle mode
+      if (isZoneMode) {
+        const zone = initializeSafeZone();
+        setSafeZone(zone);
+        setGameStartTime(Date.now());
+        setLastDamageTime(Date.now());
+        console.log("Canvas: Zone Battle initialized with safe zone:", zone);
+      }
+      
+      // Center camera on player
+      if (playerRef.current) {
+        setCameraPosition({ x: playerRef.current.x, y: playerRef.current.y });
+      }
+
+      setGameInitialized(true);
+      console.log("Canvas: Game initialization completed");
+    };
+
+    initializeGame();
 
     return () => {
       if (gameLoopRef.current) {
@@ -328,38 +404,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized]);
 
-  // SEPARATED: Room updates effect (for multiplayer sync without reset)
-  useEffect(() => {
-    if (!gameInitialized || isLocalMode || !currentRoom) return;
-    
-    console.log("Canvas: Syncing with room updates without reset");
-    
-    // Update existing players without full reset
-    setPlayers(prevPlayers => {
-      const updatedPlayers = [...prevPlayers];
-      
-      // Handle new players joining
-      currentRoom.players.forEach(roomPlayer => {
-        const existingIndex = updatedPlayers.findIndex(p => p.id === roomPlayer.id);
-        if (existingIndex === -1) {
-          // New player joined - add them without reset
-          const newPlayer = {
-            ...roomPlayer,
-            x: Math.random() * (GAME_WIDTH - 100) + 50,
-            y: Math.random() * (GAME_HEIGHT - 100) + 50,
-            isAlive: true,
-            size: 15
-          };
-          updatedPlayers.push(newPlayer);
-          console.log("Canvas: New player joined:", newPlayer.name);
-        }
-      });
-      
-      return updatedPlayers;
-    });
-  }, [currentRoom?.players, gameInitialized, isLocalMode]);
-
-  // Mouse movement handler (PC only)
+  // Mouse movement handler
   useEffect(() => {
     if (isMobile) return;
 
@@ -374,14 +419,14 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile]);
 
-  // Game loop - optimized with real-time sync
+  // Enhanced game loop with synchronized food consumption
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
       return;
     }
     
-    console.log("Canvas: Starting game loop");
+    console.log("Canvas: Starting synchronized game loop");
     
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
@@ -393,7 +438,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           
           let updatedZone = { ...prevZone };
           
-          // Check if it's time to shrink the zone
           if (currentTime >= updatedZone.nextShrinkTime) {
             const newRadius = updatedZone.currentRadius * (1 - updatedZone.shrinkPercentage);
             updatedZone = {
@@ -411,7 +455,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       setPlayers(prevPlayers => {
         if (prevPlayers.length === 0) return prevPlayers;
         
-        // Find our player index
         const ourPlayerIndex = prevPlayers.findIndex(p => 
           p.id === playerRef.current?.id
         );
@@ -423,7 +466,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Zone Battle: Check if player is outside safe zone and apply damage
+        // Zone Battle damage logic
         if (isZoneMode && safeZone && playerRef.current) {
           const inZone = isPlayerInSafeZone(me, safeZone);
           
@@ -433,48 +476,36 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             console.log("Canvas: Player took zone damage, size now:", me.size);
           }
           
-          // Update zone info for UI
           if (onZoneUpdate) {
             onZoneUpdate(safeZone, inZone);
           }
         }
         
-        // Calculate movement direction - different for mobile vs PC
+        // Movement logic
         const canvas = canvasRef.current;
         if (canvas) {
           const maxSpeed = calculateSpeed(me.size);
           
           if (isMobile && mobileDirection) {
-            // Mobile: Use persistent direction from TouchControlArea
             console.log('Canvas: Using mobile direction:', mobileDirection);
             me.x += mobileDirection.x * maxSpeed;
             me.y += mobileDirection.y * maxSpeed;
           } else if (!isMobile) {
-            // PC: Use mouse position
             const canvasWidth = canvas.width;
             const canvasHeight = canvas.height;
             
-            // Calculate target position in world coordinates
             const targetX = cameraPosition.x - (canvasWidth / 2 - mousePosition.x) / cameraZoom;
             const targetY = cameraPosition.y - (canvasHeight / 2 - mousePosition.y) / cameraZoom;
             
-            // Update last target position
-            setLastTargetPosition({
-              x: targetX,
-              y: targetY
-            });
+            setLastTargetPosition({ x: targetX, y: targetY });
             
-            // Calculate movement direction
             const dx = targetX - me.x;
             const dy = targetY - me.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance > 5) {
-              // Normalize direction to ensure consistent speed in all directions
               const directionX = dx / distance;
               const directionY = dy / distance;
-              
-              // Apply maximum speed in the normalized direction
               const actualSpeed = Math.min(maxSpeed, distance);
               
               me.x += directionX * actualSpeed;
@@ -487,7 +518,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
         }
         
-        // Sync player position with other clients (throttled)
+        // Sync player position
         if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 100) {
           setLastPositionSync(currentTime);
           onPlayerPositionSync({
@@ -499,7 +530,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           });
         }
         
-        // Check collisions with food
+        // Food collision with sync
         setFoods(prevFoods => {
           const remainingFoods = prevFoods.filter(food => {
             const dx = me.x - food.x;
@@ -507,18 +538,24 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance < me.size) {
-              // Food eaten, increase player size
               me.size += FOOD_VALUE;
+              
+              // Sync food consumption
+              if (!isLocalMode) {
+                handleFoodConsumption(food.id);
+              }
+              
+              console.log(`Food ${food.id} consumed by ${me.name}`);
               return false;
             }
             return true;
           });
           
-          // Respawn food if too few
-          if (remainingFoods.length < FOOD_COUNT / 2) {
-            const newFoodsCount = FOOD_COUNT - remainingFoods.length;
-            const newFoods = Array(newFoodsCount).fill(0).map(() => ({
-              id: Math.random().toString(36).substring(2, 9),
+          // Respawn food only in local mode
+          if (isLocalMode && remainingFoods.length < gameMap!.foods.length / 2) {
+            const newFoodsCount = gameMap!.foods.length - remainingFoods.length;
+            const newFoods = Array(newFoodsCount).fill(0).map((_, index) => ({
+              id: `respawn_${Date.now()}_${index}`,
               x: Math.random() * GAME_WIDTH,
               y: Math.random() * GAME_HEIGHT,
               size: FOOD_SIZE
@@ -529,7 +566,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           return remainingFoods;
         });
         
-        // Check collisions with rugs
+        // Rug collisions
         setRugs(prevRugs => {
           prevRugs.forEach(rug => {
             const dx = me.x - rug.x;
@@ -537,16 +574,13 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance < me.size + rug.size) {
-              // Player hit a rug, decrease size
               me.size = Math.max(10, me.size - RUG_PENALTY);
               
-              // Push player away from rug with limited movement
               if (distance > 0) {
                 const pushFactor = Math.min(10, distance * 0.5);
                 me.x += (dx / distance) * pushFactor;
                 me.y += (dy / distance) * pushFactor;
                 
-                // Keep within boundaries after push
                 me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
                 me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
               }
@@ -555,9 +589,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           return prevRugs;
         });
         
-        // In local mode we don't have enemy players, so we skip player collision logic
         if (!isLocalMode) {
-          // Check collisions with other players - IMPROVED with immediate game over
           for (let i = 0; i < updatedPlayers.length; i++) {
             if (i === ourPlayerIndex || !updatedPlayers[i].isAlive) continue;
             
@@ -566,32 +598,20 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             const dy = me.y - otherPlayer.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            // If players collide
             if (distance < me.size + otherPlayer.size) {
-              // Agar.io style: Player can only eat others that are significantly smaller
               if (me.size > otherPlayer.size * 1.2) {
-                // Our player eats the other player
                 otherPlayer.isAlive = false;
                 me.size += otherPlayer.size / 2;
-                
-                // IMMEDIATE game over in multiplayer
                 handlePlayerElimination(otherPlayer, me);
-                
               } else if (otherPlayer.size > me.size * 1.2) {
-                // We get eaten
                 me.isAlive = false;
-                
-                // IMMEDIATE game over in multiplayer
                 handlePlayerElimination(me, otherPlayer);
-                
               } else {
-                // If similar size, bounce off each other with limited movement
                 const angle = Math.atan2(dy, dx);
                 const pushDistance = Math.min(5, distance * 0.3);
                 me.x += Math.cos(angle) * pushDistance;
                 me.y += Math.sin(angle) * pushDistance;
                 
-                // Keep within boundaries after collision
                 me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
                 me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
               }
@@ -599,18 +619,18 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           }
         }
         
-        // Update camera position to follow player with some smoothing
+        // Update camera
         setCameraPosition(prev => ({
           x: prev.x + (me.x - prev.x) * 0.1,
           y: prev.y + (me.y - prev.y) * 0.1
         }));
         
-        // Limit zoom based on player size
+        // Update zoom
         const maxSize = 50;
         const effectiveSize = Math.min(me.size, maxSize);
         setCameraZoom(prev => {
           const targetZoom = Math.max(0.5, Math.min(1.5, 20 / Math.sqrt(effectiveSize)));
-          return prev + (targetZoom - prev) * 0.05; // Smooth zoom transition
+          return prev + (targetZoom - prev) * 0.05;
         });
         
         return updatedPlayers;
@@ -627,7 +647,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption]);
 
   // Rendering - completely optimized with NFT image support
   useEffect(() => {
@@ -682,30 +702,25 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       
       context.stroke();
       
-      // Draw safe zone for Zone Battle mode
       if (isZoneMode && safeZone && safeZone.isActive) {
-        // Draw safe zone circle
         context.beginPath();
-        context.strokeStyle = '#22c55e'; // Green
+        context.strokeStyle = '#22c55e';
         context.lineWidth = 3 / cameraZoom;
         context.arc(safeZone.x, safeZone.y, safeZone.currentRadius, 0, Math.PI * 2);
         context.stroke();
         
-        // Draw danger zone (outside safe zone)
         context.beginPath();
-        context.strokeStyle = '#ef4444'; // Red
+        context.strokeStyle = '#ef4444';
         context.lineWidth = 6 / cameraZoom;
         context.setLineDash([10 / cameraZoom, 10 / cameraZoom]);
         context.arc(safeZone.x, safeZone.y, safeZone.currentRadius + 20, 0, Math.PI * 2);
         context.stroke();
         context.setLineDash([]);
         
-        // Fill danger zone with semi-transparent red
         context.globalCompositeOperation = 'multiply';
         context.fillStyle = 'rgba(239, 68, 68, 0.1)';
         context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         
-        // Cut out the safe zone
         context.globalCompositeOperation = 'destination-out';
         context.beginPath();
         context.arc(safeZone.x, safeZone.y, safeZone.currentRadius, 0, Math.PI * 2);
@@ -714,7 +729,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.globalCompositeOperation = 'source-over';
       }
       
-      // Draw food
       foods.forEach(food => {
         context.beginPath();
         context.fillStyle = '#2ecc71';
@@ -722,7 +736,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.fill();
       });
       
-      // Draw rugs
       rugs.forEach(rug => {
         context.beginPath();
         context.fillStyle = '#8e44ad';
@@ -730,24 +743,20 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.fill();
       });
       
-      // Draw players with NFT image support
       players.forEach(player => {
         if (!player.isAlive) return;
         
         context.save();
         
-        // Check if player has NFT image and if it's loaded
         const hasNftImage = player.nftImageUrl && imageCache.has(player.nftImageUrl);
         
         if (hasNftImage) {
           const img = imageCache.get(player.nftImageUrl!);
           if (img) {
-            // Draw NFT image as circular blob
             context.beginPath();
             context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
             context.clip();
             
-            // Draw the image to fill the circular area
             const imageSize = player.size * 2;
             context.drawImage(
               img,
@@ -757,7 +766,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
               imageSize
             );
             
-            // Add a border around the NFT blob
             context.restore();
             context.save();
             context.beginPath();
@@ -767,14 +775,12 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             context.stroke();
           }
         } else {
-          // Fallback to color blob if no NFT image
           context.beginPath();
           context.fillStyle = `#${getColorHex(player.color)}`;
           context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
           context.fill();
         }
         
-        // Draw player name and size
         context.font = `${14 / cameraZoom}px Arial`;
         context.fillStyle = '#fff';
         context.textAlign = 'center';
@@ -787,10 +793,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.restore();
       });
       
-      // Restore context
       context.restore();
       
-      // Optimized animation loop
       animationFrameRef.current = requestAnimationFrame(renderCanvas);
     };
     
@@ -807,7 +811,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [players, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone, imageCache]);
 
-  // Helper function to get color hex
   const getColorHex = (color: string): string => {
     const colorMap: Record<string, string> = {
       blue: '3498db',

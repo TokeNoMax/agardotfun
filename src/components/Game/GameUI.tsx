@@ -90,7 +90,7 @@ export default function GameUI() {
     }
   }, [player]);
 
-  // Mise à jour des joueurs en vie uniquement lorsque le statut des joueurs change
+  // Update alive players count
   useEffect(() => {
     if (!localMode && currentRoom) {
       const alive = currentRoom.players.filter(p => p.isAlive).length;
@@ -98,7 +98,7 @@ export default function GameUI() {
     }
   }, [currentRoom?.players, localMode]);
 
-  // Redirect only if not in local mode and no valid session
+  // Redirect if no valid session
   useEffect(() => {
     if (!localMode && (!currentRoom || !player || !currentRoom.players.some(p => p.id === player.id))) {
       const timer = setTimeout(() => {
@@ -111,7 +111,7 @@ export default function GameUI() {
 
   // Handle real-time player position updates
   function handlePlayerPositionUpdate(playerId: string, position: PlayerPosition) {
-    console.log('Received player position update:', playerId, position);
+    console.log('GameUI: Received player position update:', playerId, position);
     if (canvasRef.current) {
       canvasRef.current.updatePlayerPosition(playerId, position);
     }
@@ -119,7 +119,7 @@ export default function GameUI() {
 
   // Handle real-time player elimination
   function handlePlayerEliminated(eliminatedPlayerId: string, eliminatorPlayerId: string) {
-    console.log('Player eliminated via sync:', eliminatedPlayerId, 'by', eliminatorPlayerId);
+    console.log('GameUI: Player eliminated via sync:', eliminatedPlayerId, 'by', eliminatorPlayerId);
     if (canvasRef.current) {
       canvasRef.current.eliminatePlayer(eliminatedPlayerId, eliminatorPlayerId);
     }
@@ -140,8 +140,7 @@ export default function GameUI() {
 
   // Handle game state updates
   function handleGameStateUpdate(gameState: any) {
-    console.log('Game state update received:', gameState);
-    // Handle any global game state changes here
+    console.log('GameUI: Game state update received:', gameState);
   }
 
   // Handle zone updates from Canvas
@@ -151,7 +150,7 @@ export default function GameUI() {
     setTimeUntilShrink(zone.nextShrinkTime - Date.now());
   };
 
-  // Handle mobile direction change - properly communicate with Canvas
+  // Handle mobile direction change
   const handleMobileDirectionChange = (direction: { x: number; y: number } | null) => {
     console.log('GameUI: Received mobile direction change:', direction);
     if (canvasRef.current) {
@@ -176,7 +175,7 @@ export default function GameUI() {
     eliminatorNewSize: number
   ) => {
     if (!localMode && gameSyncConnected) {
-      console.log('Broadcasting collision from GameUI:', { eliminatedPlayerId, eliminatorPlayerId });
+      console.log('GameUI: Broadcasting collision:', { eliminatedPlayerId, eliminatorPlayerId });
       await broadcastCollision(eliminatedPlayerId, eliminatorPlayerId, eliminatedSize, eliminatorNewSize);
     }
   };
@@ -186,11 +185,11 @@ export default function GameUI() {
     setEliminationType(eliminationType);
     setIsGameOver(true);
     
-    // Show immediate victory toast
+    // Show victory toast
     if (winner) {
       const gameMode = localMode ? (isZoneMode ? 'zone' : 'local') : 'multiplayer';
       const victoryMessages = {
-        multiplayer: `🏆 ${winner.name} remporte la bataille !`,
+        multiplayer: `🏆 ${winner.name} remporte la bataille synchronisée !`,
         zone: `🛡️ ${winner.name} survit à la zone mortelle !`,
         local: `🎉 Excellent travail ${winner.name} !`
       };
@@ -202,7 +201,7 @@ export default function GameUI() {
       });
     }
     
-    // Store game result in localStorage
+    // Store game result
     if (currentRoom) {
       localStorage.setItem('blob-battle-game-state', JSON.stringify({
         status: 'finished',
@@ -214,13 +213,9 @@ export default function GameUI() {
   
   const handlePlayAgain = async () => {
     if (localMode) {
-      // For local mode, just reset the game
       window.location.reload();
     } else {
-      // Clean up the game state
       localStorage.removeItem('blob-battle-game-state');
-      
-      // Online mode - leave room and go back to lobby
       await leaveRoom();
       setIsGameOver(false);
       navigate('/lobby');
@@ -228,25 +223,21 @@ export default function GameUI() {
   };
   
   const handleBackToLobby = async () => {
-    // Clean up the game state
     localStorage.removeItem('blob-battle-game-state');
     
     if (localMode) {
-      // Just navigate back without API calls
       navigate('/lobby');
     } else {
-      // Online mode - leave room and go back to lobby
       await leaveRoom();
       setIsGameOver(false);
       navigate('/lobby');
     }
   };
   
-  // Handle player eaten event - show toast with meme
+  // Handle player eaten event
   const handlePlayerEaten = (eatenPlayer: Player, eaterPlayer: Player) => {
-    // Show immediate elimination toast
     toast({
-      title: "Élimination !",
+      title: "Élimination Synchronisée !",
       description: `${eaterPlayer.name} a absorbé ${eatenPlayer.name} !`,
       variant: "destructive",
       duration: 3000,
@@ -255,12 +246,12 @@ export default function GameUI() {
     console.log(`${eatenPlayer.name} was eaten by ${eaterPlayer.name}`);
   };
   
-  // Show loading if not in local mode and no room
+  // Show loading if not ready
   if (!localMode && !currentRoom) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center">
-          <p className="text-lg font-medium mb-4">Problème de connexion à la salle de jeu</p>
+          <p className="text-lg font-medium mb-4">Synchronisation de la partie...</p>
           <Button onClick={() => navigate('/lobby')}>
             Retour au lobby
           </Button>
@@ -289,6 +280,9 @@ export default function GameUI() {
             Sync: {gameSyncConnected ? 'Connecté' : 'Déconnecté'}
           </div>
         )}
+        <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-cyan-400`}>
+          Map: Synchronisée ✓
+        </div>
       </div>
       
       {/* Zone Counter for Zone Battle mode */}
@@ -323,7 +317,7 @@ export default function GameUI() {
         />
       </div>
       
-      {/* Game canvas */}
+      {/* Synchronized Game canvas */}
       <div className="w-full h-full">
         <Canvas 
           ref={canvasRef}

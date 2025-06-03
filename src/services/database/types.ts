@@ -7,6 +7,8 @@ export interface DatabaseGameRoom {
   created_at: string;
   updated_at: string;
   last_activity: string;
+  game_seed?: string;
+  game_state?: any;
 }
 
 export interface DatabaseGameRoomPlayer {
@@ -21,4 +23,7 @@ export interface DatabaseGameRoomPlayer {
   is_alive: boolean;
   is_ready: boolean;
   joined_at: string;
+  velocity_x?: number;
+  velocity_y?: number;
+  last_position_update?: string;
 }
