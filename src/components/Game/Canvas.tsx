@@ -1,8 +1,8 @@
-
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { PlayerPosition } from "@/services/realtime/gameSync";
 
 // Constants - Augmenté la taille du jeu et ajouté des constantes pour la grille
 const GAME_WIDTH = 3000;
@@ -28,15 +28,19 @@ const ZONE_SHRINK_PERCENTAGE = 0.2; // 20% reduction
 const INITIAL_ZONE_RADIUS = 1400;
 
 interface CanvasProps {
-  onGameOver: (winner: Player | null) => void;
+  onGameOver: (winner: Player | null, eliminationType?: 'absorption' | 'zone' | 'timeout') => void;
   isLocalMode?: boolean;
   localPlayer?: Player | null;
   isZoneMode?: boolean;
   onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
+  onPlayerPositionSync?: (position: PlayerPosition) => Promise<void>;
+  onPlayerCollision?: (eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) => Promise<void>;
 }
 
 export interface CanvasRef {
   setMobileDirection: (direction: { x: number; y: number } | null) => void;
+  updatePlayerPosition: (playerId: string, position: PlayerPosition) => void;
+  eliminatePlayer: (eliminatedPlayerId: string, eliminatorPlayerId: string) => void;
 }
 
 const Canvas = forwardRef<CanvasRef, CanvasProps>(({ 
@@ -44,7 +48,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   isLocalMode = false, 
   localPlayer = null,
   isZoneMode = false,
-  onZoneUpdate
+  onZoneUpdate,
+  onPlayerPositionSync,
+  onPlayerCollision
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { currentRoom, player: currentPlayer } = useGame();
@@ -66,6 +72,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
   const [gameStartTime, setGameStartTime] = useState<number>(0);
   const [lastDamageTime, setLastDamageTime] = useState<number>(0);
+  const [lastPositionSync, setLastPositionSync] = useState<number>(0);
 
   // NFT Image cache for performance
   const [imageCache, setImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
@@ -74,11 +81,51 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Expose mobile direction setter to parent component
+  // Expose methods to parent component for real-time sync
   useImperativeHandle(ref, () => ({
     setMobileDirection: (direction: { x: number; y: number } | null) => {
       console.log('Canvas: Setting mobile direction:', direction);
       setMobileDirection(direction);
+    },
+    updatePlayerPosition: (playerId: string, position: PlayerPosition) => {
+      console.log('Canvas: Updating player position from sync:', playerId, position);
+      setPlayers(prevPlayers => {
+        return prevPlayers.map(player => {
+          if (player.id === playerId && player.id !== playerRef.current?.id) {
+            return {
+              ...player,
+              x: position.x,
+              y: position.y,
+              size: position.size
+            };
+          }
+          return player;
+        });
+      });
+    },
+    eliminatePlayer: (eliminatedPlayerId: string, eliminatorPlayerId: string) => {
+      console.log('Canvas: Eliminating player from sync:', eliminatedPlayerId, 'by', eliminatorPlayerId);
+      setPlayers(prevPlayers => {
+        return prevPlayers.map(player => {
+          if (player.id === eliminatedPlayerId) {
+            return { ...player, isAlive: false };
+          }
+          if (player.id === eliminatorPlayerId) {
+            const eliminatedPlayer = prevPlayers.find(p => p.id === eliminatedPlayerId);
+            if (eliminatedPlayer) {
+              return { ...player, size: player.size + eliminatedPlayer.size / 2 };
+            }
+          }
+          return player;
+        });
+      });
+      
+      // Check if our player was eliminated
+      if (eliminatedPlayerId === playerRef.current?.id && !gameOverCalled) {
+        setGameOverCalled(true);
+        const winner = players.find(p => p.id === eliminatorPlayerId);
+        onGameOver(winner || null);
+      }
     }
   }));
 
@@ -149,12 +196,17 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const handlePlayerElimination = useCallback((eliminatedPlayer: Player, killerPlayer: Player) => {
     console.log(`Player ${eliminatedPlayer.name} was eliminated by ${killerPlayer.name}`);
     
+    // In multiplayer, sync the collision
+    if (!isLocalMode && onPlayerCollision) {
+      onPlayerCollision(eliminatedPlayer.id, killerPlayer.id, eliminatedPlayer.size, killerPlayer.size + eliminatedPlayer.size / 2);
+    }
+    
     if (!isLocalMode && !gameOverCalled) {
       setGameOverCalled(true);
       // In multiplayer, game ends immediately when someone is eaten
       onGameOver(killerPlayer);
     }
-  }, [isLocalMode, gameOverCalled, onGameOver]);
+  }, [isLocalMode, gameOverCalled, onGameOver, onPlayerCollision]);
 
   // SEPARATED: Game initialization effect (runs only once)
   useEffect(() => {
@@ -322,7 +374,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile]);
 
-  // Game loop - optimized with immediate game over logic
+  // Game loop - optimized with real-time sync
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
@@ -433,6 +485,18 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           // Game boundaries
           me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
           me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
+        }
+        
+        // Sync player position with other clients (throttled)
+        if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 100) {
+          setLastPositionSync(currentTime);
+          onPlayerPositionSync({
+            x: me.x,
+            y: me.y,
+            size: me.size,
+            velocityX: 0,
+            velocityY: 0
+          });
         }
         
         // Check collisions with food
@@ -563,7 +627,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync]);
 
   // Rendering - completely optimized with NFT image support
   useEffect(() => {
