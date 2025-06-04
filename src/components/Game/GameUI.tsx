@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -11,8 +10,8 @@ import { Player, SafeZone } from "@/types/game";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useGameSync } from "@/hooks/useGameSync";
-import { PlayerPosition } from "@/services/realtime/gameSync";
+import { useOptimizedGameSync } from "@/hooks/useOptimizedGameSync";
+import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
 
 export default function GameUI() {
   const { currentRoom, leaveRoom, player } = useGame();
@@ -33,13 +32,13 @@ export default function GameUI() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
-  // Game sync hooks for real-time synchronization
+  // Optimized game sync hooks for real-time synchronization
   const {
     isConnected: gameSyncConnected,
     syncPlayerPosition,
-    broadcastCollision,
-    broadcastPlayerElimination
-  } = useGameSync({
+    getInterpolatedPosition,
+    broadcastCollision
+  } = useOptimizedGameSync({
     roomId: currentRoom?.id,
     playerId: player?.id,
     isEnabled: !localMode && !!currentRoom && !!player,
@@ -109,11 +108,13 @@ export default function GameUI() {
     }
   }, [currentRoom, player, navigate, localMode]);
 
-  // Handle real-time player position updates
-  function handlePlayerPositionUpdate(playerId: string, position: PlayerPosition) {
+  // Handle real-time player position updates with interpolation
+  function handlePlayerPositionUpdate(playerId: string, position: OptimizedPlayerPosition) {
     console.log('GameUI: Received player position update:', playerId, position);
     if (canvasRef.current) {
-      canvasRef.current.updatePlayerPosition(playerId, position);
+      // Use interpolated position for smoother movement
+      const interpolatedPos = getInterpolatedPosition(playerId, position);
+      canvasRef.current.updatePlayerPosition(playerId, interpolatedPos);
     }
   }
 
@@ -160,8 +161,8 @@ export default function GameUI() {
     }
   };
 
-  // Handle player position sync (called by Canvas)
-  const handlePlayerPositionSync = async (position: PlayerPosition) => {
+  // Handle player position sync (called by Canvas) - optimized frequency
+  const handlePlayerPositionSync = async (position: OptimizedPlayerPosition) => {
     if (!localMode && gameSyncConnected) {
       await syncPlayerPosition(position);
     }
@@ -277,7 +278,7 @@ export default function GameUI() {
         </div>
         {!localMode && (
           <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameSyncConnected ? 'text-green-400' : 'text-red-400'}`}>
-            Sync: {gameSyncConnected ? 'Connecté' : 'Déconnecté'}
+            Sync: {gameSyncConnected ? 'Optimisé ✓' : 'Déconnecté'}
           </div>
         )}
         <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-cyan-400`}>
