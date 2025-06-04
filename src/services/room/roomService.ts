@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { GameRoom } from "@/types/game";
 import { convertToGameRoom } from "../database/converters";
@@ -36,7 +37,7 @@ export const roomService = {
     const gameRooms = rooms.map(room => {
       const roomPlayers = players?.filter(p => p.room_id === room.id) || [];
       const convertedRoom = convertToGameRoom(room, roomPlayers);
-      console.log(`Room ${room.name}: ${roomPlayers.length} players`, roomPlayers.map(p => p.player_name));
+      console.log(`Room ${room.name} (Match #${room.match_number}): ${roomPlayers.length} players`, roomPlayers.map(p => p.player_name));
       return convertedRoom;
     });
 

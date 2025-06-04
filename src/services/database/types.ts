@@ -7,6 +7,7 @@ export interface DatabaseGameRoom {
   created_at: string;
   updated_at: string;
   last_activity: string;
+  match_number: number; // Added match number
   game_seed?: string;
   game_state?: any;
 }

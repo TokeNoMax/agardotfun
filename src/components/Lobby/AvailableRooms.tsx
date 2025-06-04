@@ -146,7 +146,7 @@ export default function AvailableRooms({
           <Table>
             <TableHeader>
               <TableRow className="border-cyber-cyan/30">
-                <TableHead className="text-cyber-cyan font-mono">ROOM_NAME</TableHead>
+                <TableHead className="text-cyber-cyan font-mono">MATCH</TableHead>
                 <TableHead className="text-cyber-cyan font-mono">NODES</TableHead>
                 <TableHead className="text-cyber-cyan font-mono">STATUS</TableHead>
                 <TableHead className="text-right text-cyber-cyan font-mono">ACTION</TableHead>
@@ -168,7 +168,8 @@ export default function AvailableRooms({
                   >
                     <TableCell className="font-medium text-gray-300 font-mono">
                       <div className="flex items-center gap-2">
-                        {room.name || "UNNAMED_ROOM"}
+                        <span className="text-cyber-cyan font-bold">Match #{room.matchNumber}</span>
+                        <span className="text-gray-400">- {room.name || "UNNAMED_ROOM"}</span>
                         {isEmpty && (
                           <Users className="h-4 w-4 text-cyber-blue animate-pulse" />
                         )}

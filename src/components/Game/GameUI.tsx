@@ -271,7 +271,9 @@ export default function GameUI() {
           {localMode ? (isZoneMode ? "Mode Zone Battle" : "Mode Solo Local") : `Joueurs en vie: ${alivePlayers}`}
         </div>
         {!localMode && currentRoom && (
-          <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>Salle: {currentRoom.name}</div>
+          <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-cyber-cyan`}>
+            Match #{currentRoom.matchNumber} - {currentRoom.name}
+          </div>
         )}
         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
           Vous: {localMode ? localPlayer?.name : player?.name}

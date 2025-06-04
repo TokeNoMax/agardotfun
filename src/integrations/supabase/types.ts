@@ -82,6 +82,7 @@ export type Database = {
           game_state: Json | null
           id: string
           last_activity: string
+          match_number: number
           max_players: number
           name: string
           status: string
@@ -93,6 +94,7 @@ export type Database = {
           game_state?: Json | null
           id?: string
           last_activity?: string
+          match_number?: number
           max_players?: number
           name: string
           status?: string
@@ -104,6 +106,7 @@ export type Database = {
           game_state?: Json | null
           id?: string
           last_activity?: string
+          match_number?: number
           max_players?: number
           name?: string
           status?: string
