@@ -10,7 +10,7 @@ export function convertToGameRoom(
     id: dbPlayer.player_id,
     walletAddress: dbPlayer.player_id,
     name: dbPlayer.player_name,
-    color: dbPlayer.player_color,
+    color: dbPlayer.player_color as any,
     size: dbPlayer.size,
     x: dbPlayer.x,
     y: dbPlayer.y,
@@ -18,7 +18,8 @@ export function convertToGameRoom(
     isReady: dbPlayer.is_ready,
     velocityX: dbPlayer.velocity_x || 0,
     velocityY: dbPlayer.velocity_y || 0,
-    lastPositionUpdate: dbPlayer.last_position_update || undefined
+    lastPositionUpdate: dbPlayer.last_position_update || undefined,
+    nftImageUrl: undefined // Will be populated from players table if needed
   }));
 
   return {
@@ -29,7 +30,7 @@ export function convertToGameRoom(
     status: dbRoom.status as 'waiting' | 'playing' | 'finished',
     createdAt: dbRoom.created_at,
     lastActivity: dbRoom.last_activity,
-    matchNumber: dbRoom.match_number, // Added match number conversion
+    matchNumber: dbRoom.match_number,
     gameSeed: dbRoom.game_seed || undefined,
     gameState: dbRoom.game_state || undefined
   };

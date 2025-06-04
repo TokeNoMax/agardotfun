@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { GameRoom } from "@/types/game";
@@ -74,12 +73,12 @@ export default function CurrentRoom({
                   <span 
                     key={player.id} 
                     className={`px-3 py-1 rounded-full text-sm font-mono border ${
-                      player.ready 
+                      player.isReady 
                         ? 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' 
                         : 'bg-black/50 border-cyber-cyan/30 text-gray-300'
                     }`}
                   >
-                    {player.name} {player.ready ? '✓' : '○'}
+                    {player.name} {player.isReady ? '✓' : '○'}
                   </span>
                 ))}
               </div>

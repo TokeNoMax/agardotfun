@@ -3,7 +3,7 @@ export interface Player {
   id: string;
   walletAddress: string;
   name: string;
-  color: string;
+  color: PlayerColor;
   size: number;
   x: number;
   y: number;
@@ -12,6 +12,7 @@ export interface Player {
   velocityX?: number;
   velocityY?: number;
   lastPositionUpdate?: string;
+  nftImageUrl?: string;
 }
 
 export interface GameRoom {
@@ -22,7 +23,7 @@ export interface GameRoom {
   status: 'waiting' | 'playing' | 'finished';
   createdAt: string;
   lastActivity: string;
-  matchNumber: number; // Added match number
+  matchNumber: number;
   gameSeed?: string;
   gameState?: any;
 }
@@ -31,8 +32,14 @@ export interface SafeZone {
   x: number;
   y: number;
   radius: number;
+  currentRadius: number;
+  maxRadius: number;
   nextShrinkTime: number;
   shrinkDuration: number;
+  isActive: boolean;
+  shrinkInterval: number;
+  damagePerSecond: number;
+  shrinkPercentage: number;
 }
 
 export interface GameFood {
@@ -58,3 +65,20 @@ export interface GameMap {
   obstacles: GameObstacle[];
   safeZone?: SafeZone;
 }
+
+// Additional types used in components
+export interface Food {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+}
+
+export interface Rug {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+}
+
+export type PlayerColor = 'blue' | 'red' | 'green' | 'yellow' | 'purple' | 'orange' | 'cyan' | 'pink';
