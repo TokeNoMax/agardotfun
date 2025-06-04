@@ -1,6 +1,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { OptimizedGameSyncService, OptimizedGameSyncCallbacks, OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
+import { useConnectionHeartbeat } from "./useConnectionHeartbeat";
+import { useConnectionManager } from "./useConnectionManager";
 
 interface UseOptimizedGameSyncProps extends OptimizedGameSyncCallbacks {
   roomId?: string;
@@ -17,9 +19,17 @@ export const useOptimizedGameSync = ({
   onGameStateUpdate
 }: UseOptimizedGameSyncProps) => {
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const syncServiceRef = useRef<OptimizedGameSyncService | null>(null);
   const connectionAttemptRef = useRef<boolean>(false);
   const lastConnectionKey = useRef<string>('');
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Gestionnaire de connexions pour éviter les doublons
+  const { cleanupAllConnections, createUniqueChannel, validateConnection, saveConnectionState, restoreConnectionState } = useConnectionManager({
+    roomId,
+    playerId
+  });
 
   // FIXED: Memoize callbacks to prevent dependency changes
   const stableOnPlayerUpdate = useCallback((playerId: string, position: OptimizedPlayerPosition) => {
@@ -36,6 +46,73 @@ export const useOptimizedGameSync = ({
     console.log("Stable game state update received:", gameState);
     onGameStateUpdate?.(gameState);
   }, [onGameStateUpdate]);
+
+  // Gestion de la reconnexion automatique
+  const attemptReconnection = useCallback(async () => {
+    if (!roomId || !playerId || !isEnabled || isReconnecting) return;
+
+    console.log('Attempting reconnection...');
+    setIsReconnecting(true);
+
+    try {
+      // Valider que la connexion est toujours nécessaire
+      const isValid = await validateConnection();
+      if (!isValid) {
+        console.log('Connection no longer valid, aborting reconnection');
+        setIsReconnecting(false);
+        return;
+      }
+
+      // Nettoyer les anciennes connexions
+      if (syncServiceRef.current) {
+        syncServiceRef.current.disconnect();
+        syncServiceRef.current = null;
+      }
+
+      // Créer une nouvelle connexion
+      const syncService = new OptimizedGameSyncService(roomId, playerId, {
+        onPlayerUpdate: stableOnPlayerUpdate,
+        onPlayerEliminated: stableOnPlayerEliminated,
+        onGameStateUpdate: stableOnGameStateUpdate
+      });
+
+      await syncService.connect();
+      
+      syncServiceRef.current = syncService;
+      setIsConnected(true);
+      setIsReconnecting(false);
+      connectionAttemptRef.current = false;
+
+      console.log('Reconnection successful');
+
+    } catch (error) {
+      console.error('Reconnection failed:', error);
+      setIsReconnecting(false);
+      
+      // Programmer une nouvelle tentative dans 5 secondes
+      reconnectTimeoutRef.current = setTimeout(() => {
+        attemptReconnection();
+      }, 5000);
+    }
+  }, [roomId, playerId, isEnabled, isReconnecting, validateConnection, stableOnPlayerUpdate, stableOnPlayerEliminated, stableOnGameStateUpdate]);
+
+  // Heartbeat pour détecter les déconnexions
+  const { connectionState } = useConnectionHeartbeat({
+    roomId,
+    playerId,
+    enabled: isEnabled && isConnected,
+    onConnectionLost: () => {
+      console.log('Connection lost detected by heartbeat');
+      setIsConnected(false);
+      attemptReconnection();
+    },
+    onConnectionRestored: () => {
+      console.log('Connection restored detected by heartbeat');
+      if (!isConnected && !isReconnecting) {
+        attemptReconnection();
+      }
+    }
+  });
 
   // FIXED: Create connection key for tracking
   const currentConnectionKey = `${roomId}-${playerId}-${isEnabled}`;
@@ -76,6 +153,7 @@ export const useOptimizedGameSync = ({
     if (!isEnabled || !roomId || !playerId) {
       console.log("Conditions not met for sync:", { isEnabled, roomId, playerId });
       lastConnectionKey.current = '';
+      cleanupAllConnections();
       return;
     }
 
@@ -101,6 +179,13 @@ export const useOptimizedGameSync = ({
           syncServiceRef.current = syncService;
           setIsConnected(true);
           connectionAttemptRef.current = false;
+
+          // Sauvegarder l'état de connexion pour récupération
+          saveConnectionState(currentConnectionKey, {
+            roomId,
+            playerId,
+            connectedAt: Date.now()
+          });
         } else {
           console.log("Connection completed but key changed, discarding");
           syncService.disconnect();
@@ -110,6 +195,9 @@ export const useOptimizedGameSync = ({
         if (lastConnectionKey.current === currentConnectionKey) {
           setIsConnected(false);
           connectionAttemptRef.current = false;
+          
+          // Programmer une reconnexion automatique
+          attemptReconnection();
         }
       }
     };
@@ -118,6 +206,13 @@ export const useOptimizedGameSync = ({
 
     return () => {
       console.log("Cleaning up optimized game sync connection");
+      
+      // Nettoyer les timeouts
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
       if (syncServiceRef.current) {
         syncServiceRef.current.disconnect();
         syncServiceRef.current = null;
@@ -125,7 +220,7 @@ export const useOptimizedGameSync = ({
       }
       connectionAttemptRef.current = false;
     };
-  }, [currentConnectionKey, isEnabled, roomId, playerId, stableOnPlayerUpdate, stableOnPlayerEliminated, stableOnGameStateUpdate]);
+  }, [currentConnectionKey, isEnabled, roomId, playerId, stableOnPlayerUpdate, stableOnPlayerEliminated, stableOnGameStateUpdate, cleanupAllConnections, saveConnectionState, attemptReconnection]);
 
   const syncPlayerPosition = useCallback(async (position: OptimizedPlayerPosition) => {
     if (syncServiceRef.current && isConnected) {
@@ -133,6 +228,9 @@ export const useOptimizedGameSync = ({
         await syncServiceRef.current.syncPlayerPosition(position);
       } catch (error) {
         console.error("Error syncing player position:", error);
+        // En cas d'erreur, tenter une reconnexion
+        setIsConnected(false);
+        attemptReconnection();
       }
     } else {
       console.warn("Cannot sync position - not connected:", { 
@@ -140,7 +238,7 @@ export const useOptimizedGameSync = ({
         isConnected 
       });
     }
-  }, [isConnected]);
+  }, [isConnected, attemptReconnection]);
 
   const getInterpolatedPosition = useCallback((playerId: string, position: OptimizedPlayerPosition): OptimizedPlayerPosition => {
     if (syncServiceRef.current) {
@@ -156,6 +254,9 @@ export const useOptimizedGameSync = ({
         await syncServiceRef.current.broadcastCollision(eliminatedPlayerId, eliminatorPlayerId, eliminatedSize, eliminatorNewSize);
       } catch (error) {
         console.error("Error broadcasting collision:", error);
+        // En cas d'erreur, tenter une reconnexion
+        setIsConnected(false);
+        attemptReconnection();
       }
     } else {
       console.warn("Cannot broadcast collision - not connected:", { 
@@ -163,12 +264,15 @@ export const useOptimizedGameSync = ({
         isConnected 
       });
     }
-  }, [isConnected]);
+  }, [isConnected, attemptReconnection]);
 
   return {
     isConnected,
+    isReconnecting,
+    connectionState,
     syncPlayerPosition,
     getInterpolatedPosition,
-    broadcastCollision
+    broadcastCollision,
+    forceReconnect: attemptReconnection
   };
 };

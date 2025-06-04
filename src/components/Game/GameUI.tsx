@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -12,6 +11,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOptimizedGameSync } from "@/hooks/useOptimizedGameSync";
+import { useGhostRoomCleaner } from "@/hooks/useGhostRoomCleaner";
 import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
 
 interface GameUIProps {
@@ -38,12 +38,21 @@ export default function GameUI({ roomId }: GameUIProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
+  // Nettoyage automatique des salles fantômes
+  useGhostRoomCleaner({
+    intervalMinutes: 1, // Plus fréquent pour un meilleur nettoyage
+    enableLogging: true
+  });
+
   // FIXED: Improved game sync with unified service only
   const {
     isConnected: gameSyncConnected,
+    isReconnecting,
+    connectionState,
     syncPlayerPosition,
     getInterpolatedPosition,
-    broadcastCollision
+    broadcastCollision,
+    forceReconnect
   } = useOptimizedGameSync({
     roomId: currentRoom?.id,
     playerId: player?.id,
@@ -112,13 +121,6 @@ export default function GameUI({ roomId }: GameUIProps) {
     } else if (!gameSyncConnected && syncInitialized) {
       console.log("GameUI: Sync connection lost");
       setSyncInitialized(false);
-      
-      toast({
-        title: "Connexion perdue",
-        description: "Tentative de reconnexion...",
-        variant: "destructive",
-        duration: 2000,
-      });
     }
   }, [gameSyncConnected, syncInitialized, toast]);
 
@@ -370,7 +372,7 @@ export default function GameUI({ roomId }: GameUIProps) {
   
   return (
     <div className="w-full h-full relative">
-      {/* FIXED: Enhanced game status with sync information */}
+      {/* FIXED: Enhanced game status with connection recovery */}
       <div className={`absolute top-4 left-4 bg-black/80 backdrop-blur-sm ${
         isMobile ? 'p-2 text-sm' : 'p-3'
       } rounded-md shadow-md z-10 text-white`}>
@@ -392,12 +394,23 @@ export default function GameUI({ roomId }: GameUIProps) {
         </div>
         {!localMode && (
           <>
-            <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameSyncConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Sync: {gameSyncConnected ? 'Connecté ✓' : 'Déconnecté ⚠️'}
+            <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameSyncConnected ? 'text-green-400' : isReconnecting ? 'text-yellow-400' : 'text-red-400'}`}>
+              Sync: {gameSyncConnected ? 'Connecté ✓' : isReconnecting ? 'Reconnexion...' : 'Déconnecté ⚠️'}
             </div>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${syncInitialized ? 'text-green-400' : 'text-yellow-400'}`}>
               Multi: {syncInitialized ? 'Synchronisé ✓' : 'En attente...'}
             </div>
+            {(!gameSyncConnected || isReconnecting) && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="mt-1 text-xs"
+                onClick={forceReconnect}
+                disabled={isReconnecting}
+              >
+                {isReconnecting ? 'Reconnexion...' : 'Forcer reconnexion'}
+              </Button>
+            )}
           </>
         )}
       </div>
