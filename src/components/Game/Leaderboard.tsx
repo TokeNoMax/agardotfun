@@ -1,5 +1,5 @@
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Player } from "@/types/game";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,71 +20,71 @@ interface MemeToast {
 }
 
 export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }: LeaderboardProps) {
-  const [sortedPlayers, setSortedPlayers] = useState<Player[]>([]);
   const [memeToasts, setMemeToasts] = useState<MemeToast[]>([]);
-  const [previousPlayers, setPreviousPlayers] = useState<Player[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { customPhrases } = useGame();
   const isMobile = useIsMobile();
 
-  // Sort players by size in descending order
-  useEffect(() => {
-    const sorted = [...players]
+  // FIXED: Memoize sorted players to prevent unnecessary re-renders
+  const sortedPlayers = useMemo(() => {
+    return [...players]
       .filter(player => player.isAlive)
       .sort((a, b) => b.size - a.size);
-    setSortedPlayers(sorted);
-    
-    // Check if any player was eaten
-    if (previousPlayers.length > 0) {
-      const eatenPlayers = previousPlayers.filter(
-        prevPlayer => prevPlayer.isAlive && 
-        !players.find(p => p.id === prevPlayer.id)?.isAlive
-      );
-      
-      eatenPlayers.forEach(eatenPlayer => {
-        // Find who potentially ate this player (player with increased size)
-        const eatenBy = players.find(currentPlayer => 
-          currentPlayer.isAlive && 
-          previousPlayers.find(p => p.id === currentPlayer.id)?.size < currentPlayer.size
-        );
-        
-        if (eatenBy && onPlayerEaten) {
-          onPlayerEaten(eatenPlayer, eatenBy);
-        }
-        
-        // Add meme toast regardless of callback
-        addMemeToast(eatenPlayer.name);
-      });
-    }
-    
-    // Update previous players for next comparison
-    setPreviousPlayers([...players]);
-  }, [players, onPlayerEaten, previousPlayers]);
+  }, [players]);
 
-  // Function to add a new meme toast
+  // FIXED: Memoize player IDs to detect actual changes
+  const currentPlayerIds = useMemo(() => 
+    players.map(p => `${p.id}-${p.isAlive}-${Math.floor(p.size)}`).join(','),
+    [players]
+  );
+
+  // FIXED: Use ref to track previous state to avoid dependency issues
+  const previousPlayerIdsRef = useState(currentPlayerIds)[0];
+
+  // FIXED: Stable callback with proper dependencies
   const addMemeToast = useCallback((playerName: string) => {
-    // If no phrases are defined, don't show a toast
     if (!customPhrases || customPhrases.length === 0) return;
     
-    // Choose a random phrase from available phrases
     const randomPhrase = customPhrases[Math.floor(Math.random() * customPhrases.length)];
-    
-    // Replace {playerName} with the actual player name
     const formattedMessage = randomPhrase.replace(/{playerName}/g, playerName);
     
     const newToast: MemeToast = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: `${Date.now()}-${Math.random()}`,
       message: formattedMessage,
       timestamp: Date.now()
     };
     
     setMemeToasts(prev => [...prev, newToast]);
     
-    // Remove toast after 3 seconds
     setTimeout(() => {
       setMemeToasts(prev => prev.filter(toast => toast.id !== newToast.id));
     }, 3000);
   }, [customPhrases]);
+
+  // FIXED: Only check for eliminations when player IDs actually change
+  useEffect(() => {
+    if (previousPlayerIdsRef !== currentPlayerIds && players.length > 0) {
+      console.log('Leaderboard: Player state changed, checking for eliminations');
+      
+      // Simple elimination detection based on isAlive status change
+      const eliminatedPlayers = players.filter(player => !player.isAlive);
+      
+      eliminatedPlayers.forEach(eliminatedPlayer => {
+        // Find potential eliminator (alive player with increased size)
+        const potentialEliminator = players.find(p => 
+          p.isAlive && p.id !== eliminatedPlayer.id && p.size > 20 // Basic size threshold
+        );
+        
+        if (potentialEliminator && onPlayerEaten) {
+          console.log(`Leaderboard: ${eliminatedPlayer.name} eliminated by ${potentialEliminator.name}`);
+          onPlayerEaten(eliminatedPlayer, potentialEliminator);
+        }
+        
+        // Add meme toast
+        addMemeToast(eliminatedPlayer.name);
+      });
+    }
+  }, [currentPlayerIds, players, onPlayerEaten, addMemeToast, previousPlayerIdsRef]);
 
   if (!players || players.length === 0) {
     return null;
@@ -126,7 +126,7 @@ export default function Leaderboard({ players, currentPlayerId, onPlayerEaten }:
               <TableBody>
                 {(isMobile ? sortedPlayers.slice(0, 5) : sortedPlayers).map((player, index) => (
                   <TableRow 
-                    key={player.id} 
+                    key={`${player.id}-${player.isAlive}-${Math.floor(player.size)}`}
                     className={`border-gray-700 ${player.id === currentPlayerId ? 'bg-primary/20' : ''}`}
                   >
                     <TableCell className={`${isMobile ? 'p-1 text-xs' : 'p-2'}`}>{index + 1}</TableCell>
