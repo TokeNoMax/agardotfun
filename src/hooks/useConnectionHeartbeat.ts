@@ -53,7 +53,9 @@ export const useConnectionHeartbeat = ({
   const performHeartbeat = useCallback(async () => {
     if (!enabled) return;
 
+    const previousState = connectionStateRef.current;
     connectionStateRef.current = 'checking';
+    
     const isConnected = await checkConnection();
     const now = Date.now();
 
@@ -61,7 +63,7 @@ export const useConnectionHeartbeat = ({
       lastHeartbeatRef.current = now;
       missedHeartbeatsRef.current = 0;
       
-      if (connectionStateRef.current === 'lost') {
+      if (previousState === 'lost') {
         console.log('Connection restored');
         connectionStateRef.current = 'connected';
         onConnectionRestored?.();
@@ -75,7 +77,7 @@ export const useConnectionHeartbeat = ({
     } else {
       missedHeartbeatsRef.current++;
       
-      if (missedHeartbeatsRef.current >= maxMissedHeartbeats && connectionStateRef.current !== 'lost') {
+      if (missedHeartbeatsRef.current >= maxMissedHeartbeats && previousState !== 'lost') {
         console.warn('Connection lost after', maxMissedHeartbeats, 'missed heartbeats');
         connectionStateRef.current = 'lost';
         onConnectionLost?.();
@@ -84,6 +86,9 @@ export const useConnectionHeartbeat = ({
           description: "Tentative de reconnexion en cours...",
           variant: "destructive",
         });
+      } else {
+        // Restore previous state if not enough missed heartbeats
+        connectionStateRef.current = previousState;
       }
     }
   }, [enabled, checkConnection, onConnectionLost, onConnectionRestored, toast]);
