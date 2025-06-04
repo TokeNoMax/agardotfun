@@ -33,8 +33,12 @@ export class OptimizedGameSyncService {
   }
 
   async connect() {
+    // FIXED: Use room-specific channel name for better isolation
+    const channelName = `optimized-game-sync-${this.roomId}`;
+    console.log("Connecting to optimized game sync channel:", channelName);
+    
     this.channel = supabase
-      .channel(`optimized-game-sync-${this.roomId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -50,7 +54,9 @@ export class OptimizedGameSyncService {
         { event: 'game_event' },
         this.handleGameEvent.bind(this)
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Optimized game sync status for room', this.roomId, ':', status);
+      });
 
     return this.channel;
   }
@@ -101,6 +107,7 @@ export class OptimizedGameSyncService {
     }
   }
 
+  // FIXED: Enhanced position sync with validation
   async syncPlayerPosition(position: OptimizedPlayerPosition) {
     const now = Date.now();
     if (now - this.lastPositionSync < this.syncInterval) {
@@ -110,7 +117,13 @@ export class OptimizedGameSyncService {
     this.lastPositionSync = now;
 
     try {
-      await supabase
+      // FIXED: Add validation for position data
+      if (isNaN(position.x) || isNaN(position.y) || isNaN(position.size)) {
+        console.warn("Invalid position data, skipping sync:", position);
+        return;
+      }
+
+      const { error } = await supabase
         .from('game_room_players')
         .update({
           x: position.x,
@@ -122,8 +135,12 @@ export class OptimizedGameSyncService {
         })
         .eq('room_id', this.roomId)
         .eq('player_id', this.playerId);
+
+      if (error) {
+        console.error("Error syncing player position:", error);
+      }
     } catch (error) {
-      // Silent error handling to avoid console spam
+      console.error("Error in syncPlayerPosition:", error);
     }
   }
 
@@ -158,9 +175,13 @@ export class OptimizedGameSyncService {
     };
   }
 
+  // FIXED: Enhanced collision broadcast with better error handling
   async broadcastCollision(eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) {
     try {
-      await supabase
+      console.log(`Broadcasting collision in room ${this.roomId}:`, { eliminatedPlayerId, eliminatorPlayerId });
+
+      // Update eliminated player status
+      const { error: eliminatedError } = await supabase
         .from('game_room_players')
         .update({ 
           is_alive: false,
@@ -169,7 +190,12 @@ export class OptimizedGameSyncService {
         .eq('room_id', this.roomId)
         .eq('player_id', eliminatedPlayerId);
 
-      await supabase
+      if (eliminatedError) {
+        console.error("Error updating eliminated player:", eliminatedError);
+      }
+
+      // Update eliminator size
+      const { error: eliminatorError } = await supabase
         .from('game_room_players')
         .update({ 
           size: eliminatorNewSize
@@ -177,6 +203,11 @@ export class OptimizedGameSyncService {
         .eq('room_id', this.roomId)
         .eq('player_id', eliminatorPlayerId);
 
+      if (eliminatorError) {
+        console.error("Error updating eliminator size:", eliminatorError);
+      }
+
+      // Broadcast the collision event
       await this.channel?.send({
         type: 'broadcast',
         event: 'game_event',
@@ -195,12 +226,13 @@ export class OptimizedGameSyncService {
       });
 
     } catch (error) {
-      // Silent error handling
+      console.error("Error in broadcastCollision:", error);
     }
   }
 
   disconnect() {
     if (this.channel) {
+      console.log('Disconnecting from optimized game sync for room:', this.roomId);
       supabase.removeChannel(this.channel);
       this.channel = null;
     }

@@ -13,7 +13,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useOptimizedGameSync } from "@/hooks/useOptimizedGameSync";
 import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
 
-export default function GameUI() {
+interface GameUIProps {
+  roomId?: string;
+}
+
+export default function GameUI({ roomId }: GameUIProps) {
   const { currentRoom, leaveRoom, player } = useGame();
   const [isGameOver, setIsGameOver] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
@@ -32,7 +36,7 @@ export default function GameUI() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
-  // Optimized game sync hooks for real-time synchronization
+  // FIXED: Enhanced game sync hooks with room validation
   const {
     isConnected: gameSyncConnected,
     syncPlayerPosition,
@@ -41,7 +45,8 @@ export default function GameUI() {
   } = useOptimizedGameSync({
     roomId: currentRoom?.id,
     playerId: player?.id,
-    isEnabled: !localMode && !!currentRoom && !!player,
+    // FIXED: Only enable sync for multiplayer rooms that match URL
+    isEnabled: !localMode && !!currentRoom && !!player && (!roomId || currentRoom.id === roomId),
     onPlayerUpdate: handlePlayerPositionUpdate,
     onPlayerEliminated: handlePlayerEliminated,
     onGameStateUpdate: handleGameStateUpdate
@@ -54,7 +59,7 @@ export default function GameUI() {
     const gameMode = urlParams.get('mode');
     const isZoneBattle = gameMode === 'zone';
     
-    console.log('GameUI: Checking URL params:', { isLocalMode, gameMode, isZoneBattle });
+    console.log('GameUI: Checking URL params:', { isLocalMode, gameMode, isZoneBattle, roomId });
     
     if (isLocalMode) {
       setLocalMode(true);
@@ -84,10 +89,24 @@ export default function GameUI() {
         });
       }
     } else if (currentRoom) {
+      // FIXED: Validate room ID matches URL
+      if (roomId && currentRoom.id !== roomId) {
+        console.error("Room ID mismatch in GameUI:", { roomId, currentRoomId: currentRoom.id });
+        toast({
+          title: "Erreur de synchronisation",
+          description: "ID de partie incorrect. Redirection...",
+          variant: "destructive"
+        });
+        navigate('/lobby');
+        return;
+      }
+      
       const alive = currentRoom.players.filter(p => p.isAlive).length;
       setAlivePlayers(alive || currentRoom.players.length);
+      
+      console.log("GameUI: Multiplayer mode initialized for room:", currentRoom.id);
     }
-  }, [player]);
+  }, [player, roomId, currentRoom, navigate, toast]);
 
   // Update alive players count
   useEffect(() => {
@@ -97,16 +116,28 @@ export default function GameUI() {
     }
   }, [currentRoom?.players, localMode]);
 
-  // Redirect if no valid session
+  // FIXED: Enhanced validation for room session
   useEffect(() => {
     if (!localMode && (!currentRoom || !player || !currentRoom.players.some(p => p.id === player.id))) {
+      console.log("Invalid session detected, redirecting to lobby");
       const timer = setTimeout(() => {
         navigate('/lobby');
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [currentRoom, player, navigate, localMode]);
+    
+    // FIXED: Additional check for room ID mismatch
+    if (!localMode && roomId && currentRoom && currentRoom.id !== roomId) {
+      console.log("Room ID mismatch detected, redirecting to lobby");
+      toast({
+        title: "Erreur de partie",
+        description: "Vous n'êtes pas dans la bonne partie.",
+        variant: "destructive"
+      });
+      navigate('/lobby');
+    }
+  }, [currentRoom, player, navigate, localMode, roomId, toast]);
 
   // Handle real-time player position updates with interpolation
   function handlePlayerPositionUpdate(playerId: string, position: OptimizedPlayerPosition) {
@@ -275,6 +306,12 @@ export default function GameUI() {
             Match #{currentRoom.matchNumber} - {currentRoom.name}
           </div>
         )}
+        {/* FIXED: Show room ID for verification */}
+        {!localMode && currentRoom && (
+          <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-gray-400`}>
+            Room: {currentRoom.id.substring(0, 8)}...
+          </div>
+        )}
         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
           Vous: {localMode ? localPlayer?.name : player?.name}
         </div>
@@ -320,7 +357,7 @@ export default function GameUI() {
         />
       </div>
       
-      {/* Synchronized Game canvas */}
+      {/* FIXED: Enhanced synchronized game canvas with room validation */}
       <div className="w-full h-full">
         <Canvas 
           ref={canvasRef}
@@ -331,6 +368,7 @@ export default function GameUI() {
           onZoneUpdate={handleZoneUpdate}
           onPlayerPositionSync={handlePlayerPositionSync}
           onPlayerCollision={handlePlayerCollision}
+          roomId={roomId}
         />
       </div>
       

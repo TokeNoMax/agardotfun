@@ -95,7 +95,7 @@ export default function RoomList() {
     }
   }, [currentRoom, countdown, gameStarting]);
 
-  // Handle countdown avec navigation immédiate
+  // FIXED: Handle countdown with unique room navigation
   useEffect(() => {
     if (countdown !== null && countdown > 0 && !gameStarting) {
       if (countdownTimerRef.current) {
@@ -116,13 +116,13 @@ export default function RoomList() {
               console.log("Starting game from countdown...");
               
               startGame().then((result) => {
-                if (result.success && !hasNavigated) {
-                  console.log("Game started successfully, navigating immediately");
+                if (result.success && !hasNavigated && currentRoom) {
+                  console.log("Game started successfully, navigating to unique room");
                   setHasNavigated(true);
                   showToastWithThrottle("🎮 Partie lancée !", "Redirection vers le jeu...");
                   
-                  // Navigation immédiate sans délai
-                  navigate('/game');
+                  // FIXED: Navigate to unique room URL
+                  navigate(`/game/${currentRoom.id}`);
                 } else {
                   setGameStarting(false);
                   showToastWithThrottle("Erreur", result.error || "Impossible de démarrer la partie", "destructive");
@@ -146,16 +146,16 @@ export default function RoomList() {
         clearInterval(countdownTimerRef.current);
       }
     };
-  }, [countdown, startGame, gameStarting, navigate, hasNavigated]);
+  }, [countdown, startGame, gameStarting, navigate, hasNavigated, currentRoom]);
 
-  // Navigation automatique si le jeu est en cours
+  // FIXED: Navigation automatique si le jeu est en cours avec room ID
   useEffect(() => {
     if (currentRoom?.status === 'playing' && !gameStarting && !hasNavigated) {
-      console.log("Game is playing, navigating to game");
+      console.log("Game is playing, navigating to unique room:", currentRoom.id);
       setHasNavigated(true);
-      navigate('/game');
+      navigate(`/game/${currentRoom.id}`);
     }
-  }, [currentRoom?.status, navigate, gameStarting, hasNavigated]);
+  }, [currentRoom?.status, navigate, gameStarting, hasNavigated, currentRoom?.id]);
 
   // Reset navigation flag when leaving room
   useEffect(() => {
@@ -205,9 +205,10 @@ export default function RoomList() {
     try {
       setGameStarting(true);
       const result = await startGame();
-      if (result.success && !hasNavigated) {
+      if (result.success && !hasNavigated && currentRoom) {
         setHasNavigated(true);
-        navigate('/game');
+        // FIXED: Navigate to unique room URL
+        navigate(`/game/${currentRoom.id}`);
       } else if (!result.success) {
         setGameStarting(false);
         showToastWithThrottle("Erreur", result.error || "Impossible de démarrer la partie", "destructive");
@@ -220,9 +221,10 @@ export default function RoomList() {
   };
 
   const handleJoinGame = () => {
-    if (!hasNavigated) {
+    if (!hasNavigated && currentRoom) {
       setHasNavigated(true);
-      navigate('/game');
+      // FIXED: Navigate to unique room URL
+      navigate(`/game/${currentRoom.id}`);
     }
   };
 

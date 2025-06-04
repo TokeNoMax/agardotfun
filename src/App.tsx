@@ -1,37 +1,36 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { GameProvider } from "./context/GameContext";
-import { WalletContextProvider } from "./context/WalletContext";
+import { GameProvider } from "@/context/GameContext";
+import { WalletProvider } from "@/components/Wallet/WalletProvider";
 import Index from "./pages/Index";
 import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
-import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <WalletContextProvider>
-        <BrowserRouter>
-          <GameProvider>
-            <Toaster />
-            <Sonner />
+    <WalletProvider>
+      <GameProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/lobby" element={<Lobby />} />
+              <Route path="/game/:roomId" element={<Game />} />
               <Route path="/game" element={<Game />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </GameProvider>
-        </BrowserRouter>
-      </WalletContextProvider>
-    </TooltipProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </GameProvider>
+    </WalletProvider>
   </QueryClientProvider>
 );
 

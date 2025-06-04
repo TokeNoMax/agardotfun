@@ -1,6 +1,6 @@
 
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import GameUI from "@/components/Game/GameUI";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,7 @@ export default function Game() {
   const { currentRoom, player, refreshCurrentRoom } = useGame();
   const navigate = useNavigate();
   const location = useLocation();
+  const { roomId } = useParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [hasVerifiedSession, setHasVerifiedSession] = useState(false);
@@ -27,7 +28,7 @@ export default function Game() {
     }
   }, [toast, lastToastTime]);
   
-  // IMPROVED: More permissive session check to prevent constant resets
+  // IMPROVED: Enhanced session check with room ID validation
   const checkGameSession = useCallback(async () => {
     // Skip validation for local mode
     if (isLocalMode) {
@@ -36,8 +37,21 @@ export default function Game() {
       return true;
     }
     
+    // FIXED: Validate room ID from URL
+    if (roomId && (!currentRoom || currentRoom.id !== roomId)) {
+      console.log("Room ID mismatch or no current room, refreshing...");
+      try {
+        await refreshCurrentRoom();
+      } catch (error) {
+        console.error("Error refreshing room:", error);
+        showThrottledToast("Erreur de synchronisation", "Impossible de synchroniser avec la partie.", "destructive");
+        navigate('/lobby');
+        return false;
+      }
+    }
+    
     // If already verified and we have basic requirements, avoid excessive checks
-    if (hasVerifiedSession && currentRoom && player) {
+    if (hasVerifiedSession && currentRoom && player && (!roomId || currentRoom.id === roomId)) {
       setIsLoading(false);
       return true;
     }
@@ -45,8 +59,6 @@ export default function Game() {
     setIsLoading(true);
     
     try {
-      await refreshCurrentRoom();
-      
       // If no active room or player is not defined, redirect to lobby
       if (!currentRoom || !player) {
         console.log("No active room or player, redirecting to lobby");
@@ -56,6 +68,14 @@ export default function Game() {
         navigate('/lobby');
         return false;
       } 
+      
+      // FIXED: Validate room ID matches URL parameter
+      if (roomId && currentRoom.id !== roomId) {
+        console.log("Room ID mismatch:", { urlRoomId: roomId, currentRoomId: currentRoom.id });
+        showThrottledToast("Partie incorrecte", "Vous n'êtes pas dans la bonne partie.", "destructive");
+        navigate('/lobby');
+        return false;
+      }
       
       // Check if players array exists
       if (!currentRoom.players) {
@@ -75,7 +95,7 @@ export default function Game() {
       
       // IMPROVED: Accept both 'waiting' and 'playing' status for active games
       if (currentRoom.status === 'playing' || currentRoom.status === 'waiting') {
-        console.log("Game session valid, status:", currentRoom.status);
+        console.log("Game session valid, status:", currentRoom.status, "Room ID:", currentRoom.id);
         setIsLoading(false);
         setHasVerifiedSession(true);
         setRetryCount(0);
@@ -104,7 +124,7 @@ export default function Game() {
       navigate('/lobby');
       return false;
     }
-  }, [currentRoom, player, navigate, isLocalMode, hasVerifiedSession, refreshCurrentRoom, retryCount, showThrottledToast]);
+  }, [currentRoom, player, navigate, isLocalMode, hasVerifiedSession, refreshCurrentRoom, retryCount, showThrottledToast, roomId]);
   
   // IMPROVED: Less frequent session checks
   useEffect(() => {
@@ -123,6 +143,9 @@ export default function Game() {
           {retryCount > 0 && (
             <p className="text-sm text-gray-500 mt-2">Tentative {retryCount}/2</p>
           )}
+          {roomId && (
+            <p className="text-sm text-gray-400 mt-1">Room: {roomId}</p>
+          )}
         </div>
       </div>
     );
@@ -130,7 +153,7 @@ export default function Game() {
   
   return (
     <div className="w-screen h-screen overflow-hidden">
-      <GameUI />
+      <GameUI roomId={roomId} />
     </div>
   );
 }

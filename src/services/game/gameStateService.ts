@@ -11,17 +11,22 @@ export interface GameState {
 }
 
 export class GameStateService {
+  // FIXED: Enhanced seed generation with timestamp and random component
   static async initializeGameState(roomId: string): Promise<string> {
     console.log("Initializing game state for room:", roomId);
     
-    // Generate new map seed
-    const mapSeed = MapGenerator.generateSeed(roomId);
+    // FIXED: Generate more unique map seed with timestamp and random component
+    const timestamp = Date.now();
+    const randomComponent = Math.random().toString(36).substring(2, 15);
+    const mapSeed = `${roomId}_${timestamp}_${randomComponent}`;
+    
+    console.log("Generated unique map seed:", mapSeed);
     
     const initialGameState: GameState = {
       mapSeed,
       consumedFoods: [],
-      gameStartTime: Date.now(),
-      lastSyncTime: Date.now()
+      gameStartTime: timestamp,
+      lastSyncTime: timestamp
     };
 
     // Update room with seed and initial state
@@ -38,7 +43,7 @@ export class GameStateService {
       throw error;
     }
 
-    console.log("Game state initialized with seed:", mapSeed);
+    console.log("Game state initialized with unique seed:", mapSeed);
     return mapSeed;
   }
 
@@ -55,7 +60,7 @@ export class GameStateService {
     }
 
     if (!data.game_seed) {
-      console.log("No game seed found, initializing...");
+      console.log("No game seed found, initializing with unique seed...");
       const newSeed = await this.initializeGameState(roomId);
       return {
         mapSeed: newSeed,
@@ -70,7 +75,7 @@ export class GameStateService {
     
     // Validate the structure and provide defaults if needed
     if (!gameState || typeof gameState !== 'object') {
-      console.warn("Invalid game state found, reinitializing...");
+      console.warn("Invalid game state found, reinitializing with unique seed...");
       const newSeed = await this.initializeGameState(roomId);
       return {
         mapSeed: newSeed,
@@ -121,6 +126,7 @@ export class GameStateService {
     }
   }
 
+  // FIXED: Enhanced spawn synchronization with unique positions
   static async syncPlayerSpawn(roomId: string, playerId: string, spawnIndex: number): Promise<void> {
     try {
       const gameState = await this.getGameState(roomId);
@@ -129,6 +135,8 @@ export class GameStateService {
       const map = MapGenerator.generateMap(gameState.mapSeed);
       const spawnPoint = MapGenerator.getSpawnPoint(map.spawnPoints, spawnIndex);
 
+      console.log(`Syncing spawn for player ${playerId} at index ${spawnIndex}:`, spawnPoint);
+
       // Update player position in database
       const { error } = await supabase
         .from('game_room_players')
@@ -136,6 +144,7 @@ export class GameStateService {
           x: spawnPoint.x,
           y: spawnPoint.y,
           size: 15, // Initial size
+          is_alive: true, // Ensure player is alive
           last_position_update: new Date().toISOString()
         })
         .eq('room_id', roomId)
