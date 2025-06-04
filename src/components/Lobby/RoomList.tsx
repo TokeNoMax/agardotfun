@@ -322,26 +322,24 @@ export default function RoomList() {
           <div className="flex space-x-2">
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={handleRefresh}
               disabled={isRefreshing}
               title="Rafraîchir les salles"
               className="text-cyber-cyan hover:text-cyber-magenta hover:bg-cyber-cyan/10 border border-cyber-cyan/30 hover:border-cyber-magenta/50 transition-all duration-300"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              REFRESH
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={handleEmergencyRefresh}
               disabled={emergencyRefreshing}
               title="Synchronisation d'urgence"
               className="text-red-400 hover:text-red-300 hover:bg-red-400/10 border border-red-400/30 hover:border-red-300/50 transition-all duration-300"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${emergencyRefreshing ? 'animate-spin' : ''}`} />
-              EMERGENCY_SYNC
+              <RefreshCw className={`h-4 w-4 ${emergencyRefreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
