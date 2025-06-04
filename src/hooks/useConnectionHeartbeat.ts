@@ -3,6 +3,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+type ConnectionState = 'connected' | 'lost' | 'checking';
+
 interface ConnectionHeartbeatOptions {
   roomId?: string;
   playerId?: string;
@@ -21,7 +23,7 @@ export const useConnectionHeartbeat = ({
   const { toast } = useToast();
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastHeartbeatRef = useRef<number>(Date.now());
-  const connectionStateRef = useRef<'connected' | 'lost' | 'checking'>('connected');
+  const connectionStateRef = useRef<ConnectionState>('connected');
   const missedHeartbeatsRef = useRef(0);
   const maxMissedHeartbeats = 3;
 

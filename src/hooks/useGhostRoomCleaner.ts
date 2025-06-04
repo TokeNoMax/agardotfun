@@ -19,59 +19,96 @@ export const useGhostRoomCleaner = ({
         console.log('Starting ghost room cleanup...');
       }
 
-      // Nettoyer les salles en statut "playing" sans joueurs
-      const { data: ghostRooms, error: ghostError } = await supabase
+      // Récupérer toutes les salles en statut "playing"
+      const { data: playingRooms, error: roomsError } = await supabase
         .from('game_rooms')
-        .select(`
-          id, 
-          name,
-          game_room_players!inner(room_id)
-        `)
-        .eq('status', 'playing')
-        .having('count', 'eq', 0);
+        .select('id, name')
+        .eq('status', 'playing');
 
-      if (ghostError) {
-        console.error('Error finding ghost rooms:', ghostError);
+      if (roomsError) {
+        console.error('Error fetching playing rooms:', roomsError);
         return;
       }
 
+      if (!playingRooms || playingRooms.length === 0) {
+        if (enableLogging) {
+          console.log('No playing rooms found');
+        }
+        return;
+      }
+
+      // Vérifier chaque salle pour voir si elle a des joueurs
+      const ghostRoomIds: string[] = [];
+      
+      for (const room of playingRooms) {
+        const { data: players, error: playersError } = await supabase
+          .from('game_room_players')
+          .select('id')
+          .eq('room_id', room.id);
+
+        if (playersError) {
+          console.error('Error checking players for room:', room.id, playersError);
+          continue;
+        }
+
+        if (!players || players.length === 0) {
+          ghostRoomIds.push(room.id);
+          if (enableLogging) {
+            console.log('Found ghost room:', room.name, room.id);
+          }
+        }
+      }
+
       // Supprimer les salles fantômes
-      if (ghostRooms && ghostRooms.length > 0) {
-        const roomIds = ghostRooms.map(room => room.id);
-        
+      if (ghostRoomIds.length > 0) {
         const { error: deleteError } = await supabase
           .from('game_rooms')
           .delete()
-          .in('id', roomIds);
+          .in('id', ghostRoomIds);
 
         if (deleteError) {
           console.error('Error deleting ghost rooms:', deleteError);
         } else if (enableLogging) {
-          console.log(`Cleaned up ${ghostRooms.length} ghost rooms:`, ghostRooms.map(r => r.name));
+          console.log(`Cleaned up ${ghostRoomIds.length} ghost rooms`);
         }
       }
 
       // Nettoyer les joueurs orphelins (dans des salles qui n'existent plus)
-      const { data: orphanPlayers, error: orphanError } = await supabase
+      const { data: allPlayers, error: allPlayersError } = await supabase
         .from('game_room_players')
-        .select(`
-          id,
-          room_id,
-          player_id,
-          game_rooms!inner(id)
-        `)
-        .is('game_rooms.id', null);
+        .select('id, room_id');
 
-      if (!orphanError && orphanPlayers && orphanPlayers.length > 0) {
-        const { error: deleteOrphanError } = await supabase
-          .from('game_room_players')
-          .delete()
-          .in('id', orphanPlayers.map(p => p.id));
+      if (allPlayersError) {
+        console.error('Error fetching all players:', allPlayersError);
+        return;
+      }
 
-        if (deleteOrphanError) {
-          console.error('Error deleting orphan players:', deleteOrphanError);
-        } else if (enableLogging) {
-          console.log(`Cleaned up ${orphanPlayers.length} orphan players`);
+      if (allPlayers && allPlayers.length > 0) {
+        const orphanPlayerIds: string[] = [];
+        
+        for (const player of allPlayers) {
+          const { data: room, error: roomError } = await supabase
+            .from('game_rooms')
+            .select('id')
+            .eq('id', player.room_id)
+            .maybeSingle();
+
+          if (roomError || !room) {
+            orphanPlayerIds.push(player.id);
+          }
+        }
+
+        if (orphanPlayerIds.length > 0) {
+          const { error: deleteOrphanError } = await supabase
+            .from('game_room_players')
+            .delete()
+            .in('id', orphanPlayerIds);
+
+          if (deleteOrphanError) {
+            console.error('Error deleting orphan players:', deleteOrphanError);
+          } else if (enableLogging) {
+            console.log(`Cleaned up ${orphanPlayerIds.length} orphan players`);
+          }
         }
       }
 
