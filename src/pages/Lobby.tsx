@@ -5,6 +5,7 @@ import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import WalletButton from "@/components/Wallet/WalletButton";
+import MobileLobbyLayout from "@/components/Lobby/MobileLobbyLayout";
 import AdminSheet from "@/components/Admin/AdminSheet";
 import { Button } from "@/components/ui/button";
 import { Gamepad2Icon, Users, User, ArrowLeft, Wallet, Zap } from "lucide-react";
@@ -18,6 +19,7 @@ import {
   SheetTrigger 
 } from "@/components/ui/sheet";
 import { useAutoCleanup } from "@/hooks/useAutoCleanup";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function Lobby() {
   const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();
@@ -26,6 +28,7 @@ export default function Lobby() {
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const isMobile = useIsMobile();
   
   // Utiliser le nettoyage automatique amélioré
   useAutoCleanup({
@@ -143,6 +146,38 @@ export default function Lobby() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
   
+  const getColorHex = (color: string): string => {
+    const colorMap: Record<string, string> = {
+      blue: '3498db',
+      red: 'e74c3c',
+      green: '2ecc71',
+      yellow: 'f1c40f',
+      purple: '9b59b6',
+      orange: 'e67e22',
+      cyan: '1abc9c',
+      pink: 'fd79a8'
+    };
+    return colorMap[color] || '3498db';
+  };
+
+  // Use mobile layout for mobile devices
+  if (isMobile) {
+    return (
+      <MobileLobbyLayout
+        player={player}
+        connected={connected}
+        publicKey={publicKey}
+        handleTestGame={handleTestGame}
+        handleLocalGame={handleLocalGame}
+        handleZoneBattle={handleZoneBattle}
+        isCreatingTestGame={isCreatingTestGame}
+        formatAddress={formatAddress}
+        getColorHex={getColorHex}
+      />
+    );
+  }
+  
+  // Desktop layout remains unchanged
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       {/* Tron Grid Background */}
