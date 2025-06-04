@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -314,48 +315,56 @@ export default function RoomList() {
 
   return (
     <div className="w-full max-w-4xl bg-black/90 backdrop-blur-sm rounded-lg border-2 border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
-      <div className="flex justify-between items-center p-6 border-b border-cyber-cyan/30">
-        <h2 className="text-2xl font-bold text-cyber-cyan font-mono">GAME_ROOMS</h2>
+      <div className="p-6 border-b border-cyber-cyan/30">
+        {/* Title and Create Room Button */}
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-cyber-cyan font-mono">GAME_ROOMS</h2>
+          
+          {!currentRoom && (
+            <CreateRoomDialog 
+              open={createDialogOpen}
+              onOpenChange={(open) => {
+                if (open) {
+                  setRoomName("");
+                  setMaxPlayers("4");
+                }
+                setCreateDialogOpen(open);
+              }}
+              roomName={roomName}
+              setRoomName={setRoomName}
+              maxPlayers={maxPlayers}
+              setMaxPlayers={setMaxPlayers}
+              handleCreateRoom={handleCreateRoom}
+              playerExists={!!player}
+            />
+          )}
+        </div>
         
+        {/* Refresh Buttons Row */}
         <div className="flex space-x-2">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={handleRefresh}
             disabled={isRefreshing}
             title="Rafraîchir les salles"
             className="text-cyber-cyan hover:text-cyber-magenta hover:bg-cyber-cyan/10 border border-cyber-cyan/30 hover:border-cyber-magenta/50 transition-all duration-300"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            REFRESH
           </Button>
           
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={handleEmergencyRefresh}
             disabled={emergencyRefreshing}
             title="Synchronisation d'urgence"
             className="text-red-400 hover:text-red-300 hover:bg-red-400/10 border border-red-400/30 hover:border-red-300/50 transition-all duration-300"
           >
-            <RefreshCw className={`h-4 w-4 ${emergencyRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 mr-2 ${emergencyRefreshing ? 'animate-spin' : ''}`} />
+            EMERGENCY_SYNC
           </Button>
-          
-          <CreateRoomDialog 
-            open={createDialogOpen}
-            onOpenChange={(open) => {
-              if (open) {
-                setRoomName("");
-                setMaxPlayers("4");
-              }
-              setCreateDialogOpen(open);
-            }}
-            roomName={roomName}
-            setRoomName={setRoomName}
-            maxPlayers={maxPlayers}
-            setMaxPlayers={setMaxPlayers}
-            handleCreateRoom={handleCreateRoom}
-            playerExists={!!player}
-          />
         </div>
       </div>
       
@@ -447,9 +456,9 @@ export default function RoomList() {
         />
       </div>
       
-      {/* Create room button */}
+      {/* Create room button for mobile - moved to bottom */}
       {!currentRoom && (
-        <div className="p-6 pt-0">
+        <div className="p-6 pt-0 block sm:hidden">
           <Button 
             className="w-full py-6 text-lg bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold border border-cyber-green/50" 
             onClick={() => setCreateDialogOpen(true)}
