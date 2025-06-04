@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
@@ -5,7 +6,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
 import { MapGenerator, GeneratedMap } from "@/services/game/mapGenerator";
 import { GameStateService, GameState } from "@/services/game/gameStateService";
-import { GameStateSyncService } from "@/services/realtime/gameStateSync";
 
 // Constants
 const GAME_WIDTH = 3000;
@@ -81,9 +81,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
   // NFT Image cache
   const [imageCache, setImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
-
-  // Game sync service
-  const gameStateSyncRef = useRef<GameStateSyncService | null>(null);
 
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
@@ -222,47 +219,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     }
   }, [isLocalMode, currentRoom, gameState]);
 
-  // Initialize game state sync
-  useEffect(() => {
-    if (isLocalMode || !currentRoom || currentRoom.status !== 'playing') {
-      return;
-    }
-
-    console.log("Setting up game state sync for room:", currentRoom.id);
-
-    const gameStateSync = new GameStateSyncService(currentRoom.id, {
-      onGameStateUpdate: (newGameState: GameState) => {
-        console.log("Game state updated:", newGameState);
-        setGameState(newGameState);
-        
-        // Update map if seed changed
-        if (gameState?.mapSeed !== newGameState.mapSeed) {
-          const newMap = MapGenerator.generateMap(newGameState.mapSeed);
-          setGameMap(newMap);
-          console.log("Map regenerated with new seed:", newGameState.mapSeed);
-        }
-      },
-      onFoodConsumed: (foodId: string) => {
-        console.log("Food consumed by another player:", foodId);
-        setFoods(prevFoods => prevFoods.filter(food => food.id !== foodId));
-      },
-      onMapUpdate: (mapSeed: string) => {
-        console.log("Map updated with seed:", mapSeed);
-        const newMap = MapGenerator.generateMap(mapSeed);
-        setGameMap(newMap);
-      }
-    });
-
-    gameStateSyncRef.current = gameStateSync;
-    gameStateSync.connect();
-
-    return () => {
-      gameStateSync.disconnect();
-      gameStateSyncRef.current = null;
-    };
-  }, [currentRoom?.id, currentRoom?.status, isLocalMode]);
-
-  // Game initialization effect
+  // FIXED: Unified game initialization with shared database seed
   useEffect(() => {
     console.log("Canvas: Game initialization check", { 
       gameInitialized, 
@@ -290,7 +247,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       return;
     }
     
-    console.log("Canvas: Initializing game for the first time");
+    console.log("Canvas: Initializing synchronized game");
     
     const initializeGame = async () => {
       let initialPlayers: Player[] = [];
@@ -318,62 +275,65 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         setRugs(localMap.rugs);
         
       } else if (currentRoom) {
-        // Get or initialize game state
+        console.log("Canvas: Initializing multiplayer game with shared seed");
+        
+        // FIXED: Get shared game state and seed from database
         const roomGameState = await GameStateService.getGameState(currentRoom.id);
         if (roomGameState) {
+          console.log("Canvas: Using shared seed:", roomGameState.mapSeed);
           setGameState(roomGameState);
           
-          // Generate map from seed
-          const map = MapGenerator.generateMap(roomGameState.mapSeed);
-          setGameMap(map);
+          // FIXED: Generate map from shared seed - all players use same map
+          const sharedMap = MapGenerator.generateMap(roomGameState.mapSeed);
+          setGameMap(sharedMap);
           
           // Filter out consumed foods
-          const availableFoods = map.foods.filter(food => 
+          const availableFoods = sharedMap.foods.filter(food => 
             !roomGameState.consumedFoods.includes(food.id)
           );
           setFoods(availableFoods);
-          setRugs(map.rugs);
+          setRugs(sharedMap.rugs);
           
-          console.log(`Map loaded: ${availableFoods.length}/${map.foods.length} foods available`);
+          console.log(`Canvas: Shared map loaded with ${availableFoods.length}/${sharedMap.foods.length} foods`);
+          
+          // FIXED: Initialize players with synchronized spawn points
+          initialPlayers = currentRoom.players.map((p, index) => {
+            const spawnPoint = MapGenerator.getSpawnPoint(sharedMap.spawnPoints, index);
+            console.log(`Canvas: Player ${p.name} spawning at:`, spawnPoint);
+            
+            return {
+              ...p,
+              x: spawnPoint.x,
+              y: spawnPoint.y,
+              isAlive: true,
+              size: 15
+            };
+          });
+          
+          const ourPlayer = initialPlayers.find(p => p.id === currentPlayer?.id);
+          if (ourPlayer) {
+            playerRef.current = ourPlayer;
+            console.log("Canvas: Our player initialized:", ourPlayer);
+            
+            // FIXED: Sync spawn position to database immediately
+            const playerIndex = initialPlayers.findIndex(p => p.id === currentPlayer?.id);
+            if (playerIndex >= 0) {
+              console.log("Canvas: Syncing spawn position to database");
+              await GameStateService.syncPlayerSpawn(currentRoom.id, currentPlayer!.id, playerIndex);
+            }
+          }
+          
+          // Preload all players' NFT images
+          initialPlayers.forEach(player => {
+            if (player.nftImageUrl) {
+              preloadImage(player.nftImageUrl).catch(console.error);
+            }
+          });
         }
-
-        // Initialize players with spawn points
-        initialPlayers = currentRoom.players.map((p, index) => {
-          let spawnPoint = { x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2 };
-          
-          if (gameMap) {
-            spawnPoint = MapGenerator.getSpawnPoint(gameMap.spawnPoints, index);
-          }
-          
-          return {
-            ...p,
-            x: spawnPoint.x,
-            y: spawnPoint.y,
-            isAlive: true,
-            size: 15
-          };
-        });
-        
-        const ourPlayer = initialPlayers.find(p => p.id === currentPlayer?.id);
-        if (ourPlayer) {
-          playerRef.current = ourPlayer;
-          
-          // Sync spawn position to database
-          const playerIndex = initialPlayers.findIndex(p => p.id === currentPlayer?.id);
-          if (playerIndex >= 0) {
-            await GameStateService.syncPlayerSpawn(currentRoom.id, currentPlayer!.id, playerIndex);
-          }
-        }
-        
-        // Preload all players' NFT images
-        initialPlayers.forEach(player => {
-          if (player.nftImageUrl) {
-            preloadImage(player.nftImageUrl).catch(console.error);
-          }
-        });
       }
       
       setPlayers(initialPlayers);
+      console.log("Canvas: Players initialized:", initialPlayers.length);
       
       // Initialize safe zone for Zone Battle mode
       if (isZoneMode) {
@@ -387,10 +347,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       // Center camera on player
       if (playerRef.current) {
         setCameraPosition({ x: playerRef.current.x, y: playerRef.current.y });
+        console.log("Canvas: Camera centered on player at:", playerRef.current.x, playerRef.current.y);
       }
 
       setGameInitialized(true);
-      console.log("Canvas: Game initialization completed");
+      console.log("Canvas: Game initialization completed successfully");
     };
 
     initializeGame();
@@ -423,7 +384,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile, updateMousePosition]);
 
-  // Enhanced game loop with optimized synchronization (reduced frequency)
+  // FIXED: Enhanced game loop with faster position sync (100ms)
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
@@ -435,7 +396,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
       
-      // Zone Battle logic - optimized
+      // Zone Battle logic
       if (isZoneMode && safeZone) {
         setSafeZone(prevZone => {
           if (!prevZone) return prevZone;
@@ -470,7 +431,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Zone Battle damage logic - optimized
+        // Zone Battle damage logic
         if (isZoneMode && safeZone && playerRef.current) {
           const inZone = isPlayerInSafeZone(me, safeZone);
           
@@ -485,13 +446,12 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           }
         }
         
-        // Movement logic - optimized
+        // Movement logic
         const canvas = canvasRef.current;
         if (canvas) {
           const maxSpeed = calculateSpeed(me.size);
           
           if (isMobile && mobileDirection) {
-            console.log('Canvas: Using mobile direction:', mobileDirection);
             me.x += mobileDirection.x * maxSpeed;
             me.y += mobileDirection.y * maxSpeed;
           } else if (!isMobile) {
@@ -522,8 +482,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
         }
         
-        // Sync player position - optimized frequency (200ms instead of 100ms)
-        if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 200) {
+        // FIXED: Faster position sync for better multiplayer experience (100ms)
+        if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 100) {
           setLastPositionSync(currentTime);
           onPlayerPositionSync({
             x: me.x,
@@ -534,7 +494,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           });
         }
         
-        // Food collision with sync - optimized
+        // Food collision with sync
         setFoods(prevFoods => {
           const remainingFoods = prevFoods.filter(food => {
             const dx = me.x - food.x;
@@ -555,7 +515,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             return true;
           });
           
-          // Respawn food only in local mode - optimized
+          // Respawn food only in local mode
           if (isLocalMode && remainingFoods.length < gameMap!.foods.length / 2) {
             const newFoodsCount = gameMap!.foods.length - remainingFoods.length;
             const newFoods = Array(newFoodsCount).fill(0).map((_, index) => ({
@@ -593,6 +553,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           return prevRugs;
         });
         
+        // Player collisions (only for multiplayer)
         if (!isLocalMode) {
           for (let i = 0; i < updatedPlayers.length; i++) {
             if (i === ourPlayerIndex || !updatedPlayers[i].isAlive) continue;
@@ -623,13 +584,13 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           }
         }
         
-        // Update camera - optimized smoothing
+        // Update camera
         setCameraPosition(prev => ({
           x: prev.x + (me.x - prev.x) * 0.1,
           y: prev.y + (me.y - prev.y) * 0.1
         }));
         
-        // Update zoom - optimized
+        // Update zoom
         const maxSize = 50;
         const effectiveSize = Math.min(me.size, maxSize);
         setCameraZoom(prev => {
@@ -688,7 +649,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       context.lineWidth = 4 / cameraZoom;
       context.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       
-      // Draw grid - optimized
+      // Draw grid
       context.beginPath();
       context.strokeStyle = GRID_COLOR;
       context.lineWidth = 1 / cameraZoom;
@@ -705,7 +666,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       
       context.stroke();
       
-      // Zone rendering - optimized
+      // Zone rendering
       if (isZoneMode && safeZone && safeZone.isActive) {
         context.beginPath();
         context.strokeStyle = '#22c55e';
@@ -733,7 +694,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.globalCompositeOperation = 'source-over';
       }
       
-      // Draw foods - optimized
+      // Draw foods
       foods.forEach(food => {
         context.beginPath();
         context.fillStyle = '#2ecc71';
@@ -741,7 +702,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.fill();
       });
       
-      // Draw rugs - optimized
+      // Draw rugs
       rugs.forEach(rug => {
         context.beginPath();
         context.fillStyle = '#8e44ad';
@@ -749,7 +710,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.fill();
       });
       
-      // Draw players - optimized with cached images
+      // Draw players
       players.forEach(player => {
         if (!player.isAlive) return;
         

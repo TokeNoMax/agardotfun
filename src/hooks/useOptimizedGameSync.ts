@@ -19,6 +19,7 @@ export const useOptimizedGameSync = ({
   const [isConnected, setIsConnected] = useState(false);
   const syncServiceRef = useRef<OptimizedGameSyncService | null>(null);
   const connectionAttemptRef = useRef<boolean>(false);
+  const lastConnectionKey = useRef<string>('');
 
   // FIXED: Memoize callbacks to prevent dependency changes
   const stableOnPlayerUpdate = useCallback((playerId: string, position: OptimizedPlayerPosition) => {
@@ -36,41 +37,52 @@ export const useOptimizedGameSync = ({
     onGameStateUpdate?.(gameState);
   }, [onGameStateUpdate]);
 
-  // FIXED: Stabilize connection logic with proper cleanup
+  // FIXED: Create connection key for tracking
+  const currentConnectionKey = `${roomId}-${playerId}-${isEnabled}`;
+
+  // FIXED: Enhanced connection logic with better duplicate prevention
   useEffect(() => {
     console.log("useOptimizedGameSync effect triggered:", { 
       roomId, 
       playerId, 
       isEnabled, 
       currentConnection: !!syncServiceRef.current,
-      connectionAttempt: connectionAttemptRef.current 
+      connectionAttempt: connectionAttemptRef.current,
+      lastKey: lastConnectionKey.current,
+      currentKey: currentConnectionKey
     });
 
-    // Prevent multiple connection attempts
-    if (connectionAttemptRef.current) {
-      console.log("Connection attempt already in progress, skipping");
+    // If the connection key hasn't changed and we have a valid connection, skip
+    if (lastConnectionKey.current === currentConnectionKey && syncServiceRef.current && isConnected) {
+      console.log("Connection already established for this key, skipping");
       return;
+    }
+
+    // Prevent multiple connection attempts for the same key
+    if (connectionAttemptRef.current && lastConnectionKey.current === currentConnectionKey) {
+      console.log("Connection attempt already in progress for this key, skipping");
+      return;
+    }
+
+    // Clean up existing connection if conditions changed
+    if (syncServiceRef.current) {
+      console.log("Cleaning up existing connection");
+      syncServiceRef.current.disconnect();
+      syncServiceRef.current = null;
+      setIsConnected(false);
+      connectionAttemptRef.current = false;
     }
 
     if (!isEnabled || !roomId || !playerId) {
-      console.log("Conditions not met for sync, cleaning up existing connection");
-      if (syncServiceRef.current) {
-        syncServiceRef.current.disconnect();
-        syncServiceRef.current = null;
-        setIsConnected(false);
-        connectionAttemptRef.current = false;
-      }
+      console.log("Conditions not met for sync:", { isEnabled, roomId, playerId });
+      lastConnectionKey.current = '';
       return;
     }
 
-    // Check if we already have a connection for this room
-    if (syncServiceRef.current) {
-      console.log("Already connected to optimized game sync, skipping");
-      return;
-    }
-
-    // FIXED: Set connection attempt flag
+    // Set connection attempt flag and update last connection key
     connectionAttemptRef.current = true;
+    lastConnectionKey.current = currentConnectionKey;
+    
     console.log("Creating new optimized game sync connection for:", { roomId, playerId });
     
     const connectAsync = async () => {
@@ -83,14 +95,22 @@ export const useOptimizedGameSync = ({
 
         await syncService.connect();
         
-        console.log("Optimized game sync connected successfully for room:", roomId);
-        syncServiceRef.current = syncService;
-        setIsConnected(true);
-        connectionAttemptRef.current = false;
+        // Only set as connected if this is still the current connection attempt
+        if (lastConnectionKey.current === currentConnectionKey) {
+          console.log("Optimized game sync connected successfully for room:", roomId);
+          syncServiceRef.current = syncService;
+          setIsConnected(true);
+          connectionAttemptRef.current = false;
+        } else {
+          console.log("Connection completed but key changed, discarding");
+          syncService.disconnect();
+        }
       } catch (error) {
         console.error("Failed to connect optimized game sync:", error);
-        setIsConnected(false);
-        connectionAttemptRef.current = false;
+        if (lastConnectionKey.current === currentConnectionKey) {
+          setIsConnected(false);
+          connectionAttemptRef.current = false;
+        }
       }
     };
 
@@ -105,7 +125,7 @@ export const useOptimizedGameSync = ({
       }
       connectionAttemptRef.current = false;
     };
-  }, [roomId, playerId, isEnabled, stableOnPlayerUpdate, stableOnPlayerEliminated, stableOnGameStateUpdate]);
+  }, [currentConnectionKey, isEnabled, roomId, playerId, stableOnPlayerUpdate, stableOnPlayerEliminated, stableOnGameStateUpdate]);
 
   const syncPlayerPosition = useCallback(async (position: OptimizedPlayerPosition) => {
     if (syncServiceRef.current && isConnected) {
