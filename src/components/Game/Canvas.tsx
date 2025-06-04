@@ -36,6 +36,7 @@ interface CanvasProps {
   onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
   onPlayerPositionSync?: (position: OptimizedPlayerPosition) => Promise<void>;
   onPlayerCollision?: (eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) => Promise<void>;
+  roomId?: string;
 }
 
 export interface CanvasRef {
@@ -51,7 +52,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   isZoneMode = false,
   onZoneUpdate,
   onPlayerPositionSync,
-  onPlayerCollision
+  onPlayerCollision,
+  roomId
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { currentRoom, player: currentPlayer } = useGame();
@@ -404,7 +406,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         animationFrameRef.current = null;
       }
     };
-  }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized]);
+  }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized, roomId]);
 
   // Mouse movement handler
   useEffect(() => {
