@@ -32,7 +32,6 @@ export default function AvailableRooms({
   onSelectRoom,
   refreshRooms
 }: AvailableRoomsProps) {
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasSuccessfulConnection, setHasSuccessfulConnection] = useState(false);
   const { toast } = useToast();
   
@@ -48,32 +47,6 @@ export default function AvailableRooms({
       console.log("rooms is not an array:", rooms);
     }
   }, [rooms]);
-
-  const handleRefresh = async () => {
-    if (!refreshRooms || isRefreshing) return;
-    
-    console.log("Manual refresh started");
-    setIsRefreshing(true);
-    
-    try {
-      await refreshRooms();
-      console.log("Refresh completed, rooms:", rooms);
-      toast({
-        title: "ROOMS_REFRESHED",
-        description: `${Array.isArray(rooms) ? rooms.length : 0} salles trouvées.`
-      });
-    } catch (error) {
-      console.error("Error during refresh:", error);
-      setHasSuccessfulConnection(false);
-      toast({
-        title: "CONNECTION_ERROR",
-        description: "Impossible de récupérer les salles. Vérifiez votre connexion.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   // Fonction pour déterminer le statut d'affichage d'une salle
   const getRoomDisplayStatus = (room: GameRoom) => {
@@ -110,24 +83,34 @@ export default function AvailableRooms({
     };
   };
 
+  const handleContextualRefresh = async () => {
+    if (!refreshRooms) return;
+    
+    try {
+      await refreshRooms();
+      toast({
+        title: "ROOMS_REFRESHED",
+        description: `${Array.isArray(rooms) ? rooms.length : 0} salles trouvées.`
+      });
+    } catch (error) {
+      console.error("Error during refresh:", error);
+      setHasSuccessfulConnection(false);
+      toast({
+        title: "CONNECTION_ERROR",
+        description: "Impossible de récupérer les salles. Vérifiez votre connexion.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const roomsToDisplay = Array.isArray(rooms) ? rooms : [];
   
   console.log("Rendering AvailableRooms with", roomsToDisplay.length, "rooms");
 
   return (
     <div className="mb-4">
-      <div className="flex justify-between items-center mb-4">
+      <div className="mb-4">
         <h3 className="text-xl font-bold text-cyber-cyan font-mono">AVAILABLE_ROOMS ({roomsToDisplay.length})</h3>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          title="Actualiser les salles"
-          className="text-cyber-cyan hover:text-cyber-magenta hover:bg-cyber-cyan/10 border border-cyber-cyan/30 hover:border-cyber-magenta/50 transition-all duration-300"
-        >
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
       </div>
       
       {/* Connection status indicator */}
@@ -220,20 +203,10 @@ export default function AvailableRooms({
               <p className="text-gray-400 mt-2 font-mono">Connexion au système de salles de jeu.</p>
               <Button 
                 className="mt-4 bg-gradient-to-r from-cyber-yellow to-cyber-orange hover:from-cyber-orange hover:to-cyber-yellow text-black font-mono font-bold" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
+                onClick={handleContextualRefresh}
               >
-                {isRefreshing ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    CONNECTING...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    RETRY_CONNECTION
-                  </>
-                )}
+                <RefreshCw className="mr-2 h-4 w-4" />
+                RETRY_CONNECTION
               </Button>
             </div>
           ) : (
@@ -245,20 +218,10 @@ export default function AvailableRooms({
               </div>
               <Button 
                 className="bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
+                onClick={handleContextualRefresh}
               >
-                {isRefreshing ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    SCANNING...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    SCAN_ROOMS
-                  </>
-                )}
+                <RefreshCw className="mr-2 h-4 w-4" />
+                SCAN_ROOMS
               </Button>
             </div>
           )}
