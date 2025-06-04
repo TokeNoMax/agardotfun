@@ -72,8 +72,17 @@ export class OptimizedGameSyncService {
         this.interpolators.set(payload.new.player_id, interpolator);
       }
       
+      // Convert to InterpolatedPosition with required velocity fields
+      const interpolatedPosition: InterpolatedPosition = {
+        x: position.x,
+        y: position.y,
+        size: position.size,
+        velocityX: position.velocityX || 0,
+        velocityY: position.velocityY || 0
+      };
+      
       // Add snapshot for interpolation
-      interpolator.addSnapshot(position);
+      interpolator.addSnapshot(interpolatedPosition);
       
       this.callbacks.onPlayerUpdate?.(payload.new.player_id, position);
     }
@@ -128,7 +137,25 @@ export class OptimizedGameSyncService {
     const deltaTime = now - this.lastRenderTime;
     this.lastRenderTime = now;
 
-    return interpolator.interpolate(targetPosition, deltaTime);
+    // Convert to InterpolatedPosition for interpolation
+    const interpolatedTarget: InterpolatedPosition = {
+      x: targetPosition.x,
+      y: targetPosition.y,
+      size: targetPosition.size,
+      velocityX: targetPosition.velocityX || 0,
+      velocityY: targetPosition.velocityY || 0
+    };
+
+    const result = interpolator.interpolate(interpolatedTarget, deltaTime);
+    
+    // Convert back to OptimizedPlayerPosition
+    return {
+      x: result.x,
+      y: result.y,
+      size: result.size,
+      velocityX: result.velocityX,
+      velocityY: result.velocityY
+    };
   }
 
   async broadcastCollision(eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) {

@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
@@ -65,6 +66,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [gameOverCalled, setGameOverCalled] = useState(false);
   const [gameInitialized, setGameInitialized] = useState(false);
+  const [gameStartTime, setGameStartTime] = useState<number>(Date.now());
+  const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
   
   // Mobile-specific state
   const isMobile = useIsMobile();
