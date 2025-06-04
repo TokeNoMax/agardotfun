@@ -404,7 +404,7 @@ export function GameContextProvider({ children }: GameContextProviderProps) {
 
     try {
       const currentPlayer = currentRoom.players && currentRoom.players.find(p => p.id === player.id);
-      const newReadyStatus = !currentPlayer?.ready;
+      const newReadyStatus = !currentPlayer?.isReady;
       await playerService.setPlayerReady(currentRoom.id, player.id, newReadyStatus);
       await refreshCurrentRoom();
     } catch (error) {

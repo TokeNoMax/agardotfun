@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
@@ -168,9 +167,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     return {
       x: GAME_WIDTH / 2,
       y: GAME_HEIGHT / 2,
+      radius: INITIAL_ZONE_RADIUS,
       currentRadius: INITIAL_ZONE_RADIUS,
       maxRadius: INITIAL_ZONE_RADIUS,
       nextShrinkTime: now + 30000,
+      shrinkDuration: 10000,
       isActive: true,
       shrinkInterval: ZONE_SHRINK_INTERVAL,
       damagePerSecond: ZONE_DAMAGE_PER_SECOND,

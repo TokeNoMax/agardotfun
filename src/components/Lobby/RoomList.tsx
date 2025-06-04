@@ -72,7 +72,7 @@ export default function RoomList() {
       currentRoom.status === 'waiting' && 
       currentRoom.players && 
       currentRoom.players.length >= 2 && 
-      currentRoom.players.every(p => p.ready === true) &&
+      currentRoom.players.every(p => p.isReady === true) &&
       !gameStarting
     ) {
       // Launch countdown if all players are ready
@@ -239,7 +239,7 @@ export default function RoomList() {
     
     const currentPlayer = currentRoom.players && currentRoom.players.find(p => p.id === player.id);
     if (currentPlayer) {
-      await setPlayerReady(!currentPlayer.ready);
+      await setPlayerReady(!currentPlayer.isReady);
     } else {
       await setPlayerReady(true);
     }
@@ -297,7 +297,7 @@ export default function RoomList() {
   const isCurrentPlayerReady = () => {
     if (!currentRoom || !player || !currentRoom.players) return false;
     const currentPlayer = currentRoom.players.find(p => p.id === player.id);
-    return !!currentPlayer?.ready;
+    return !!currentPlayer?.isReady;
   };
 
   const isCurrentPlayerInRoom = () => {
@@ -410,12 +410,12 @@ export default function RoomList() {
                           <span 
                             key={player.id} 
                             className={`px-2 py-1 rounded text-sm font-mono ${
-                              player.ready 
+                              player.isReady 
                                 ? 'bg-cyber-green/20 text-cyber-green border border-cyber-green/50' 
                                 : 'bg-black/50 border border-cyber-cyan/30 text-gray-300'
                             }`}
                           >
-                            {player.name} {player.ready ? '✓' : '○'}
+                            {player.name} {player.isReady ? '✓' : '○'}
                           </span>
                         ))}
                       </div>
