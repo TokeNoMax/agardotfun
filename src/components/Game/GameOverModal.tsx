@@ -46,7 +46,7 @@ export default function GameOverModal({
 
   // Get victory message based on context
   const getVictoryMessage = () => {
-    if (!winner) return "Partie terminée";
+    if (!winner || !winner.name) return "Partie terminée";
     
     const messages = {
       multiplayer: [
@@ -96,6 +96,18 @@ export default function GameOverModal({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  // Safe name display with fallback
+  const getDisplayName = (player: Player | null) => {
+    if (!player) return "Joueur Inconnu";
+    return player.name || "Joueur Sans Nom";
+  };
+
+  // Safe initials with fallback
+  const getPlayerInitials = (player: Player | null) => {
+    if (!player || !player.name) return "??";
+    return player.name.substring(0, 2).toUpperCase();
+  };
+
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-md relative overflow-hidden">
@@ -126,20 +138,20 @@ export default function GameOverModal({
               <>
                 <div className="flex flex-col items-center py-6">
                   <div 
-                    className={`w-24 h-24 rounded-full mb-4 bg-game-${winner.color} flex items-center justify-center relative ${
+                    className={`w-24 h-24 rounded-full mb-4 bg-game-${winner.color || 'blue'} flex items-center justify-center relative ${
                       showConfetti ? 'animate-pulse' : ''
                     }`}
-                    style={{ backgroundColor: `#${getColorHex(winner.color)}` }}
+                    style={{ backgroundColor: `#${getColorHex(winner.color || 'blue')}` }}
                   >
                     {winner.nftImageUrl ? (
                       <img 
                         src={winner.nftImageUrl} 
-                        alt={winner.name}
+                        alt={getDisplayName(winner)}
                         className="w-full h-full rounded-full object-cover"
                       />
                     ) : (
                       <span className="text-white font-bold text-2xl">
-                        {winner.name.substring(0, 2).toUpperCase()}
+                        {getPlayerInitials(winner)}
                       </span>
                     )}
                     {/* Winner glow effect */}
@@ -159,7 +171,7 @@ export default function GameOverModal({
                           Taille finale
                         </div>
                         <div className="font-bold text-lg">
-                          {finalSize ? Math.round(finalSize) : Math.round(winner.size)}
+                          {finalSize ? Math.round(finalSize) : Math.round(winner.size || 0)}
                         </div>
                       </div>
                       <div className="text-center">
