@@ -31,14 +31,20 @@ export const useConnectionHeartbeat = ({
     if (!roomId || !playerId || !enabled) return true;
 
     try {
+      // CORRECTION 2: Remplacer maybeSingle() par single() pour éviter les erreurs 406
       const { data, error } = await supabase
         .from('game_room_players')
         .select('id')
         .eq('room_id', roomId)
         .eq('player_id', playerId)
-        .maybeSingle();
+        .single();
 
       if (error) {
+        if (error.code === 'PGRST116') {
+          // Ligne absente - le joueur n'est plus dans la room
+          console.log('Heartbeat: Player not found in room (PGRST116)');
+          return false;
+        }
         console.error('Heartbeat check failed:', error);
         return false;
       }

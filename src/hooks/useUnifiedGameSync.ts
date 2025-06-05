@@ -117,12 +117,12 @@ export const useUnifiedGameSync = ({
 
         return true;
       } else {
-        console.error(`[useUnifiedGameSync] ❌ Failed to connect`);
+        console.error(`[useUnifiedGameSync] ❌ Failed to connect - service returned false`);
         setConnectionState({ isConnected: false, state: 'failed' });
         
         showThrottledToast(
           "Erreur de connexion",
-          "Impossible de se connecter au serveur temps réel",
+          "Impossible de se connecter au serveur temps réel. Vérifiez que vous êtes dans la room.",
           3000
         );
         

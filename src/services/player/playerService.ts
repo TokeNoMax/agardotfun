@@ -84,7 +84,7 @@ export const playerService = {
       }
 
       console.log("Adding/updating player in room...");
-      // AMÉLIORATION: Utiliser upsert au lieu d'insert pour éviter les doublons
+      // CORRECTION 1: Ajouter logs d'erreur visibles et utiliser upsert avec onConflict
       const { error: joinError } = await supabase
         .from('game_room_players')
         .upsert({
@@ -103,10 +103,13 @@ export const playerService = {
         });
 
       if (joinError) {
-        console.error("Error joining room:", joinError);
+        console.error("[JOIN game_room_players] failed:", joinError);
+        // Log d'erreur visible en production
+        alert(`join err: ${joinError.message}`);
         throw new Error(`Impossible de rejoindre la salle: ${joinError.message}`);
       }
 
+      console.log("✅ [JOIN game_room_players] succeeded for player:", player.walletAddress);
       await activityService.updateRoomActivity(roomId);
       console.log("✅ Player joined/rejoined room successfully");
     } catch (error) {

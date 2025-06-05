@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { PlayerColor } from "@/types/game";
 
@@ -75,6 +74,34 @@ export class UnifiedGameSyncService {
       this.connectionState = 'connecting';
       console.log(`[UnifiedGameSync] 🔄 Connecting to channel: ${this.channelName}`);
 
+      // CORRECTION 4: Vérifier que le joueur est bien dans la room avant d'ouvrir le channel
+      console.log(`[UnifiedGameSync] 🔍 Verifying player presence in room...`);
+      const { data: playerInRoom, error: verifyError } = await supabase
+        .from('game_room_players')
+        .select('player_id')
+        .eq('room_id', this.roomId)
+        .eq('player_id', this.playerId)
+        .single();
+
+      if (verifyError) {
+        if (verifyError.code === 'PGRST116') {
+          console.error(`[UnifiedGameSync] ❌ Player ${this.playerId} not found in room ${this.roomId}`);
+          this.connectionState = 'disconnected';
+          return false;
+        }
+        console.error(`[UnifiedGameSync] ❌ Error verifying player in room:`, verifyError);
+        this.connectionState = 'disconnected';
+        return false;
+      }
+
+      if (!playerInRoom) {
+        console.error(`[UnifiedGameSync] ❌ Player not in room, aborting connection`);
+        this.connectionState = 'disconnected';
+        return false;
+      }
+
+      console.log(`[UnifiedGameSync] ✅ Player verified in room, proceeding with channel connection`);
+
       // Clean up any existing channel first
       if (this.channel) {
         console.log(`[UnifiedGameSync] 🧹 Cleaning up existing channel`);
@@ -129,25 +156,35 @@ export class UnifiedGameSyncService {
         }
       });
 
-      // Subscribe with detailed status tracking
+      // Subscribe with detailed status tracking and enhanced verification
       return new Promise((resolve) => {
         this.channel.subscribe(async (status: string) => {
           console.log(`[UnifiedGameSync] 📊 Channel status changed to: ${status}`);
           
           switch (status) {
             case 'SUBSCRIBED':
-              this.isConnected = true;
-              this.connectionState = 'connected';
-              console.log(`[UnifiedGameSync] ✅ Successfully connected to channel: ${this.channelName}`);
+              // CORRECTION 5: Vérification du statut du channel avec logs détaillés
+              console.log(`[UnifiedGameSync] ✅ [STATUS] SUBSCRIBED - Channel fully connected`);
               
-              // Announce presence
-              await this.announcePresence();
-              
-              // Start heartbeat and ping system
-              this.startHeartbeat();
-              this.startPingSystem();
-              
-              resolve(true);
+              // Vérifier que le channel est vraiment prêt
+              if (this.channel && this.channel.state === 'joined') {
+                this.isConnected = true;
+                this.connectionState = 'connected';
+                console.log(`[UnifiedGameSync] ✅ Channel state confirmed as 'joined'`);
+                
+                // Announce presence
+                await this.announcePresence();
+                
+                // Start heartbeat and ping system
+                this.startHeartbeat();
+                this.startPingSystem();
+                
+                console.log(`[UnifiedGameSync] 🎯 Connection fully established and ready`);
+                resolve(true);
+              } else {
+                console.warn(`[UnifiedGameSync] ⚠️ Channel subscribed but state is not 'joined':`, this.channel?.state);
+                resolve(false);
+              }
               break;
               
             case 'CHANNEL_ERROR':
