@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useGame } from "@/context/GameContext";
 import { useToast } from "@/hooks/use-toast";
@@ -9,11 +10,8 @@ import Leaderboard from "@/components/Game/Leaderboard";
 import GameOverModal from "@/components/Game/GameOverModal";
 import TouchControlArea from "@/components/Game/TouchControlArea";
 import ZoneCounter from "@/components/Game/ZoneCounter";
-import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function Game() {
-  const { isAuthenticated, isLoading: authLoading, user } = useAuthGuard();
-  
   const { currentRoom, player, refreshCurrentRoom } = useGame();
   const navigate = useNavigate();
   const location = useLocation();
@@ -158,21 +156,6 @@ export default function Game() {
         </div>
       </div>
     );
-  }
-  
-  if (authLoading) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Authentification...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (!isAuthenticated) {
-    return null; // AuthGuard will redirect
   }
   
   return (
