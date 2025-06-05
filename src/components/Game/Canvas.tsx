@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
@@ -34,7 +33,7 @@ interface CanvasProps {
   localPlayer?: Player | null;
   isZoneMode?: boolean;
   onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
-  onPlayerPositionSync?: (position: OptimizedPlayerPosition) => Promise<void>;
+  onPlayerPositionSync?: (position: { x: number; y: number; size: number }) => void;
   onPlayerCollision?: (eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) => Promise<void>;
   roomId?: string;
 }
@@ -44,6 +43,7 @@ export interface CanvasRef {
   updatePlayerPosition: (playerId: string, position: OptimizedPlayerPosition) => void;
   eliminatePlayer: (eliminatedPlayerId: string, eliminatorPlayerId: string) => void;
   addPlayer: (player: Player) => void;
+  getOrCreatePlayer: (id: string) => any;
 }
 
 const Canvas = forwardRef<CanvasRef, CanvasProps>(({ 
@@ -165,6 +165,31 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           size: newPlayer.size || 15
         }];
       });
+    },
+    getOrCreatePlayer: (id: string) => {
+      // Return a simple mock object that matches what the realtime sync expects
+      return {
+        setPos: (x: number, y: number) => {
+          setPlayers(prevPlayers => {
+            return prevPlayers.map(player => {
+              if (player.id === id) {
+                return { ...player, x, y };
+              }
+              return player;
+            });
+          });
+        },
+        setSize: (size: number) => {
+          setPlayers(prevPlayers => {
+            return prevPlayers.map(player => {
+              if (player.id === id) {
+                return { ...player, size };
+              }
+              return player;
+            });
+          });
+        }
+      };
     }
   }));
 
@@ -514,9 +539,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           onPlayerPositionSync({
             x: me.x,
             y: me.y,
-            size: me.size,
-            velocityX: 0,
-            velocityY: 0
+            size: me.size
           });
         }
         
