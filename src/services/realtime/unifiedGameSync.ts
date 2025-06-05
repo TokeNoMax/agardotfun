@@ -1,9 +1,9 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface GamePlayer {
   id: string;
   name: string;
+  walletAddress: string; // Added missing property
   color: string;
   x: number;
   y: number;
@@ -84,9 +84,10 @@ export class UnifiedGameSyncService {
         if (playerData && playerData.playerId !== this.playerId) {
           // Récupérer la position depuis la DB pour le nouveau joueur
           this.loadPlayerPosition(playerData.playerId).then(position => {
-            const joinedPlayer = {
+            const joinedPlayer: GamePlayer = {
               id: playerData.playerId,
               name: playerData.name,
+              walletAddress: playerData.walletAddress || playerData.playerId, // Include walletAddress
               color: 'blue', // couleur par défaut
               x: position?.x || 1500,
               y: position?.y || 1500,
@@ -184,6 +185,7 @@ export class UnifiedGameSyncService {
       const playerData = {
         playerId: this.playerId,
         name: this.playerName,
+        walletAddress: this.playerId, // Add walletAddress to presence data
         joinedAt: Date.now()
       };
 

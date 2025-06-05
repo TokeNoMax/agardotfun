@@ -88,9 +88,14 @@ export default function GameUI({ roomId }: GameUIProps) {
     onPlayerJoined: (joinedPlayer) => {
       console.log('[GameUI] Player joined room:', joinedPlayer);
       
-      // CORRECTION: Ajouter le joueur au Canvas
+      // CORRECTION: Ajouter le joueur au Canvas avec walletAddress
+      const playerForCanvas = {
+        ...joinedPlayer,
+        walletAddress: joinedPlayer.walletAddress || joinedPlayer.id // Fallback to id if no walletAddress
+      };
+      
       if (canvasRef.current) {
-        canvasRef.current.addPlayer(joinedPlayer);
+        canvasRef.current.addPlayer(playerForCanvas);
       }
       
       toast({
