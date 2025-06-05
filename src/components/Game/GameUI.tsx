@@ -335,7 +335,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         {!localMode && (
           <>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Sync: {gameConnected ? '✅ 20Hz' : '❌ Offline'}
+              Sync: {gameConnected ? '✅ 30Hz' : '❌ Offline'}
             </div>
             {!gameConnected && (
               <Button 

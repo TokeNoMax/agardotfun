@@ -1,7 +1,7 @@
 
 // realtimeSync.ts (v3) – RÉCAP COMPLET
 // --------------------------------------------------
-// • Broadcast temps‑réel 20 Hz : id, x, y, r
+// • Broadcast temps‑réel 30 Hz : id, x, y, r
 // • Broadcast score immédiat quand r change
 // • Interpolation 60 fps (Hermite optionnelle) côté rendu
 // • Heart‑beat anti‑ghost via RAF + visibilitychange
@@ -18,7 +18,7 @@ export interface RealtimeSyncOptions {
   myId: string;                           // wallet / uuid (non vide après login)
   players: Record<string, any>;           // table des sprites
   createBlob: (id: string) => any;        // fabrique un sprite distant
-  sendIntervalMs?: number;                // défaut 50 ms (20 Hz)
+  sendIntervalMs?: number;                // défaut 33 ms (30 Hz)
   onScoreUpdate?: (id: string, r: number) => void; // pour le leaderboard UI
 }
 
@@ -52,7 +52,7 @@ export class RealtimeSync {
     await this.ch.subscribe();
 
     // boucle émission position
-    const pace = this.opts.sendIntervalMs ?? 50;
+    const pace = this.opts.sendIntervalMs ?? 33;
     this.sendLoopId = setInterval(() => this.broadcastPosition(), pace);
 
     // heartbeat

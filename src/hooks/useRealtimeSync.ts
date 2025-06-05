@@ -42,7 +42,7 @@ export const useRealtimeSync = ({
         myId: playerId,
         players,
         createBlob,
-        sendIntervalMs: 50, // 20 Hz
+        sendIntervalMs: 33, // 30 Hz
         onScoreUpdate
       });
 
