@@ -1,15 +1,9 @@
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useEffect, useState, useCallback } from "react";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
-import { useToast } from "@/hooks/use-toast";
-import Canvas from "@/components/Game/Canvas";
 import GameUI from "@/components/Game/GameUI";
-import Leaderboard from "@/components/Game/Leaderboard";
-import GameOverModal from "@/components/Game/GameOverModal";
-import TouchControlArea from "@/components/Game/TouchControlArea";
-import ZoneCounter from "@/components/Game/ZoneCounter";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Game() {
   const { currentRoom, player, refreshCurrentRoom } = useGame();
@@ -21,7 +15,6 @@ export default function Game() {
   const [hasVerifiedSession, setHasVerifiedSession] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lastToastTime, setLastToastTime] = useState(0);
-  const [gameLoading, setGameLoading] = useState(true);
   
   // Check if we're in local mode
   const isLocalMode = new URLSearchParams(location.search).get('local') === 'true';
@@ -141,7 +134,7 @@ export default function Game() {
   }, [checkGameSession, hasVerifiedSession]);
   
   // Show loading screen while connecting
-  if (gameLoading && !isLocalMode) {
+  if (isLoading && !isLocalMode) {
     return (
       <div className="w-screen h-screen flex items-center justify-center">
         <div className="text-center">
