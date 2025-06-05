@@ -135,6 +135,33 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          last_active: string
+          updated_at: string
+          wallet_address: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id: string
+          last_active?: string
+          updated_at?: string
+          wallet_address?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          last_active?: string
+          updated_at?: string
+          wallet_address?: string | null
+        }
+        Relationships: []
+      }
       room_players: {
         Row: {
           created_at: string
@@ -215,7 +242,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      is_authenticated: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
