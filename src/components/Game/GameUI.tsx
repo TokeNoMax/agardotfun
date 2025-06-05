@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -10,7 +11,7 @@ import { Player, SafeZone } from "@/types/game";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useUnifiedGameSync } from "@/hooks/useUnifiedGameSync";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { useGhostRoomCleaner } from "@/hooks/useGhostRoomCleaner";
 
 interface GameUIProps {
@@ -30,11 +31,25 @@ export default function GameUI({ roomId }: GameUIProps) {
   const [timeUntilShrink, setTimeUntilShrink] = useState<number>(0);
   const [gameStartTime] = useState<number>(Date.now());
   const [eliminationType, setEliminationType] = useState<'absorption' | 'zone' | 'timeout'>('absorption');
+  const [gameConnected, setGameConnected] = useState(false);
   const canvasRef = useRef<CanvasRef>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+
+  // Players registry for realtime sync
+  const playersRef = useRef<Record<string, any>>({});
+
+  // Create blob function for realtime sync
+  const createBlob = useCallback((id: string) => {
+    console.log(`[GameUI] Creating blob for player: ${id}`);
+    // This will be handled by the canvas
+    if (canvasRef.current) {
+      return canvasRef.current.getOrCreatePlayer(id);
+    }
+    return { setPos: () => {}, setSize: () => {} };
+  }, []);
 
   // Ghost room cleaner
   useGhostRoomCleaner({
@@ -42,81 +57,14 @@ export default function GameUI({ roomId }: GameUIProps) {
     intervalMinutes: 1
   });
 
-  // Enhanced unified game sync with comprehensive logging
-  const {
-    isConnected: gameConnected,
-    connectionState: gameState,
-    broadcastPlayerPosition,
-    broadcastPlayerCollision,
-    broadcastPlayerElimination,
-    forceReconnect
-  } = useUnifiedGameSync({
+  // Simplified realtime sync
+  const { isConnected: syncConnected, forceReconnect } = useRealtimeSync({
     roomId: currentRoom?.id,
     playerId: player?.id,
-    playerName: player?.name,
     enabled: !localMode && !!currentRoom && !!player && currentRoom.status === 'playing',
-    onPlayerPositionUpdate: (playerId: string, position) => {
-      console.log(`[GameUI] 📍 Position update received for ${playerId}:`, position);
-      if (canvasRef.current && playerId !== player?.id) {
-        canvasRef.current.updatePlayerPosition(playerId, position);
-      } else if (playerId === player?.id) {
-        console.log(`[GameUI] ⏭️ Ignoring own position update`);
-      } else if (!canvasRef.current) {
-        console.warn(`[GameUI] ⚠️ Canvas not ready for position update`);
-      }
-    },
-    onPlayerCollision: (eliminatedId: string, eliminatorId: string, eliminatedSize: number, eliminatorNewSize: number) => {
-      console.log(`[GameUI] 💥 Collision received:`, { eliminatedId, eliminatorId, eliminatedSize, eliminatorNewSize });
-      if (canvasRef.current) {
-        canvasRef.current.eliminatePlayer(eliminatedId, eliminatorId);
-      }
-      
-      const eliminatedPlayer = currentRoom?.players.find(p => p.id === eliminatedId);
-      const eliminatorPlayer = currentRoom?.players.find(p => p.id === eliminatorId);
-      
-      if (eliminatedPlayer && eliminatorPlayer) {
-        toast({
-          title: "Collision Synchronisée !",
-          description: `${eliminatorPlayer.name} a absorbé ${eliminatedPlayer.name} !`,
-          variant: "destructive",
-          duration: 3000,
-        });
-      }
-    },
-    onPlayerEliminated: (eliminatedId: string, eliminatorId: string) => {
-      console.log(`[GameUI] ☠️ Elimination received:`, { eliminatedId, eliminatorId });
-      if (canvasRef.current) {
-        canvasRef.current.eliminatePlayer(eliminatedId, eliminatorId);
-      }
-    },
-    onPlayerJoined: (joinedPlayer) => {
-      console.log(`[GameUI] 🆕 Player joined:`, joinedPlayer);
-      
-      if (canvasRef.current) {
-        canvasRef.current.addPlayer(joinedPlayer);
-        console.log(`[GameUI] ✅ Player added to canvas:`, joinedPlayer.name);
-      } else {
-        console.warn(`[GameUI] ⚠️ Canvas not ready, player join queued`);
-      }
-      
-      toast({
-        title: "Nouveau joueur",
-        description: `${joinedPlayer.name} a rejoint la partie !`,
-        duration: 2000,
-      });
-    },
-    onPlayerLeft: (leftPlayerId) => {
-      console.log(`[GameUI] ❌ Player left:`, leftPlayerId);
-      const leftPlayer = currentRoom?.players.find(p => p.id === leftPlayerId);
-      if (leftPlayer) {
-        toast({
-          title: "Joueur parti",
-          description: `${leftPlayer.name} a quitté la partie`,
-          variant: "destructive",
-          duration: 2000,
-        });
-      }
-    }
+    players: playersRef.current,
+    createBlob,
+    onConnectionChange: setGameConnected
   });
 
   // Check URL parameters and set modes
@@ -245,42 +193,19 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   };
 
-  // Enhanced player position sync with detailed logging
-  const handlePlayerPositionUpdate = async (position: { x: number; y: number; size: number; velocityX?: number; velocityY?: number }) => {
-    if (!localMode && gameConnected) {
-      try {
-        await broadcastPlayerPosition(position.x, position.y, position.size, position.velocityX, position.velocityY);
-        // Log every 60 frames (about once per second at 60fps)
-        if (Math.random() < 0.016) { // ~1/60 chance
-          console.log(`[GameUI] 📤 Position broadcasted:`, { x: Math.round(position.x), y: Math.round(position.y), size: Math.round(position.size) });
-        }
-      } catch (error) {
-        console.error('[GameUI] ❌ Error broadcasting position:', error);
-      }
+  // Update player in realtime sync registry
+  const handlePlayerPositionUpdate = useCallback((position: { x: number; y: number; size: number }) => {
+    if (player?.id) {
+      // Update player in registry for realtime sync
+      playersRef.current[player.id] = {
+        x: position.x,
+        y: position.y,
+        r: position.size, // radius/score
+        setPos: () => {},
+        setSize: () => {}
+      };
     }
-  };
-
-  // Enhanced collision broadcast with logging
-  const handlePlayerCollisionBroadcast = async (
-    eliminatedPlayerId: string, 
-    eliminatorPlayerId: string, 
-    eliminatedSize: number, 
-    eliminatorNewSize: number
-  ) => {
-    if (!localMode && gameConnected) {
-      try {
-        console.log(`[GameUI] 💥 Broadcasting collision:`, { 
-          eliminatedPlayerId, 
-          eliminatorPlayerId, 
-          eliminatedSize, 
-          eliminatorNewSize 
-        });
-        await broadcastPlayerCollision(eliminatedPlayerId, eliminatorPlayerId, eliminatedSize, eliminatorNewSize);
-      } catch (error) {
-        console.error('[GameUI] ❌ Error broadcasting collision:', error);
-      }
-    }
-  };
+  }, [player?.id]);
 
   const handleGameOver = (winner: Player | null, eliminationType: 'absorption' | 'zone' | 'timeout' = 'absorption') => {
     setWinner(winner);
@@ -387,13 +312,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         {!localMode && (
           <>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Sync: {gameConnected ? '✅ Connecté' : '❌ Déconnecté'}
-            </div>
-            <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-400`}>
-              Canal: game-{currentRoom?.id?.substring(0, 6)}
-            </div>
-            <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-400`}>
-              État: {gameState}
+              Sync: {gameConnected ? '✅ 20Hz' : '❌ Offline'}
             </div>
             {!gameConnected && (
               <Button 
@@ -405,15 +324,6 @@ export default function GameUI({ roomId }: GameUIProps) {
                 Reconnecter
               </Button>
             )}
-            {/* Diagnostic info toggle */}
-            <details className="mt-2">
-              <summary className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-300 cursor-pointer`}>
-                Diagnostics
-              </summary>
-              <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-400 mt-1`}>
-                Player ID: {player?.id?.substring(0, 8)}...
-              </div>
-            </details>
           </>
         )}
       </div>
@@ -450,7 +360,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         />
       </div>
       
-      {/* Enhanced Canvas with better position sync */}
+      {/* Enhanced Canvas with simplified position sync */}
       <div className="w-full h-full">
         <Canvas 
           ref={canvasRef}
@@ -460,7 +370,6 @@ export default function GameUI({ roomId }: GameUIProps) {
           isZoneMode={isZoneMode}
           onZoneUpdate={handleZoneUpdate}
           onPlayerPositionSync={handlePlayerPositionUpdate}
-          onPlayerCollision={handlePlayerCollisionBroadcast}
           roomId={roomId}
         />
       </div>
