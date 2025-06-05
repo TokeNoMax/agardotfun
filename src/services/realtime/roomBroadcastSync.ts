@@ -99,7 +99,7 @@ export class RoomBroadcastSyncService {
           // Annoncer sa présence dans la room
           await this.announcePresence();
           
-          // Démarrer le heartbeat
+          // Démarrer le heartbeat simple
           this.startHeartbeat();
           
           console.log(`[RoomSync] Successfully connected to room: ${this.roomId}`);
@@ -137,16 +137,13 @@ export class RoomBroadcastSyncService {
       clearInterval(this.heartbeatInterval);
     }
 
+    // Simple heartbeat qui vérifie juste la connexion
     this.heartbeatInterval = setInterval(() => {
-      if (this.isConnected) {
-        this.broadcastEvent({
-          type: 'player_heartbeat',
-          playerId: this.playerId,
-          data: { timestamp: Date.now() },
-          timestamp: Date.now()
-        });
+      if (!this.isConnected) {
+        console.log('[RoomSync] Heartbeat detected disconnection');
+        this.connectionState = 'disconnected';
       }
-    }, 10000); // Heartbeat toutes les 10 secondes
+    }, 10000); // Vérification toutes les 10 secondes
   }
 
   private handleRoomEvent(event: RoomSyncEvent) {
