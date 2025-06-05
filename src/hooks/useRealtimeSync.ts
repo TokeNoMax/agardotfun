@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useCallback } from "react";
-import { RealtimeSync, BlobPayload } from "@/services/realtime/realtimeSync";
+import { RealtimeSync, PosPayload, ScorePayload } from "@/services/realtime/realtimeSync";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UseRealtimeSyncProps {
@@ -10,6 +10,7 @@ interface UseRealtimeSyncProps {
   players: Record<string, any>;
   createBlob: (id: string) => any;
   onConnectionChange?: (connected: boolean) => void;
+  onScoreUpdate?: (id: string, r: number) => void;
 }
 
 export const useRealtimeSync = ({
@@ -18,7 +19,8 @@ export const useRealtimeSync = ({
   enabled,
   players,
   createBlob,
-  onConnectionChange
+  onConnectionChange,
+  onScoreUpdate
 }: UseRealtimeSyncProps) => {
   const syncRef = useRef<RealtimeSync | null>(null);
 
@@ -40,7 +42,8 @@ export const useRealtimeSync = ({
         myId: playerId,
         players,
         createBlob,
-        sendIntervalMs: 50 // 20 Hz
+        sendIntervalMs: 50, // 20 Hz
+        onScoreUpdate
       });
 
       await sync.connect();
@@ -52,7 +55,7 @@ export const useRealtimeSync = ({
       console.error('[RealtimeSync] Connection failed:', error);
       onConnectionChange?.(false);
     }
-  }, [enabled, roomId, playerId, players, createBlob, onConnectionChange]);
+  }, [enabled, roomId, playerId, players, createBlob, onConnectionChange, onScoreUpdate]);
 
   useEffect(() => {
     connect();
@@ -66,10 +69,17 @@ export const useRealtimeSync = ({
     };
   }, [connect]);
 
+  const updateLocalScore = useCallback((newR: number) => {
+    if (syncRef.current) {
+      syncRef.current.updateLocalScore(newR);
+    }
+  }, []);
+
   const isConnected = !!syncRef.current;
 
   return {
     isConnected,
-    forceReconnect: connect
+    forceReconnect: connect,
+    updateLocalScore
   };
 };

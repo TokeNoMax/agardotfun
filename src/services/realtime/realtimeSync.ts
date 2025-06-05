@@ -1,47 +1,34 @@
 
-// realtimeSync.ts (v2) – Lovable‑ready
+// realtimeSync.ts (v3) – RÉCAP COMPLET
 // --------------------------------------------------
-//  ⭐️  INTERPOLATION BUFFER (smooth 60 fps) ⭐️
-// --------------------------------------------------
-// Synchro temps réel pour Agar.fun  
-// * Supabase Realtime, un seul channel "game-<room>"  
-// * Broadcast 20 Hz : id, x, y, r  
-// * Heart‑beat infaillible : requestAnimationFrame + visibilitychange  
-// * Buffer d'interpolation pour rendu smooth 60 FPS
+// • Broadcast temps‑réel 20 Hz : id, x, y, r
+// • Broadcast score immédiat quand r change
+// • Interpolation 60 fps (Hermite optionnelle) côté rendu
+// • Heart‑beat anti‑ghost via RAF + visibilitychange
 // --------------------------------------------------
 
 import { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
-import { InterpolationBuffer } from "./interpolationBuffer";
 
-export interface BlobPayload {
-  id: string;   // wallet / uuid (non vide)
-  x: number;
-  y: number;
-  r: number;    // radius / score
-  timestamp?: number; // timestamp pour l'interpolation
-}
+export interface PosPayload { id: string; x: number; y: number; r: number }
+export interface ScorePayload { id: string; r: number }
 
 export interface RealtimeSyncOptions {
   supabase: SupabaseClient;
   roomId: string;
-  myId: string;                           // sera rempli après login
+  myId: string;                           // wallet / uuid (non vide après login)
   players: Record<string, any>;           // table des sprites
   createBlob: (id: string) => any;        // fabrique un sprite distant
   sendIntervalMs?: number;                // défaut 50 ms (20 Hz)
-  enableInterpolation?: boolean;          // activer l'interpolation (défaut: true)
+  onScoreUpdate?: (id: string, r: number) => void; // pour le leaderboard UI
 }
 
 export class RealtimeSync {
   private ch: RealtimeChannel | null = null;
   private sendLoopId: ReturnType<typeof setInterval> | undefined;
-  private interpolationLoopId: number | undefined;
   private lastPing = 0;
-  private interpolationBuffer: InterpolationBuffer;
-  private lastInterpolationTime = 0;
+  private prevR = 0;
 
-  constructor(private opts: RealtimeSyncOptions) {
-    this.interpolationBuffer = new InterpolationBuffer();
-  }
+  constructor(private opts: RealtimeSyncOptions) {}
 
   // --------------------------------------------------
   // PUBLIC
@@ -53,32 +40,38 @@ export class RealtimeSync {
       config: { broadcast: { self: false } },
     });
 
-    // réception des positions
-    this.ch.on("broadcast", { event: "position" }, ({ payload }) =>
-      this.handlePosition(payload as BlobPayload)
-    );
+    // listener positions & scores
+    this.ch.on('broadcast', {}, ({ event, payload }) => {
+      if (event === 'position') this.handlePosition(payload as PosPayload);
+      else if (event === 'score') this.handleScore(payload as ScorePayload);
+    });
 
     await this.ch.subscribe();
 
-    // boucle émission (20 Hz par défaut)
+    // boucle émission position
     const pace = this.opts.sendIntervalMs ?? 50;
     this.sendLoopId = setInterval(() => this.broadcastPosition(), pace);
 
-    // heartbeat : RAF + visibilitychange
+    // heartbeat
     requestAnimationFrame(this.rafPing);
-    document.addEventListener("visibilitychange", this.forcePing);
-
-    // Démarrer l'interpolation à 60 FPS si activée
-    if (this.opts.enableInterpolation !== false) {
-      this.startInterpolationLoop();
-    }
+    document.addEventListener('visibilitychange', this.forcePing);
   }
 
   disconnect() {
     if (this.sendLoopId) clearInterval(this.sendLoopId);
-    if (this.interpolationLoopId) cancelAnimationFrame(this.interpolationLoopId);
-    document.removeEventListener("visibilitychange", this.forcePing);
+    document.removeEventListener('visibilitychange', this.forcePing);
     this.ch?.unsubscribe();
+  }
+
+  /** À appeler quand ton blob grossit (kill, pellet) */
+  updateLocalScore(newR: number) {
+    if (!this.ch || newR === this.prevR || !Number.isFinite(newR)) return;
+    this.prevR = newR;
+    this.ch.send({
+      type: 'broadcast', event: 'score',
+      payload: { id: this.opts.myId, r: newR } satisfies ScorePayload,
+    });
+    this.opts.onScoreUpdate?.(this.opts.myId, newR);
   }
 
   // --------------------------------------------------
@@ -86,82 +79,69 @@ export class RealtimeSync {
   // --------------------------------------------------
   private broadcastPosition() {
     const { myId, players } = this.opts;
-    if (!myId) return;                        // évite id undefined
+    if (!myId) return;
     const me = players[myId];
-    if (!me) return;
+    if (!me || !Number.isFinite(me.x) || !Number.isFinite(me.y)) return;
 
     this.ch?.send({
-      type: "broadcast",
-      event: "position",
-      payload: {
-        id: myId,
-        x: me.x,
-        y: me.y,
-        r: me.r ?? 0,
-        timestamp: Date.now()
-      } satisfies BlobPayload,
+      type: 'broadcast', event: 'position',
+      payload: { id: myId, x: me.x, y: me.y, r: me.r ?? 0 } satisfies PosPayload,
     });
   }
 
-  private handlePosition(p: BlobPayload) {
-    if (!p?.id || p.id === this.opts.myId) return; // filtre id vide et notre propre position
+  private handlePosition(p: PosPayload) {
+    if (!p?.id || p.id === this.opts.myId) return; // filter own position
+    const { players, createBlob } = this.opts;
+    const blob = players[p.id] ?? (players[p.id] = createBlob(p.id));
+    blob.setPos(p.x, p.y);
+    blob.setSize(Number.isFinite(p.r) ? p.r : 0);
     
-    if (this.opts.enableInterpolation !== false) {
-      // Utiliser le buffer d'interpolation
-      this.interpolationBuffer.addPosition(p.id, p.x, p.y, p.r, p.timestamp);
-    } else {
-      // Mode direct (ancien comportement)
-      const { players, createBlob } = this.opts;
-      const blob = players[p.id] ?? (players[p.id] = createBlob(p.id));
-      blob.setPos(p.x, p.y);
-      blob.setSize(Number.isFinite(p.r) ? p.r : 0);
-    }
+    // Push to interpolation buffer
+    pushSnapshot(p.id, p.x, p.y);
   }
 
-  // Boucle d'interpolation à 60 FPS
-  private startInterpolationLoop() {
-    const interpolate = (timestamp: number) => {
-      const deltaTime = timestamp - this.lastInterpolationTime;
-      this.lastInterpolationTime = timestamp;
-
-      // Interpoler toutes les positions
-      const interpolatedPositions = this.interpolationBuffer.interpolateAll(deltaTime);
-
-      // Appliquer les positions interpolées
-      const { players, createBlob } = this.opts;
-      for (const [id, pos] of interpolatedPositions) {
-        if (id !== this.opts.myId) { // Ne pas interpoler notre propre joueur
-          const blob = players[id] ?? (players[id] = createBlob(id));
-          blob.setPos(pos.x, pos.y);
-          blob.setSize(Number.isFinite(pos.r) ? pos.r : 0);
-        }
-      }
-
-      // Nettoyer les blobs inactifs toutes les 5 secondes
-      if (timestamp % 5000 < 16) {
-        this.interpolationBuffer.cleanup();
-      }
-
-      this.interpolationLoopId = requestAnimationFrame(interpolate);
-    };
-
-    this.lastInterpolationTime = performance.now();
-    this.interpolationLoopId = requestAnimationFrame(interpolate);
+  private handleScore(p: ScorePayload) {
+    if (!p?.id) return;
+    const blob = this.opts.players[p.id];
+    blob?.setSize(p.r);
+    this.opts.onScoreUpdate?.(p.id, p.r);
   }
 
-  // ---------- heartbeat fiable ----------
-  private rafPing = (time: number) => {
-    if (time - this.lastPing > 9500) {        // ~9,5 s
+  // heartbeat via RAF
+  private rafPing = (t: number) => {
+    if (t - this.lastPing > 9500) {
       this.ch?.track({ t: Date.now() });
-      this.lastPing = time;
+      this.lastPing = t;
     }
     requestAnimationFrame(this.rafPing);
   };
-
+  
   private forcePing = () => {
-    if (document.visibilityState === "hidden") {
+    if (document.visibilityState === 'hidden') {
       this.ch?.track({ t: Date.now() });
       this.lastPing = performance.now();
     }
   };
+}
+
+// --------------------------------------------------
+// Interpolation helper (linéaire ou Hermite)
+// --------------------------------------------------
+export interface Snapshot { x: number; y: number; t: number }
+export const snapshots: Record<string, Snapshot[]> = {};
+
+export function pushSnapshot(id: string, x: number, y: number) {
+  const arr = (snapshots[id] ??= []);
+  arr.push({ x, y, t: performance.now() });
+  if (arr.length > 4) arr.shift();
+}
+
+export function getInterpolatedPos(id: string): { x: number; y: number } | null {
+  const [a, b] = snapshots[id] || [];
+  if (!a || !b) return null;
+  const now = performance.now();
+  const dt = b.t - a.t || 1;
+  const t = (now - b.t) / dt;
+  const lerp = (u: number, v: number) => u + (v - u) * Math.max(0, Math.min(1, t));
+  return { x: lerp(a.x, b.x), y: lerp(a.y, b.y) };
 }

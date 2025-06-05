@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
@@ -57,15 +56,33 @@ export default function GameUI({ roomId }: GameUIProps) {
     intervalMinutes: 1
   });
 
-  // Simplified realtime sync
-  const { isConnected: syncConnected, forceReconnect } = useRealtimeSync({
+  // Simplified realtime sync with score updates
+  const { isConnected: syncConnected, forceReconnect, updateLocalScore } = useRealtimeSync({
     roomId: currentRoom?.id,
     playerId: player?.id,
     enabled: !localMode && !!currentRoom && !!player && currentRoom.status === 'playing',
     players: playersRef.current,
     createBlob,
-    onConnectionChange: setGameConnected
+    onConnectionChange: setGameConnected,
+    onScoreUpdate: handleScoreUpdate
   });
+
+  // Score update handler for real-time leaderboard updates
+  const handleScoreUpdate = useCallback((playerId: string, newScore: number) => {
+    console.log(`[GameUI] Score update for ${playerId}: ${newScore}`);
+    
+    // Update current room players if in multiplayer mode
+    if (!localMode && currentRoom) {
+      // This will trigger a re-render of the leaderboard
+      const updatedPlayers = currentRoom.players.map(p => 
+        p.id === playerId ? { ...p, size: newScore } : p
+      );
+      
+      // Update alive players count if needed
+      const alive = updatedPlayers.filter(p => p.isAlive).length;
+      setAlivePlayers(alive);
+    }
+  }, [localMode, currentRoom]);
 
   // Check URL parameters and set modes
   useEffect(() => {
@@ -193,7 +210,7 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   };
 
-  // Update player in realtime sync registry
+  // Update player in realtime sync registry and handle score updates
   const handlePlayerPositionUpdate = useCallback((position: { x: number; y: number; size: number }) => {
     if (player?.id) {
       // Update player in registry for realtime sync
@@ -204,8 +221,14 @@ export default function GameUI({ roomId }: GameUIProps) {
         setPos: () => {},
         setSize: () => {}
       };
+
+      // Broadcast score update if it changed significantly
+      if (updateLocalScore && Math.abs(position.size - (playersRef.current[player.id]?.prevSize || 0)) > 1) {
+        updateLocalScore(position.size);
+        playersRef.current[player.id].prevSize = position.size;
+      }
     }
-  }, [player?.id]);
+  }, [player?.id, updateLocalScore]);
 
   const handleGameOver = (winner: Player | null, eliminationType: 'absorption' | 'zone' | 'timeout' = 'absorption') => {
     setWinner(winner);
@@ -351,7 +374,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         </Button>
       </div>
       
-      {/* Leaderboard */}
+      {/* Enhanced Leaderboard with real-time score updates */}
       <div className={`absolute top-4 ${isMobile ? 'right-4 mt-12' : 'right-20'} z-10`}>
         <Leaderboard 
           players={localMode ? (localPlayer ? [localPlayer] : []) : (currentRoom ? currentRoom.players : [])} 
