@@ -10,9 +10,8 @@ import { Player, SafeZone } from "@/types/game";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useRoomBroadcastSync } from "@/hooks/useRoomBroadcastSync";
+import { useUnifiedGameSync } from "@/hooks/useUnifiedGameSync";
 import { useGhostRoomCleaner } from "@/hooks/useGhostRoomCleaner";
-import { useOptimizedPositionSync } from "@/hooks/useOptimizedPositionSync";
 
 interface GameUIProps {
   roomId?: string;
@@ -43,37 +42,27 @@ export default function GameUI({ roomId }: GameUIProps) {
     intervalMinutes: 1
   });
 
-  // AMÉLIORATION: Synchronisation optimisée des positions
+  // SOLUTION B : Synchronisation unifiée sur broadcast pur
   const {
-    updatePosition: updateOptimizedPosition,
-    isConnected: positionSyncConnected
-  } = useOptimizedPositionSync({
-    roomId: currentRoom?.id,
-    playerId: player?.id,
-    enabled: !localMode && !!currentRoom && !!player && currentRoom.status === 'playing',
-    onPositionUpdate: (playerId: string, position) => {
-      console.log('[GameUI] Received optimized position update:', playerId, position);
-      if (canvasRef.current && playerId !== player?.id) {
-        canvasRef.current.updatePlayerPosition(playerId, position);
-      }
-    }
-  });
-
-  // Synchronisation temps réel via broadcast (pour les événements autres que positions)
-  const {
-    isConnected: broadcastConnected,
-    connectionState: broadcastState,
+    isConnected: gameConnected,
+    connectionState: gameState,
+    broadcastPlayerPosition,
     broadcastPlayerCollision,
     broadcastPlayerElimination,
     forceReconnect
-  } = useRoomBroadcastSync({
+  } = useUnifiedGameSync({
     roomId: currentRoom?.id,
     playerId: player?.id,
     playerName: player?.name,
     enabled: !localMode && !!currentRoom && !!player && currentRoom.status === 'playing',
-    // Supprimé onPlayerMove car géré par optimizedPositionSync
+    onPlayerPositionUpdate: (playerId: string, position) => {
+      console.log('[GameUI] Received position update:', playerId, position);
+      if (canvasRef.current && playerId !== player?.id) {
+        canvasRef.current.updatePlayerPosition(playerId, position);
+      }
+    },
     onPlayerCollision: (eliminatedId: string, eliminatorId: string, eliminatedSize: number, eliminatorNewSize: number) => {
-      console.log('[GameUI] Received collision broadcast:', { eliminatedId, eliminatorId });
+      console.log('[GameUI] Received collision:', { eliminatedId, eliminatorId });
       if (canvasRef.current) {
         canvasRef.current.eliminatePlayer(eliminatedId, eliminatorId);
       }
@@ -91,7 +80,7 @@ export default function GameUI({ roomId }: GameUIProps) {
       }
     },
     onPlayerEliminated: (eliminatedId: string, eliminatorId: string) => {
-      console.log('[GameUI] Received elimination broadcast:', { eliminatedId, eliminatorId });
+      console.log('[GameUI] Received elimination:', { eliminatedId, eliminatorId });
       if (canvasRef.current) {
         canvasRef.current.eliminatePlayer(eliminatedId, eliminatorId);
       }
@@ -244,25 +233,25 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   };
 
-  // AMÉLIORATION: Gestion optimisée des positions
+  // Gestion des positions via le service unifié (optimisé selon recommandations)
   const handlePlayerPositionUpdate = async (position: { x: number; y: number; size: number; velocityX?: number; velocityY?: number }) => {
-    if (!localMode && positionSyncConnected) {
+    if (!localMode && gameConnected) {
       try {
-        await updateOptimizedPosition(position);
+        await broadcastPlayerPosition(position.x, position.y, position.size, position.velocityX, position.velocityY);
       } catch (error) {
-        console.error('[GameUI] Error updating optimized position:', error);
+        console.error('[GameUI] Error broadcasting position:', error);
       }
     }
   };
 
-  // NOUVEAU : Gestion des collisions via broadcast
+  // Gestion des collisions via le service unifié
   const handlePlayerCollisionBroadcast = async (
     eliminatedPlayerId: string, 
     eliminatorPlayerId: string, 
     eliminatedSize: number, 
     eliminatorNewSize: number
   ) => {
-    if (!localMode && broadcastConnected) {
+    if (!localMode && gameConnected) {
       try {
         console.log('[GameUI] Broadcasting collision:', { 
           eliminatedPlayerId, 
@@ -359,7 +348,7 @@ export default function GameUI({ roomId }: GameUIProps) {
   
   return (
     <div className="w-full h-full relative">
-      {/* Enhanced game status with both connection types */}
+      {/* Status unifié avec un seul service */}
       <div className={`absolute top-4 left-4 bg-black/80 backdrop-blur-sm ${
         isMobile ? 'p-2 text-sm' : 'p-3'
       } rounded-md shadow-md z-10 text-white`}>
@@ -381,16 +370,16 @@ export default function GameUI({ roomId }: GameUIProps) {
         </div>
         {!localMode && (
           <>
-            <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${broadcastConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Events: {broadcastConnected ? 'Connecté ✓' : 'Déconnecté ⚠️'}
-            </div>
-            <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${positionSyncConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Positions: {positionSyncConnected ? 'Sync ✓' : 'Désync ⚠️'}
+            <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameConnected ? 'text-green-400' : 'text-red-400'}`}>
+              Game Sync: {gameConnected ? 'Connecté ✓' : 'Déconnecté ⚠️'}
             </div>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-400`}>
-              État: {broadcastState}
+              Canal: game-{currentRoom?.id?.substring(0, 6)}
             </div>
-            {(!broadcastConnected || !positionSyncConnected) && (
+            <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-400`}>
+              État: {gameState}
+            </div>
+            {!gameConnected && (
               <Button 
                 size="sm" 
                 variant="outline" 
@@ -436,7 +425,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         />
       </div>
       
-      {/* Canvas avec synchronisation optimisée */}
+      {/* Canvas avec synchronisation unifiée */}
       <div className="w-full h-full">
         <Canvas 
           ref={canvasRef}
