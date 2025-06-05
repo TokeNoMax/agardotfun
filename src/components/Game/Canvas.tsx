@@ -43,6 +43,7 @@ export interface CanvasRef {
   setMobileDirection: (direction: { x: number; y: number } | null) => void;
   updatePlayerPosition: (playerId: string, position: OptimizedPlayerPosition) => void;
   eliminatePlayer: (eliminatedPlayerId: string, eliminatorPlayerId: string) => void;
+  addPlayer: (player: Player) => void;
 }
 
 const Canvas = forwardRef<CanvasRef, CanvasProps>(({ 
@@ -139,6 +140,31 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         const winner = players.find(p => p.id === eliminatorPlayerId);
         onGameOver(winner || null);
       }
+    },
+    addPlayer: (newPlayer: Player) => {
+      console.log('Canvas: Adding new player from sync:', newPlayer);
+      setPlayers(prevPlayers => {
+        // Check if player already exists
+        const exists = prevPlayers.some(p => p.id === newPlayer.id);
+        if (exists) {
+          console.log('Canvas: Player already exists, updating position');
+          return prevPlayers.map(p => 
+            p.id === newPlayer.id 
+              ? { ...p, x: newPlayer.x, y: newPlayer.y, size: newPlayer.size, isAlive: true }
+              : p
+          );
+        }
+        
+        // Add new player
+        console.log('Canvas: Adding completely new player');
+        return [...prevPlayers, { 
+          ...newPlayer, 
+          isAlive: true,
+          x: newPlayer.x || GAME_WIDTH / 2,
+          y: newPlayer.y || GAME_HEIGHT / 2,
+          size: newPlayer.size || 15
+        }];
+      });
     }
   }));
 

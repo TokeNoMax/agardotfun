@@ -75,13 +75,26 @@ export class UnifiedGameSyncService {
       this.channel.on('presence', { event: 'sync' }, () => {
         const presences = this.channel.presenceState();
         console.log('[UnifiedGameSync] Presence sync:', presences);
+        this.syncPlayersFromPresence(presences);
       });
 
       this.channel.on('presence', { event: 'join' }, ({ key, newPresences }: any) => {
         console.log('[UnifiedGameSync] Player joined:', key, newPresences);
         const playerData = newPresences[0];
         if (playerData && playerData.playerId !== this.playerId) {
-          this.callbacks.onPlayerJoined?.(playerData);
+          // Récupérer la position depuis la DB pour le nouveau joueur
+          this.loadPlayerPosition(playerData.playerId).then(position => {
+            const joinedPlayer = {
+              id: playerData.playerId,
+              name: playerData.name,
+              color: 'blue', // couleur par défaut
+              x: position?.x || 1500,
+              y: position?.y || 1500,
+              size: position?.size || 15,
+              isAlive: true
+            };
+            this.callbacks.onPlayerJoined?.(joinedPlayer);
+          });
         }
       });
 
@@ -124,6 +137,45 @@ export class UnifiedGameSyncService {
       console.error('[UnifiedGameSync] Connection error:', error);
       this.connectionState = 'disconnected';
       return false;
+    }
+  }
+
+  private async loadPlayerPosition(playerId: string): Promise<{x: number, y: number, size: number} | null> {
+    try {
+      const { data, error } = await supabase
+        .from('game_room_players')
+        .select('x, y, size')
+        .eq('room_id', this.roomId)
+        .eq('player_id', playerId)
+        .single();
+
+      if (error) {
+        console.log('[UnifiedGameSync] No position found for player:', playerId);
+        return null;
+      }
+
+      return { x: data.x, y: data.y, size: data.size };
+    } catch (error) {
+      console.error('[UnifiedGameSync] Error loading player position:', error);
+      return null;
+    }
+  }
+
+  private syncPlayersFromPresence(presences: any) {
+    // Synchroniser les joueurs depuis l'état de présence
+    console.log('[UnifiedGameSync] Syncing players from presence state');
+    for (const [key, playerPresences] of Object.entries(presences)) {
+      if (Array.isArray(playerPresences) && playerPresences.length > 0) {
+        const playerData = playerPresences[0] as any;
+        if (playerData.playerId !== this.playerId) {
+          // Charger la position depuis la DB si pas déjà présent
+          this.loadPlayerPosition(playerData.playerId).then(position => {
+            if (position) {
+              this.callbacks.onPlayerPositionUpdate?.(playerData.playerId, position);
+            }
+          });
+        }
+      }
     }
   }
 

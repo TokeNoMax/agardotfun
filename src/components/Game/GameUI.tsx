@@ -87,6 +87,12 @@ export default function GameUI({ roomId }: GameUIProps) {
     },
     onPlayerJoined: (joinedPlayer) => {
       console.log('[GameUI] Player joined room:', joinedPlayer);
+      
+      // CORRECTION: Ajouter le joueur au Canvas
+      if (canvasRef.current) {
+        canvasRef.current.addPlayer(joinedPlayer);
+      }
+      
       toast({
         title: "Nouveau joueur",
         description: `${joinedPlayer.name} a rejoint la partie !`,
@@ -371,7 +377,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         {!localMode && (
           <>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Game Sync: {gameConnected ? 'Connecté ✓' : 'Déconnecté ⚠️'}
+              Unified Sync: {gameConnected ? 'Connecté ✓' : 'Déconnecté ⚠️'}
             </div>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-400`}>
               Canal: game-{currentRoom?.id?.substring(0, 6)}

@@ -4,7 +4,7 @@ import { playerService } from "../player/playerService";
 
 export class DisconnectionService {
   private disconnectionTimers = new Map<string, NodeJS.Timeout>();
-  private readonly DISCONNECTION_DELAY = 10000; // 10 secondes
+  private readonly DISCONNECTION_DELAY = 5000; // Réduit à 5 secondes
 
   scheduleDisconnection(roomId: string, playerId: string): void {
     console.log(`[DisconnectionService] Scheduling disconnection for player ${playerId} in room ${roomId}`);
@@ -31,6 +31,34 @@ export class DisconnectionService {
       console.log(`[DisconnectionService] Cancelling scheduled disconnection for player ${playerId}`);
       clearTimeout(timer);
       this.disconnectionTimers.delete(playerId);
+    }
+  }
+
+  // NOUVELLE MÉTHODE: Nettoyage immédiat des présences fantômes
+  async cleanupGhostPresences(roomId: string): Promise<void> {
+    console.log(`[DisconnectionService] Cleaning up ghost presences for room ${roomId}`);
+    
+    try {
+      // Marquer tous les joueurs inactifs depuis plus de 30 secondes
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+      
+      const { data: inactivePlayers, error } = await supabase
+        .from('game_room_players')
+        .select('player_id, last_position_update')
+        .eq('room_id', roomId)
+        .lt('last_position_update', thirtySecondsAgo);
+
+      if (error) {
+        console.error('Error finding inactive players:', error);
+        return;
+      }
+
+      for (const player of inactivePlayers || []) {
+        console.log(`[DisconnectionService] Force disconnecting inactive player ${player.player_id}`);
+        await playerService.markPlayerDisconnected(roomId, player.player_id);
+      }
+    } catch (error) {
+      console.error('[DisconnectionService] Error in cleanupGhostPresences:', error);
     }
   }
 
@@ -64,8 +92,8 @@ export class DisconnectionService {
         const now = Date.now();
         const inactiveTime = now - lastUpdate;
         
-        // Si inactif depuis plus de 30 secondes, marquer comme déconnecté
-        if (inactiveTime > 30000) {
+        // Si inactif depuis plus de 15 secondes (réduit de 30), marquer comme déconnecté
+        if (inactiveTime > 15000) {
           await playerService.markPlayerDisconnected(roomId, playerId);
           console.log(`[DisconnectionService] Marked inactive player ${playerId} as disconnected`);
         }
