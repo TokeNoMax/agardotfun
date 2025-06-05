@@ -1,15 +1,22 @@
 
-// realtimeSync.ts (v3) – RÉCAP COMPLET
+// realtimeSync.ts (v4) – INTERPOLATION HERMITE AVEC VÉLOCITÉS
 // --------------------------------------------------
-// • Broadcast temps‑réel 30 Hz : id, x, y, r
+// • Broadcast temps‑réel 30 Hz : id, x, y, r, vx, vy
 // • Broadcast score immédiat quand r change
-// • Interpolation 60 fps (Hermite optionnelle) côté rendu
+// • Interpolation 60 fps Hermite avec vélocités côté rendu
 // • Heart‑beat anti‑ghost via RAF + visibilitychange
 // --------------------------------------------------
 
 import { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
 
-export interface PosPayload { id: string; x: number; y: number; r: number }
+export interface PosPayload { 
+  id: string; 
+  x: number; 
+  y: number; 
+  r: number;
+  vx: number;   // px/s  (new)
+  vy: number;   // px/s  (new)
+}
 export interface ScorePayload { id: string; r: number }
 
 export interface RealtimeSyncOptions {
@@ -27,6 +34,10 @@ export class RealtimeSync {
   private sendLoopId: ReturnType<typeof setInterval> | undefined;
   private lastPing = 0;
   private prevR = 0;
+  // Variables pour le calcul de vélocité
+  private prevX = 0;
+  private prevY = 0;
+  private readonly dt = 1 / 30;           // 33 ms
 
   constructor(private opts: RealtimeSyncOptions) {}
 
@@ -86,21 +97,28 @@ export class RealtimeSync {
     const me = players[myId];
     if (!me || !Number.isFinite(me.x) || !Number.isFinite(me.y)) return;
 
+    // ----  B.  émission côté joueur local avec vélocités ----------
+    const vx = (me.x - this.prevX) / this.dt;
+    const vy = (me.y - this.prevY) / this.dt;
+
     this.ch?.send({
       type: 'broadcast', event: 'position',
-      payload: { id: myId, x: me.x, y: me.y, r: me.r ?? 0 } satisfies PosPayload,
+      payload: { id: myId, x: me.x, y: me.y, r: me.r ?? 0, vx, vy } satisfies PosPayload,
     });
+
+    // Mémoriser pour le prochain calcul de vélocité
+    this.prevX = me.x;
+    this.prevY = me.y;
   }
 
   private handlePosition(p: PosPayload) {
     if (!p?.id || p.id === this.opts.myId) return; // filter own position
     const { players, createBlob } = this.opts;
     const blob = players[p.id] ?? (players[p.id] = createBlob(p.id));
-    blob.setPos(p.x, p.y);
     blob.setSize(Number.isFinite(p.r) ? p.r : 0);
     
-    // Push to interpolation buffer
-    pushSnapshot(p.id, p.x, p.y);
+    // ----  C.  côté réception – on garde 3 snapshots ----------
+    pushSnapshot(p.id, p.x, p.y, p.vx, p.vy);
   }
 
   private handleScore(p: ScorePayload) {
@@ -128,23 +146,57 @@ export class RealtimeSync {
 }
 
 // --------------------------------------------------
-// Interpolation helper (linéaire ou Hermite)
+// Système de snapshots avec vélocités pour Hermite
 // --------------------------------------------------
 export interface Snapshot { x: number; y: number; t: number }
-export const snapshots: Record<string, Snapshot[]> = {};
+export interface Snap { x: number; y: number; vx: number; vy: number; t: number }
 
-export function pushSnapshot(id: string, x: number, y: number) {
-  const arr = (snapshots[id] ??= []);
-  arr.push({ x, y, t: performance.now() });
-  if (arr.length > 4) arr.shift();
+export const snapshots: Record<string, Snapshot[]> = {};
+export const snaps: Record<string, Snap[]> = {};
+
+export function pushSnapshot(id: string, x: number, y: number, vx: number, vy: number) {
+  const arr = (snaps[id] ??= []);
+  arr.push({ x, y, vx, vy, t: performance.now() });
+  if (arr.length > 3) arr.shift();
 }
 
-export function getInterpolatedPos(id: string): { x: number; y: number } | null {
-  const [a, b] = snapshots[id] || [];
-  if (!a || !b) return null;
-  const now = performance.now();
+// ----  D.  interpolation Hermite ----------
+export function hermite(a: Snap, b: Snap, t: number) {
   const dt = b.t - a.t || 1;
-  const t = (now - b.t) / dt;
-  const lerp = (u: number, v: number) => u + (v - u) * Math.max(0, Math.min(1, t));
-  return { x: lerp(a.x, b.x), y: lerp(a.y, b.y) };
+  const h = t / dt;
+  const h2 = h * h, h3 = h2 * h;
+  const h00 = 2 * h3 - 3 * h2 + 1;
+  const h10 = h3 - 2 * h2 + h;
+  const h01 = -2 * h3 + 3 * h2;
+  const h11 = h3 - h2;
+  return {
+    x: a.x * h00 + a.vx * dt * h10 + b.x * h01 + b.vx * dt * h11,
+    y: a.y * h00 + a.vy * dt * h10 + b.y * h01 + b.vy * dt * h11,
+  };
+}
+
+export function getInterpolatedPosHermite(id: string): { x: number; y: number } | null {
+  const [a, b] = snaps[id] || [];
+  if (!a || !b) return null;
+  
+  const now = performance.now();
+  // on se place 100 ms dans le passé
+  const renderTime = now - 100;
+  
+  if (renderTime < a.t) return null;               // trop tôt
+  
+  if (renderTime > b.t) {                          // extrapole gentiment
+    const dt = (renderTime - b.t) / 1000;
+    return {
+      x: b.x + b.vx * dt,
+      y: b.y + b.vy * dt
+    };
+  } else {
+    return hermite(a, b, renderTime - a.t);
+  }
+}
+
+// Ancien système pour compatibilité
+export function getInterpolatedPos(id: string): { x: number; y: number } | null {
+  return getInterpolatedPosHermite(id);
 }
