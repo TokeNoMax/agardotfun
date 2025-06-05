@@ -15,7 +15,7 @@ export interface GamePlayer {
 }
 
 export interface GameSyncEvent {
-  type: 'position' | 'collision' | 'elimination' | 'player_joined' | 'player_left' | 'game_start' | 'ping' | 'pong';
+  type: 'collision' | 'elimination' | 'player_joined' | 'player_left' | 'game_start' | 'ping' | 'pong';
   playerId: string;
   data: any;
   timestamp: number;
@@ -109,20 +109,35 @@ export class UnifiedGameSyncService {
         this.channel = null;
       }
 
-      // Create channel with detailed logging
+      // CORRECTION: Create channel with self: false to automatically filter our own messages
       this.channel = supabase.channel(this.channelName, {
         config: {
-          broadcast: { self: false }, // Don't receive our own messages
+          broadcast: { self: false }, // This prevents receiving our own messages
           presence: { key: this.playerId }
         }
       });
 
-      console.log(`[UnifiedGameSync] 📡 Channel created with name: ${this.channel.topic}`);
+      console.log(`[UnifiedGameSync] 📡 Channel created with name: ${this.channel.topic} (self: false)`);
 
-      // Enhanced event listeners with detailed logging
+      // CORRECTION: Direct position event listener (no longer wrapped in game_event)
+      this.channel.on('broadcast', { event: 'position' }, (payload: any) => {
+        this.diagnostics.positionsReceived++;
+        console.log(`[UnifiedGameSync] 📍 Position received (#${this.diagnostics.positionsReceived}):`, payload);
+        
+        // No need to filter by playerId since self: false handles it
+        this.callbacks.onPlayerPositionUpdate?.(payload.playerId, {
+          x: payload.x,
+          y: payload.y,
+          size: payload.size,
+          velocityX: payload.velocityX,
+          velocityY: payload.velocityY
+        });
+      });
+
+      // Game events (collision, elimination, etc.) still use the game_event wrapper
       this.channel.on('broadcast', { event: 'game_event' }, (payload: any) => {
         this.diagnostics.eventsReceived++;
-        console.log(`[UnifiedGameSync] 📥 Event received (#${this.diagnostics.eventsReceived}):`, payload.type, payload);
+        console.log(`[UnifiedGameSync] 📥 Game event received (#${this.diagnostics.eventsReceived}):`, payload.type, payload);
         this.handleGameEvent(payload);
       });
 
@@ -163,10 +178,8 @@ export class UnifiedGameSyncService {
           
           switch (status) {
             case 'SUBSCRIBED':
-              // CORRECTION 5: Vérification du statut du channel avec logs détaillés
               console.log(`[UnifiedGameSync] ✅ [STATUS] SUBSCRIBED - Channel fully connected`);
               
-              // Vérifier que le channel est vraiment prêt
               if (this.channel && this.channel.state === 'joined') {
                 this.isConnected = true;
                 this.connectionState = 'connected';
@@ -350,21 +363,10 @@ export class UnifiedGameSyncService {
   }
 
   private handleGameEvent(event: GameSyncEvent) {
-    // Don't process our own events
-    if (event.playerId === this.playerId) {
-      console.log(`[UnifiedGameSync] ⏭️ Ignoring own event: ${event.type}`);
-      return;
-    }
-
-    console.log(`[UnifiedGameSync] 🎯 Processing event: ${event.type} from ${event.playerId}`);
+    // No longer filtering by playerId since self: false handles it automatically
+    console.log(`[UnifiedGameSync] 🎯 Processing game event: ${event.type} from ${event.playerId}`);
 
     switch (event.type) {
-      case 'position':
-        this.diagnostics.positionsReceived++;
-        console.log(`[UnifiedGameSync] 📍 Position update (#${this.diagnostics.positionsReceived}):`, event.data);
-        this.callbacks.onPlayerPositionUpdate?.(event.playerId, event.data);
-        break;
-        
       case 'collision':
         console.log(`[UnifiedGameSync] 💥 Collision event:`, event.data);
         this.callbacks.onPlayerCollision?.(
@@ -403,7 +405,7 @@ export class UnifiedGameSyncService {
     }
   }
 
-  // Enhanced position broadcasting with better logging
+  // CORRECTION: Enhanced position broadcasting - now sends directly on 'position' event
   async broadcastPlayerPosition(x: number, y: number, size: number, velocityX = 0, velocityY = 0) {
     const now = Date.now();
     
@@ -412,15 +414,32 @@ export class UnifiedGameSyncService {
       this.lastPositionBroadcast = now;
       this.diagnostics.positionsSent++;
       
-      await this.broadcastEvent({
-        type: 'position',
-        playerId: this.playerId,
-        data: { x, y, size, velocityX, velocityY },
-        timestamp: now
-      });
-      
-      if (this.diagnostics.positionsSent % 20 === 0) { // Log every second
-        console.log(`[UnifiedGameSync] 📤 Position sent (#${this.diagnostics.positionsSent}):`, { x, y, size });
+      // CORRECTION: Send directly on 'position' event instead of wrapping in 'game_event'
+      if (!this.isConnected || !this.channel) {
+        console.warn(`[UnifiedGameSync] ⚠️ Cannot broadcast position - not connected (state: ${this.connectionState})`);
+        return;
+      }
+
+      try {
+        await this.channel.send({
+          type: 'broadcast',
+          event: 'position',
+          payload: {
+            playerId: this.playerId,
+            x,
+            y,
+            size,
+            velocityX,
+            velocityY,
+            timestamp: now
+          }
+        });
+        
+        if (this.diagnostics.positionsSent % 20 === 0) { // Log every second
+          console.log(`[UnifiedGameSync] 📤 Position sent (#${this.diagnostics.positionsSent}):`, { x, y, size });
+        }
+      } catch (error) {
+        console.error(`[UnifiedGameSync] ❌ Position broadcast error:`, error);
       }
     }
 
@@ -485,9 +504,7 @@ export class UnifiedGameSyncService {
         payload: event
       });
       
-      if (event.type !== 'position') { // Don't spam logs for position events
-        console.log(`[UnifiedGameSync] 📤 Event sent (#${this.diagnostics.eventsSent}): ${event.type}`);
-      }
+      console.log(`[UnifiedGameSync] 📤 Game event sent (#${this.diagnostics.eventsSent}): ${event.type}`);
     } catch (error) {
       console.error(`[UnifiedGameSync] ❌ Broadcast error for ${event.type}:`, error);
     }
