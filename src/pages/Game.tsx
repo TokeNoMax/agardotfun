@@ -1,11 +1,19 @@
-import { useEffect, useState, useCallback } from "react";
-import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useGame } from "@/context/GameContext";
-import GameUI from "@/components/Game/GameUI";
 import { useToast } from "@/hooks/use-toast";
+import Canvas from "@/components/Game/Canvas";
+import GameUI from "@/components/Game/GameUI";
+import Leaderboard from "@/components/Game/Leaderboard";
+import GameOverModal from "@/components/Game/GameOverModal";
+import TouchControlArea from "@/components/Game/TouchControlArea";
+import ZoneCounter from "@/components/Game/ZoneCounter";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function Game() {
+  const { isAuthenticated, isLoading: authLoading, user } = useAuthGuard();
+  
   const { currentRoom, player, refreshCurrentRoom } = useGame();
   const navigate = useNavigate();
   const location = useLocation();
@@ -15,6 +23,7 @@ export default function Game() {
   const [hasVerifiedSession, setHasVerifiedSession] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lastToastTime, setLastToastTime] = useState(0);
+  const [gameLoading, setGameLoading] = useState(true);
   
   // Check if we're in local mode
   const isLocalMode = new URLSearchParams(location.search).get('local') === 'true';
@@ -134,7 +143,7 @@ export default function Game() {
   }, [checkGameSession, hasVerifiedSession]);
   
   // Show loading screen while connecting
-  if (isLoading && !isLocalMode) {
+  if (gameLoading && !isLocalMode) {
     return (
       <div className="w-screen h-screen flex items-center justify-center">
         <div className="text-center">
@@ -151,9 +160,7 @@ export default function Game() {
     );
   }
   
-  const { isAuthenticated, isLoading, user } = useAuthGuard();
-  
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="w-screen h-screen flex items-center justify-center">
         <div className="text-center">

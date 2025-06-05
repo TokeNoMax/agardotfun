@@ -1,23 +1,10 @@
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useGame, defaultPhrases } from "@/context/GameContext";
-import { Users, PlayIcon, Settings, Plus, Save, Trash2, Zap } from "lucide-react";
-import { useState } from "react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetFooter,
-  SheetClose
-} from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Gamepad2, Users, Zap, Shield, Trophy, Rocket, Star, ArrowRight, Play } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect } from "react";
 
 export default function Index() {
   const navigate = useNavigate();

@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { PlayerColor } from "@/types/game";
-import { positionUpdateLimiter, gameEventLimiter } from "@/services/security/rateLimiter";
+import { positionUpdateLimiter, gameEventLimiter, connectionLimiter } from "@/services/security/rateLimiter";
 import { PositionValidator } from "@/services/security/positionValidator";
 
 export interface SecureGamePlayer {
