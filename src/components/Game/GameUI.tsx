@@ -57,20 +57,14 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   }, [localMode, currentRoom]);
 
-  // Create blob function for realtime sync with Hermite interpolation support
+  // Create blob function for realtime sync
   const createBlob = useCallback((id: string) => {
-    console.log(`[GameUI] Creating blob for player: ${id} with Hermite interpolation`);
+    console.log(`[GameUI] Creating blob for player: ${id}`);
     // This will be handled by the canvas
     if (canvasRef.current) {
       return canvasRef.current.getOrCreatePlayer(id);
     }
-    return { 
-      setPos: () => {}, 
-      setSize: () => {},
-      x: 0,
-      y: 0,
-      r: 15
-    };
+    return { setPos: () => {}, setSize: () => {} };
   }, []);
 
   // Ghost room cleaner
@@ -79,7 +73,7 @@ export default function GameUI({ roomId }: GameUIProps) {
     intervalMinutes: 1
   });
 
-  // Enhanced realtime sync with Hermite interpolation
+  // Simplified realtime sync with score updates
   const { isConnected: syncConnected, forceReconnect, updateLocalScore } = useRealtimeSync({
     roomId: currentRoom?.id,
     playerId: player?.id,
@@ -318,7 +312,7 @@ export default function GameUI({ roomId }: GameUIProps) {
   
   return (
     <div className="w-full h-full relative">
-      {/* Enhanced status display with Hermite info */}
+      {/* Enhanced status display with diagnostics */}
       <div className={`absolute top-4 left-4 bg-black/80 backdrop-blur-sm ${
         isMobile ? 'p-2 text-sm' : 'p-3'
       } rounded-md shadow-md z-10 text-white`}>
@@ -341,7 +335,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         {!localMode && (
           <>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Sync: {gameConnected ? '✅ 30Hz Hermite' : '❌ Offline'}
+              Sync: {gameConnected ? '✅ 30Hz' : '❌ Offline'}
             </div>
             {!gameConnected && (
               <Button 
@@ -389,7 +383,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         />
       </div>
       
-      {/* Enhanced Canvas with Hermite interpolation */}
+      {/* Enhanced Canvas with simplified position sync */}
       <div className="w-full h-full">
         <Canvas 
           ref={canvasRef}

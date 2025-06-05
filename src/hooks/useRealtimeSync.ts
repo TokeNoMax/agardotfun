@@ -50,7 +50,7 @@ export const useRealtimeSync = ({
       syncRef.current = sync;
       onConnectionChange?.(true);
       
-      console.log(`[RealtimeSync] Connected to room: ${roomId} with Hermite interpolation`);
+      console.log(`[RealtimeSync] Connected to room: ${roomId}`);
     } catch (error) {
       console.error('[RealtimeSync] Connection failed:', error);
       onConnectionChange?.(false);
