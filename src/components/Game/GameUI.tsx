@@ -40,6 +40,23 @@ export default function GameUI({ roomId }: GameUIProps) {
   // Players registry for realtime sync
   const playersRef = useRef<Record<string, any>>({});
 
+  // FIXED: Score update handler moved before its usage
+  const handleScoreUpdate = useCallback((playerId: string, newScore: number) => {
+    console.log(`[GameUI] Score update for ${playerId}: ${newScore}`);
+    
+    // Update current room players if in multiplayer mode
+    if (!localMode && currentRoom) {
+      // This will trigger a re-render of the leaderboard
+      const updatedPlayers = currentRoom.players.map(p => 
+        p.id === playerId ? { ...p, size: newScore } : p
+      );
+      
+      // Update alive players count if needed
+      const alive = updatedPlayers.filter(p => p.isAlive).length;
+      setAlivePlayers(alive);
+    }
+  }, [localMode, currentRoom]);
+
   // Create blob function for realtime sync
   const createBlob = useCallback((id: string) => {
     console.log(`[GameUI] Creating blob for player: ${id}`);
@@ -66,23 +83,6 @@ export default function GameUI({ roomId }: GameUIProps) {
     onConnectionChange: setGameConnected,
     onScoreUpdate: handleScoreUpdate
   });
-
-  // Score update handler for real-time leaderboard updates
-  const handleScoreUpdate = useCallback((playerId: string, newScore: number) => {
-    console.log(`[GameUI] Score update for ${playerId}: ${newScore}`);
-    
-    // Update current room players if in multiplayer mode
-    if (!localMode && currentRoom) {
-      // This will trigger a re-render of the leaderboard
-      const updatedPlayers = currentRoom.players.map(p => 
-        p.id === playerId ? { ...p, size: newScore } : p
-      );
-      
-      // Update alive players count if needed
-      const alive = updatedPlayers.filter(p => p.isAlive).length;
-      setAlivePlayers(alive);
-    }
-  }, [localMode, currentRoom]);
 
   // Check URL parameters and set modes
   useEffect(() => {

@@ -40,10 +40,13 @@ export class RealtimeSync {
       config: { broadcast: { self: false } },
     });
 
-    // listener positions & scores
-    this.ch.on('broadcast', {}, ({ event, payload }) => {
-      if (event === 'position') this.handlePosition(payload as PosPayload);
-      else if (event === 'score') this.handleScore(payload as ScorePayload);
+    // listener positions & scores - FIXED: correct event listener syntax
+    this.ch.on('broadcast', { event: 'position' }, ({ payload }) => {
+      this.handlePosition(payload as PosPayload);
+    });
+    
+    this.ch.on('broadcast', { event: 'score' }, ({ payload }) => {
+      this.handleScore(payload as ScorePayload);
     });
 
     await this.ch.subscribe();
