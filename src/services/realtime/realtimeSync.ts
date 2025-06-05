@@ -1,38 +1,40 @@
 
-// realtimeSync.ts
+// realtimeSync.ts (v2) – Lovable‑ready
 // --------------------------------------------------
-// Service minimal pour la synchro temps‑réel d'un jeu type Agar.io
-// ➜ utilise Supabase Realtime (un seul channel par room)
-// ➜ broadcast 20 Hz : id, x, y, r (radius / score)
-// ➜ heartbeat présence 10 s pour éviter les kicks fantômes
+// Synchro temps réel pour Agar.fun  
+// * Supabase Realtime, un seul channel "game-<room>"  
+// * Broadcast 20 Hz : id, x, y, r  
+// * Heart‑beat infaillible : requestAnimationFrame + visibilitychange  
 // --------------------------------------------------
 
 import { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
 
 export interface BlobPayload {
-  id: string; // player / wallet id (non vide)
+  id: string;   // wallet / uuid (non vide)
   x: number;
   y: number;
-  r: number;  // radius / score
+  r: number;    // radius / score
 }
 
 export interface RealtimeSyncOptions {
   supabase: SupabaseClient;
   roomId: string;
-  myId: string;                          // adresse wallet / UUID
-  players: Record<string, any>;          // table des sprites
-  createBlob: (id: string) => any;       // fabrique un sprite distant
-  sendIntervalMs?: number;               // défaut 50 ms (20 Hz)
+  myId: string;                           // sera rempli après login
+  players: Record<string, any>;           // table des sprites
+  createBlob: (id: string) => any;        // fabrique un sprite distant
+  sendIntervalMs?: number;                // défaut 50 ms (20 Hz)
 }
 
 export class RealtimeSync {
   private ch: RealtimeChannel | null = null;
-  private sendLoopId: any;
-  private heartbeatId: any;
+  private sendLoopId: ReturnType<typeof setInterval> | undefined;
+  private lastPing = 0;
 
   constructor(private opts: RealtimeSyncOptions) {}
 
-  /** Initialise la connexion et démarre la boucle */
+  // --------------------------------------------------
+  // PUBLIC
+  // --------------------------------------------------
   async connect() {
     const { supabase, roomId } = this.opts;
 
@@ -40,40 +42,34 @@ export class RealtimeSync {
       config: { broadcast: { self: false } },
     });
 
-    // --- listener positions ---
-    this.ch.on(
-      "broadcast",
-      { event: "position" },
-      ({ payload }) => this.handlePosition(payload as BlobPayload)
+    // réception des positions
+    this.ch.on("broadcast", { event: "position" }, ({ payload }) =>
+      this.handlePosition(payload as BlobPayload)
     );
 
     await this.ch.subscribe();
 
-    // --- boucle d'envoi 20 Hz (ou custom) ---
+    // boucle émission (20 Hz par défaut)
     const pace = this.opts.sendIntervalMs ?? 50;
     this.sendLoopId = setInterval(() => this.broadcastPosition(), pace);
 
-    // --- heartbeat présence 10 s ---
-    this.heartbeatId = setInterval(() => {
-      this.ch?.track({ t: Date.now() });
-    }, 10_000);
+    // heartbeat : RAF + visibilitychange
+    requestAnimationFrame(this.rafPing);
+    document.addEventListener("visibilitychange", this.forcePing);
   }
 
-  /** Nettoie tout (appelé quand on quitte la page / room) */
   disconnect() {
-    clearInterval(this.sendLoopId);
-    clearInterval(this.heartbeatId);
+    if (this.sendLoopId) clearInterval(this.sendLoopId);
+    document.removeEventListener("visibilitychange", this.forcePing);
     this.ch?.unsubscribe();
   }
 
-  // ------------------------------------------------------------------
-  // PRIVÉ : gestion des positions
-  // ------------------------------------------------------------------
-
+  // --------------------------------------------------
+  // PRIVATE
+  // --------------------------------------------------
   private broadcastPosition() {
     const { myId, players } = this.opts;
-    if (!myId) return; // id non initialisé ⇒ on attend
-
+    if (!myId) return;                        // évite id undefined
     const me = players[myId];
     if (!me) return;
 
@@ -84,38 +80,32 @@ export class RealtimeSync {
         id: myId,
         x: me.x,
         y: me.y,
-        r: me.r,
+        r: me.r ?? 0,
       } satisfies BlobPayload,
     });
   }
 
   private handlePosition(p: BlobPayload) {
-    if (!p?.id) return; // ignore id vide
-
+    if (!p?.id) return;                       // filtre id vide
     const { players, createBlob } = this.opts;
     const blob = players[p.id] ?? (players[p.id] = createBlob(p.id));
-
     blob.setPos(p.x, p.y);
-    blob.setSize(p.r);
+    blob.setSize(Number.isFinite(p.r) ? p.r : 0);
   }
+
+  // ---------- heartbeat fiable ----------
+  private rafPing = (time: number) => {
+    if (time - this.lastPing > 9500) {        // ~9,5 s
+      this.ch?.track({ t: Date.now() });
+      this.lastPing = time;
+    }
+    requestAnimationFrame(this.rafPing);
+  };
+
+  private forcePing = () => {
+    if (document.visibilityState === "hidden") {
+      this.ch?.track({ t: Date.now() });
+      this.lastPing = performance.now();
+    }
+  };
 }
-
-// ------------------------------------------------------------------
-// Exemple d'utilisation (React ou vanilla)
-// ------------------------------------------------------------------
-/*
-import { createClient } from "@supabase/supabase-js";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const sync = new RealtimeSync({
-  supabase,
-  roomId: "abc123",
-  myId: walletAddress,
-  players,
-  createBlob: (id) => new BlobSprite(id),
-});
-
-sync.connect();
-
-window.addEventListener("beforeunload", () => sync.disconnect());
-*/
