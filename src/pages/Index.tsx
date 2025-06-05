@@ -16,9 +16,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
+import { useEffect } from "react";
 
 export default function Index() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // Redirect authenticated users to lobby
+    if (user) {
+      navigate('/lobby');
+    }
+  }, [user, navigate]);
+
   const { customPhrases, setCustomPhrases } = useGame();
   const [editedPhrases, setEditedPhrases] = useState<string[]>([...customPhrases]);
   const [newPhrase, setNewPhrase] = useState("");

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function Lobby() {
   const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();
@@ -75,6 +76,20 @@ export default function Lobby() {
     initializeLobby();
   }, [hasInitialized, currentRoom, leaveRoom, refreshCurrentRoom]);
   
+  const { isAuthenticated, isLoading } = useAuthGuard();
+
+  if (isLoading) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // AuthGuard will redirect
+  }
+
   const handleTestGame = async () => {
     if (!player) {
       toast({

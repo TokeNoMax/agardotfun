@@ -1,9 +1,9 @@
-
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useGame } from "@/context/GameContext";
 import GameUI from "@/components/Game/GameUI";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function Game() {
   const { currentRoom, player, refreshCurrentRoom } = useGame();
@@ -149,6 +149,23 @@ export default function Game() {
         </div>
       </div>
     );
+  }
+  
+  const { isAuthenticated, isLoading, user } = useAuthGuard();
+  
+  if (isLoading) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-lg font-medium">Authentification...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return null; // AuthGuard will redirect
   }
   
   return (
