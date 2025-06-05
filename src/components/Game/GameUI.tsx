@@ -36,13 +36,13 @@ export default function GameUI({ roomId }: GameUIProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
-  // Nettoyage automatique des salles fantômes
+  // Ghost room cleaner
   useGhostRoomCleaner({
     enabled: !localMode,
     intervalMinutes: 1
   });
 
-  // SOLUTION B : Synchronisation unifiée sur broadcast pur
+  // Enhanced unified game sync with comprehensive logging
   const {
     isConnected: gameConnected,
     connectionState: gameState,
@@ -56,13 +56,17 @@ export default function GameUI({ roomId }: GameUIProps) {
     playerName: player?.name,
     enabled: !localMode && !!currentRoom && !!player && currentRoom.status === 'playing',
     onPlayerPositionUpdate: (playerId: string, position) => {
-      console.log('[GameUI] Received position update:', playerId, position);
+      console.log(`[GameUI] 📍 Position update received for ${playerId}:`, position);
       if (canvasRef.current && playerId !== player?.id) {
         canvasRef.current.updatePlayerPosition(playerId, position);
+      } else if (playerId === player?.id) {
+        console.log(`[GameUI] ⏭️ Ignoring own position update`);
+      } else if (!canvasRef.current) {
+        console.warn(`[GameUI] ⚠️ Canvas not ready for position update`);
       }
     },
     onPlayerCollision: (eliminatedId: string, eliminatorId: string, eliminatedSize: number, eliminatorNewSize: number) => {
-      console.log('[GameUI] Received collision:', { eliminatedId, eliminatorId });
+      console.log(`[GameUI] 💥 Collision received:`, { eliminatedId, eliminatorId, eliminatedSize, eliminatorNewSize });
       if (canvasRef.current) {
         canvasRef.current.eliminatePlayer(eliminatedId, eliminatorId);
       }
@@ -80,22 +84,19 @@ export default function GameUI({ roomId }: GameUIProps) {
       }
     },
     onPlayerEliminated: (eliminatedId: string, eliminatorId: string) => {
-      console.log('[GameUI] Received elimination:', { eliminatedId, eliminatorId });
+      console.log(`[GameUI] ☠️ Elimination received:`, { eliminatedId, eliminatorId });
       if (canvasRef.current) {
         canvasRef.current.eliminatePlayer(eliminatedId, eliminatorId);
       }
     },
     onPlayerJoined: (joinedPlayer) => {
-      console.log('[GameUI] Player joined room:', joinedPlayer);
-      
-      // CORRECTION: Ajouter le joueur au Canvas avec walletAddress
-      const playerForCanvas = {
-        ...joinedPlayer,
-        walletAddress: joinedPlayer.walletAddress || joinedPlayer.id // Fallback to id if no walletAddress
-      };
+      console.log(`[GameUI] 🆕 Player joined:`, joinedPlayer);
       
       if (canvasRef.current) {
-        canvasRef.current.addPlayer(playerForCanvas);
+        canvasRef.current.addPlayer(joinedPlayer);
+        console.log(`[GameUI] ✅ Player added to canvas:`, joinedPlayer.name);
+      } else {
+        console.warn(`[GameUI] ⚠️ Canvas not ready, player join queued`);
       }
       
       toast({
@@ -105,7 +106,7 @@ export default function GameUI({ roomId }: GameUIProps) {
       });
     },
     onPlayerLeft: (leftPlayerId) => {
-      console.log('[GameUI] Player left room:', leftPlayerId);
+      console.log(`[GameUI] ❌ Player left:`, leftPlayerId);
       const leftPlayer = currentRoom?.players.find(p => p.id === leftPlayerId);
       if (leftPlayer) {
         toast({
@@ -244,18 +245,22 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   };
 
-  // Gestion des positions via le service unifié (optimisé selon recommandations)
+  // Enhanced player position sync with detailed logging
   const handlePlayerPositionUpdate = async (position: { x: number; y: number; size: number; velocityX?: number; velocityY?: number }) => {
     if (!localMode && gameConnected) {
       try {
         await broadcastPlayerPosition(position.x, position.y, position.size, position.velocityX, position.velocityY);
+        // Log every 60 frames (about once per second at 60fps)
+        if (Math.random() < 0.016) { // ~1/60 chance
+          console.log(`[GameUI] 📤 Position broadcasted:`, { x: Math.round(position.x), y: Math.round(position.y), size: Math.round(position.size) });
+        }
       } catch (error) {
-        console.error('[GameUI] Error broadcasting position:', error);
+        console.error('[GameUI] ❌ Error broadcasting position:', error);
       }
     }
   };
 
-  // Gestion des collisions via le service unifié
+  // Enhanced collision broadcast with logging
   const handlePlayerCollisionBroadcast = async (
     eliminatedPlayerId: string, 
     eliminatorPlayerId: string, 
@@ -264,7 +269,7 @@ export default function GameUI({ roomId }: GameUIProps) {
   ) => {
     if (!localMode && gameConnected) {
       try {
-        console.log('[GameUI] Broadcasting collision:', { 
+        console.log(`[GameUI] 💥 Broadcasting collision:`, { 
           eliminatedPlayerId, 
           eliminatorPlayerId, 
           eliminatedSize, 
@@ -272,7 +277,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         });
         await broadcastPlayerCollision(eliminatedPlayerId, eliminatorPlayerId, eliminatedSize, eliminatorNewSize);
       } catch (error) {
-        console.error('[GameUI] Error broadcasting collision:', error);
+        console.error('[GameUI] ❌ Error broadcasting collision:', error);
       }
     }
   };
@@ -359,7 +364,7 @@ export default function GameUI({ roomId }: GameUIProps) {
   
   return (
     <div className="w-full h-full relative">
-      {/* Status unifié avec un seul service */}
+      {/* Enhanced status display with diagnostics */}
       <div className={`absolute top-4 left-4 bg-black/80 backdrop-blur-sm ${
         isMobile ? 'p-2 text-sm' : 'p-3'
       } rounded-md shadow-md z-10 text-white`}>
@@ -367,14 +372,14 @@ export default function GameUI({ roomId }: GameUIProps) {
           {localMode ? (isZoneMode ? "Mode Zone Battle" : "Mode Solo Local") : `Joueurs en vie: ${alivePlayers}`}
         </div>
         {!localMode && currentRoom && (
-          <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-cyber-cyan`}>
-            Match #{currentRoom.matchNumber} - {currentRoom.name}
-          </div>
-        )}
-        {!localMode && currentRoom && (
-          <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-gray-400`}>
-            Room: {currentRoom.id.substring(0, 8)}...
-          </div>
+          <>
+            <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-cyber-cyan`}>
+              Match #{currentRoom.matchNumber} - {currentRoom.name}
+            </div>
+            <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-gray-400`}>
+              Room: {currentRoom.id.substring(0, 8)}...
+            </div>
+          </>
         )}
         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
           Vous: {localMode ? localPlayer?.name : player?.name}
@@ -382,7 +387,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         {!localMode && (
           <>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} ${gameConnected ? 'text-green-400' : 'text-red-400'}`}>
-              Unified Sync: {gameConnected ? 'Connecté ✓' : 'Déconnecté ⚠️'}
+              Sync: {gameConnected ? '✅ Connecté' : '❌ Déconnecté'}
             </div>
             <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-400`}>
               Canal: game-{currentRoom?.id?.substring(0, 6)}
@@ -400,6 +405,15 @@ export default function GameUI({ roomId }: GameUIProps) {
                 Reconnecter
               </Button>
             )}
+            {/* Diagnostic info toggle */}
+            <details className="mt-2">
+              <summary className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-300 cursor-pointer`}>
+                Diagnostics
+              </summary>
+              <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-400 mt-1`}>
+                Player ID: {player?.id?.substring(0, 8)}...
+              </div>
+            </details>
           </>
         )}
       </div>
@@ -436,7 +450,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         />
       </div>
       
-      {/* Canvas avec synchronisation unifiée */}
+      {/* Enhanced Canvas with better position sync */}
       <div className="w-full h-full">
         <Canvas 
           ref={canvasRef}

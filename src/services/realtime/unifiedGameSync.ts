@@ -1,10 +1,11 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { PlayerColor } from "@/types/game";
 
 export interface GamePlayer {
   id: string;
   name: string;
-  walletAddress: string; // Added missing property
+  walletAddress: string;
   color: PlayerColor;
   x: number;
   y: number;
@@ -15,7 +16,7 @@ export interface GamePlayer {
 }
 
 export interface GameSyncEvent {
-  type: 'position' | 'collision' | 'elimination' | 'player_joined' | 'player_left' | 'game_start';
+  type: 'position' | 'collision' | 'elimination' | 'player_joined' | 'player_left' | 'game_start' | 'ping' | 'pong';
   playerId: string;
   data: any;
   timestamp: number;
@@ -38,107 +39,161 @@ export class UnifiedGameSyncService {
   private callbacks: GameSyncCallbacks;
   private isConnected = false;
   
-  // Optimisation des fréquences selon les recommandations
+  // Optimized frequencies
   private lastPositionBroadcast = 0;
-  private positionBroadcastThrottle = 50; // 20 FPS pour fluidité temps réel
+  private positionBroadcastThrottle = 50; // 20 FPS
   private lastDbUpdate = 0;
-  private dbUpdateInterval = 1000; // 1 seconde pour persistance
+  private dbUpdateInterval = 1000; // 1 second
   
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
   private connectionState: 'connected' | 'connecting' | 'disconnected' = 'disconnected';
+  private channelName: string;
+
+  // Diagnostic counters
+  private diagnostics = {
+    eventsReceived: 0,
+    eventsSent: 0,
+    positionsReceived: 0,
+    positionsSent: 0,
+    pingsSent: 0,
+    pongsReceived: 0
+  };
 
   constructor(roomId: string, playerId: string, playerName: string, callbacks: GameSyncCallbacks) {
     this.roomId = roomId;
     this.playerId = playerId;
     this.playerName = playerName;
     this.callbacks = callbacks;
+    this.channelName = `game-${this.roomId}`;
+    
+    console.log(`[UnifiedGameSync] Initialized for room: ${this.roomId}, player: ${this.playerId}, channel: ${this.channelName}`);
   }
 
   async connect(): Promise<boolean> {
     try {
       this.connectionState = 'connecting';
-      console.log(`[UnifiedGameSync] Connecting to unified game sync: ${this.roomId}`);
+      console.log(`[UnifiedGameSync] 🔄 Connecting to channel: ${this.channelName}`);
 
-      // Channel unique par room comme recommandé
-      const channelName = `game-${this.roomId}`;
-      this.channel = supabase.channel(channelName, {
+      // Clean up any existing channel first
+      if (this.channel) {
+        console.log(`[UnifiedGameSync] 🧹 Cleaning up existing channel`);
+        await supabase.removeChannel(this.channel);
+        this.channel = null;
+      }
+
+      // Create channel with detailed logging
+      this.channel = supabase.channel(this.channelName, {
         config: {
-          broadcast: { self: false } // Ne pas recevoir ses propres messages
+          broadcast: { self: false }, // Don't receive our own messages
+          presence: { key: this.playerId }
         }
       });
 
-      // Écouter tous les événements de broadcast
+      console.log(`[UnifiedGameSync] 📡 Channel created with name: ${this.channel.topic}`);
+
+      // Enhanced event listeners with detailed logging
       this.channel.on('broadcast', { event: 'game_event' }, (payload: any) => {
-        this.handleGameEvent(payload.payload);
+        this.diagnostics.eventsReceived++;
+        console.log(`[UnifiedGameSync] 📥 Event received (#${this.diagnostics.eventsReceived}):`, payload.type, payload);
+        this.handleGameEvent(payload);
       });
 
-      // Gestion de la présence (joueurs qui rejoignent/quittent)
+      // Presence sync - when all presence states sync
       this.channel.on('presence', { event: 'sync' }, () => {
         const presences = this.channel.presenceState();
-        console.log('[UnifiedGameSync] Presence sync:', presences);
+        console.log(`[UnifiedGameSync] 🔄 Presence sync - total players:`, Object.keys(presences).length, presences);
         this.syncPlayersFromPresence(presences);
       });
 
+      // Player joins
       this.channel.on('presence', { event: 'join' }, ({ key, newPresences }: any) => {
-        console.log('[UnifiedGameSync] Player joined:', key, newPresences);
+        console.log(`[UnifiedGameSync] ✅ Player joined:`, key, newPresences);
         const playerData = newPresences[0];
         if (playerData && playerData.playerId !== this.playerId) {
-          // Récupérer la position depuis la DB pour le nouveau joueur
-          this.loadPlayerPosition(playerData.playerId).then(position => {
-            const joinedPlayer: GamePlayer = {
-              id: playerData.playerId,
-              name: playerData.name,
-              walletAddress: playerData.walletAddress || playerData.playerId,
-              color: 'blue' as PlayerColor, // Ensure proper typing
-              x: position?.x || 1500,
-              y: position?.y || 1500,
-              size: position?.size || 15,
-              isAlive: true
-            };
-            this.callbacks.onPlayerJoined?.(joinedPlayer);
-          });
+          this.handlePlayerJoin(playerData);
         }
       });
 
+      // Player leaves
       this.channel.on('presence', { event: 'leave' }, ({ key, leftPresences }: any) => {
-        console.log('[UnifiedGameSync] Player left:', key, leftPresences);
+        console.log(`[UnifiedGameSync] ❌ Player left:`, key, leftPresences);
         const playerData = leftPresences[0];
         if (playerData) {
           this.callbacks.onPlayerLeft?.(playerData.playerId);
           
-          // Programmer la déconnection retardée
+          // Schedule disconnection cleanup
           import('@/services/room/disconnectionService').then(({ disconnectionService }) => {
             disconnectionService.scheduleDisconnection(this.roomId, playerData.playerId);
           });
         }
       });
 
-      // S'abonner au channel
-      const status = await this.channel.subscribe(async (status: string) => {
-        console.log(`[UnifiedGameSync] Channel status: ${status}`);
-        
-        if (status === 'SUBSCRIBED') {
-          this.isConnected = true;
-          this.connectionState = 'connected';
+      // Subscribe with detailed status tracking
+      return new Promise((resolve) => {
+        this.channel.subscribe(async (status: string) => {
+          console.log(`[UnifiedGameSync] 📊 Channel status changed to: ${status}`);
           
-          // Annoncer sa présence
-          await this.announcePresence();
-          
-          // Démarrer le heartbeat
-          this.startHeartbeat();
-          
-          console.log(`[UnifiedGameSync] Successfully connected to room: ${this.roomId}`);
-        } else if (status === 'CHANNEL_ERROR') {
-          this.connectionState = 'disconnected';
-          console.error('[UnifiedGameSync] Channel error');
-        }
+          switch (status) {
+            case 'SUBSCRIBED':
+              this.isConnected = true;
+              this.connectionState = 'connected';
+              console.log(`[UnifiedGameSync] ✅ Successfully connected to channel: ${this.channelName}`);
+              
+              // Announce presence
+              await this.announcePresence();
+              
+              // Start heartbeat and ping system
+              this.startHeartbeat();
+              this.startPingSystem();
+              
+              resolve(true);
+              break;
+              
+            case 'CHANNEL_ERROR':
+            case 'TIMED_OUT':
+            case 'CLOSED':
+              this.connectionState = 'disconnected';
+              this.isConnected = false;
+              console.error(`[UnifiedGameSync] ❌ Channel error/timeout/closed: ${status}`);
+              resolve(false);
+              break;
+              
+            default:
+              console.log(`[UnifiedGameSync] ⏳ Channel status: ${status}`);
+          }
+        });
       });
 
-      return this.isConnected;
     } catch (error) {
-      console.error('[UnifiedGameSync] Connection error:', error);
+      console.error('[UnifiedGameSync] ❌ Connection error:', error);
       this.connectionState = 'disconnected';
+      this.isConnected = false;
       return false;
+    }
+  }
+
+  private async handlePlayerJoin(playerData: any) {
+    try {
+      // Load position from database
+      const position = await this.loadPlayerPosition(playerData.playerId);
+      
+      const joinedPlayer: GamePlayer = {
+        id: playerData.playerId,
+        name: playerData.name,
+        walletAddress: playerData.walletAddress || playerData.playerId,
+        color: 'blue' as PlayerColor,
+        x: position?.x || 1500,
+        y: position?.y || 1500,
+        size: position?.size || 15,
+        isAlive: true
+      };
+      
+      console.log(`[UnifiedGameSync] 🆕 Adding joined player:`, joinedPlayer);
+      this.callbacks.onPlayerJoined?.(joinedPlayer);
+      
+    } catch (error) {
+      console.error('[UnifiedGameSync] ❌ Error handling player join:', error);
     }
   }
 
@@ -152,25 +207,25 @@ export class UnifiedGameSyncService {
         .single();
 
       if (error) {
-        console.log('[UnifiedGameSync] No position found for player:', playerId);
+        console.log(`[UnifiedGameSync] ⚠️ No position found for player: ${playerId}`);
         return null;
       }
 
+      console.log(`[UnifiedGameSync] 📍 Loaded position for ${playerId}:`, data);
       return { x: data.x, y: data.y, size: data.size };
     } catch (error) {
-      console.error('[UnifiedGameSync] Error loading player position:', error);
+      console.error('[UnifiedGameSync] ❌ Error loading player position:', error);
       return null;
     }
   }
 
   private syncPlayersFromPresence(presences: any) {
-    // Synchroniser les joueurs depuis l'état de présence
-    console.log('[UnifiedGameSync] Syncing players from presence state');
+    console.log('[UnifiedGameSync] 🔄 Syncing players from presence state');
     for (const [key, playerPresences] of Object.entries(presences)) {
       if (Array.isArray(playerPresences) && playerPresences.length > 0) {
         const playerData = playerPresences[0] as any;
         if (playerData.playerId !== this.playerId) {
-          // Charger la position depuis la DB si pas déjà présent
+          console.log(`[UnifiedGameSync] 🔄 Syncing existing player: ${playerData.playerId}`);
           this.loadPlayerPosition(playerData.playerId).then(position => {
             if (position) {
               this.callbacks.onPlayerPositionUpdate?.(playerData.playerId, position);
@@ -186,19 +241,19 @@ export class UnifiedGameSyncService {
       const playerData = {
         playerId: this.playerId,
         name: this.playerName,
-        walletAddress: this.playerId, // Add walletAddress to presence data
+        walletAddress: this.playerId,
         joinedAt: Date.now()
       };
 
       await this.channel.track(playerData);
-      console.log('[UnifiedGameSync] Presence announced');
+      console.log('[UnifiedGameSync] 📢 Presence announced:', playerData);
       
-      // Annuler toute déconnection programmée
+      // Cancel any scheduled disconnection
       import('@/services/room/disconnectionService').then(({ disconnectionService }) => {
         disconnectionService.cancelDisconnection(this.playerId);
       });
     } catch (error) {
-      console.error('[UnifiedGameSync] Error announcing presence:', error);
+      console.error('[UnifiedGameSync] ❌ Error announcing presence:', error);
     }
   }
 
@@ -209,23 +264,72 @@ export class UnifiedGameSyncService {
 
     this.heartbeatInterval = setInterval(() => {
       if (!this.isConnected) {
-        console.log('[UnifiedGameSync] Heartbeat detected disconnection');
+        console.log('[UnifiedGameSync] 💔 Heartbeat detected disconnection');
         this.connectionState = 'disconnected';
       }
     }, 10000);
   }
 
-  private handleGameEvent(event: GameSyncEvent) {
-    // Ignorer ses propres événements
-    if (event.playerId === this.playerId) return;
+  private startPingSystem() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
 
-    console.log('[UnifiedGameSync] Received event:', event.type, event);
+    // Send ping every 5 seconds to test connectivity
+    this.pingInterval = setInterval(() => {
+      if (this.isConnected) {
+        this.sendPing();
+      }
+    }, 5000);
+  }
+
+  private async sendPing() {
+    try {
+      this.diagnostics.pingsSent++;
+      await this.broadcastEvent({
+        type: 'ping',
+        playerId: this.playerId,
+        data: { timestamp: Date.now(), counter: this.diagnostics.pingsSent },
+        timestamp: Date.now()
+      });
+      console.log(`[UnifiedGameSync] 🏓 Ping sent (#${this.diagnostics.pingsSent})`);
+    } catch (error) {
+      console.error('[UnifiedGameSync] ❌ Error sending ping:', error);
+    }
+  }
+
+  private async sendPong(originalPlayerId: string, pingData: any) {
+    try {
+      await this.broadcastEvent({
+        type: 'pong',
+        playerId: this.playerId,
+        data: { originalPlayerId, pingData, timestamp: Date.now() },
+        timestamp: Date.now()
+      });
+      console.log(`[UnifiedGameSync] 🏓 Pong sent to ${originalPlayerId}`);
+    } catch (error) {
+      console.error('[UnifiedGameSync] ❌ Error sending pong:', error);
+    }
+  }
+
+  private handleGameEvent(event: GameSyncEvent) {
+    // Don't process our own events
+    if (event.playerId === this.playerId) {
+      console.log(`[UnifiedGameSync] ⏭️ Ignoring own event: ${event.type}`);
+      return;
+    }
+
+    console.log(`[UnifiedGameSync] 🎯 Processing event: ${event.type} from ${event.playerId}`);
 
     switch (event.type) {
       case 'position':
+        this.diagnostics.positionsReceived++;
+        console.log(`[UnifiedGameSync] 📍 Position update (#${this.diagnostics.positionsReceived}):`, event.data);
         this.callbacks.onPlayerPositionUpdate?.(event.playerId, event.data);
         break;
+        
       case 'collision':
+        console.log(`[UnifiedGameSync] 💥 Collision event:`, event.data);
         this.callbacks.onPlayerCollision?.(
           event.data.eliminatedId,
           event.data.eliminatorId,
@@ -233,22 +337,43 @@ export class UnifiedGameSyncService {
           event.data.eliminatorNewSize
         );
         break;
+        
       case 'elimination':
+        console.log(`[UnifiedGameSync] ☠️ Elimination event:`, event.data);
         this.callbacks.onPlayerEliminated?.(event.data.eliminatedId, event.data.eliminatorId);
         break;
+        
       case 'game_start':
+        console.log(`[UnifiedGameSync] 🚀 Game start event:`, event.data);
         this.callbacks.onGameStart?.(event.data);
         break;
+        
+      case 'ping':
+        console.log(`[UnifiedGameSync] 🏓 Ping received from ${event.playerId}, sending pong`);
+        this.sendPong(event.playerId, event.data);
+        break;
+        
+      case 'pong':
+        if (event.data.originalPlayerId === this.playerId) {
+          this.diagnostics.pongsReceived++;
+          const latency = Date.now() - event.data.pingData.timestamp;
+          console.log(`[UnifiedGameSync] 🏓 Pong received (#${this.diagnostics.pongsReceived}) - latency: ${latency}ms`);
+        }
+        break;
+        
+      default:
+        console.warn(`[UnifiedGameSync] ⚠️ Unknown event type: ${event.type}`);
     }
   }
 
-  // Broadcast position avec throttling optimisé
+  // Enhanced position broadcasting with better logging
   async broadcastPlayerPosition(x: number, y: number, size: number, velocityX = 0, velocityY = 0) {
     const now = Date.now();
     
-    // Broadcast temps réel (50ms = 20 FPS)
+    // Real-time broadcast (20 FPS)
     if (now - this.lastPositionBroadcast >= this.positionBroadcastThrottle) {
       this.lastPositionBroadcast = now;
+      this.diagnostics.positionsSent++;
       
       await this.broadcastEvent({
         type: 'position',
@@ -256,14 +381,18 @@ export class UnifiedGameSyncService {
         data: { x, y, size, velocityX, velocityY },
         timestamp: now
       });
+      
+      if (this.diagnostics.positionsSent % 20 === 0) { // Log every second
+        console.log(`[UnifiedGameSync] 📤 Position sent (#${this.diagnostics.positionsSent}):`, { x, y, size });
+      }
     }
 
-    // Update DB pour persistance (1 seconde)
+    // Database persistence (1 second interval)
     if (now - this.lastDbUpdate >= this.dbUpdateInterval) {
       this.lastDbUpdate = now;
       
       try {
-        await supabase
+        const { error } = await supabase
           .from('game_room_players')
           .update({
             x,
@@ -275,13 +404,18 @@ export class UnifiedGameSyncService {
           })
           .eq('room_id', this.roomId)
           .eq('player_id', this.playerId);
+
+        if (error) {
+          console.error('[UnifiedGameSync] ❌ DB position update error:', error);
+        }
       } catch (error) {
-        console.error('[UnifiedGameSync] Error updating position in DB:', error);
+        console.error('[UnifiedGameSync] ❌ Error updating position in DB:', error);
       }
     }
   }
 
   async broadcastPlayerCollision(eliminatedId: string, eliminatorId: string, eliminatedSize: number, eliminatorNewSize: number) {
+    console.log(`[UnifiedGameSync] 💥 Broadcasting collision: ${eliminatedId} eliminated by ${eliminatorId}`);
     await this.broadcastEvent({
       type: 'collision',
       playerId: this.playerId,
@@ -291,6 +425,7 @@ export class UnifiedGameSyncService {
   }
 
   async broadcastPlayerElimination(eliminatedId: string, eliminatorId: string) {
+    console.log(`[UnifiedGameSync] ☠️ Broadcasting elimination: ${eliminatedId} by ${eliminatorId}`);
     await this.broadcastEvent({
       type: 'elimination',
       playerId: this.playerId,
@@ -301,35 +436,57 @@ export class UnifiedGameSyncService {
 
   private async broadcastEvent(event: GameSyncEvent) {
     if (!this.isConnected || !this.channel) {
-      console.warn('[UnifiedGameSync] Cannot broadcast - not connected');
+      console.warn(`[UnifiedGameSync] ⚠️ Cannot broadcast ${event.type} - not connected (state: ${this.connectionState})`);
       return;
     }
 
     try {
+      this.diagnostics.eventsSent++;
       await this.channel.send({
         type: 'broadcast',
         event: 'game_event',
         payload: event
       });
+      
+      if (event.type !== 'position') { // Don't spam logs for position events
+        console.log(`[UnifiedGameSync] 📤 Event sent (#${this.diagnostics.eventsSent}): ${event.type}`);
+      }
     } catch (error) {
-      console.error('[UnifiedGameSync] Broadcast error:', error);
+      console.error(`[UnifiedGameSync] ❌ Broadcast error for ${event.type}:`, error);
     }
+  }
+
+  getDiagnostics() {
+    return {
+      ...this.diagnostics,
+      isConnected: this.isConnected,
+      connectionState: this.connectionState,
+      channelName: this.channelName,
+      roomId: this.roomId,
+      playerId: this.playerId
+    };
   }
 
   getConnectionState() {
     return {
       isConnected: this.isConnected,
       state: this.connectionState,
-      roomId: this.roomId
+      roomId: this.roomId,
+      diagnostics: this.diagnostics
     };
   }
 
   disconnect() {
-    console.log('[UnifiedGameSync] Disconnecting from room:', this.roomId);
+    console.log(`[UnifiedGameSync] 🔌 Disconnecting from room: ${this.roomId}`);
     
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+    }
+
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
     }
 
     if (this.channel) {
@@ -339,5 +496,7 @@ export class UnifiedGameSyncService {
 
     this.isConnected = false;
     this.connectionState = 'disconnected';
+    
+    console.log(`[UnifiedGameSync] 📊 Final diagnostics:`, this.diagnostics);
   }
 }
