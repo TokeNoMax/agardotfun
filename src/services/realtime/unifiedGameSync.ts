@@ -1,10 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
+import { PlayerColor } from "@/types/game";
 
 export interface GamePlayer {
   id: string;
   name: string;
   walletAddress: string; // Added missing property
-  color: string;
+  color: PlayerColor;
   x: number;
   y: number;
   size: number;
@@ -87,8 +88,8 @@ export class UnifiedGameSyncService {
             const joinedPlayer: GamePlayer = {
               id: playerData.playerId,
               name: playerData.name,
-              walletAddress: playerData.walletAddress || playerData.playerId, // Include walletAddress
-              color: 'blue', // couleur par défaut
+              walletAddress: playerData.walletAddress || playerData.playerId,
+              color: 'blue' as PlayerColor, // Ensure proper typing
               x: position?.x || 1500,
               y: position?.y || 1500,
               size: position?.size || 15,
