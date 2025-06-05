@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Player } from "@/types/game";
 import { verificationService } from "../room/verificationService";
@@ -48,30 +49,12 @@ export const playerService = {
         throw new Error("Cette salle n'accepte plus de nouveaux joueurs");
       }
 
-      // Vérifier si le joueur est déjà dans cette salle
-      const { data: existingPlayerInRoom, error: playerInRoomError } = await supabase
-        .from('game_room_players')
-        .select('player_id')
-        .eq('room_id', roomId)
-        .eq('player_id', player.walletAddress)
-        .maybeSingle();
-
-      if (playerInRoomError && playerInRoomError.code !== 'PGRST116') {
-        console.error("Error checking player in room:", playerInRoomError);
-        throw new Error("Erreur lors de la vérification du joueur dans la salle");
-      }
-
-      if (existingPlayerInRoom) {
-        console.log(`Player ${player.walletAddress} is already in room ${roomId}`);
-        await activityService.updateRoomActivity(roomId);
-        return;
-      }
-
-      // Vérifier le nombre de joueurs actuels
+      // Vérifier le nombre de joueurs actuels (sauf le joueur courant)
       const { data: currentPlayers, error: playersError } = await supabase
         .from('game_room_players')
         .select('player_id')
-        .eq('room_id', roomId);
+        .eq('room_id', roomId)
+        .neq('player_id', player.walletAddress);
 
       if (playersError) {
         console.error("Error getting current players:", playersError);
@@ -85,39 +68,26 @@ export const playerService = {
 
       // S'assurer que le joueur existe dans la table players
       console.log("Ensuring player exists in players table...");
-      const { data: existingPlayer, error: playerCheckError } = await supabase
+      const { error: upsertPlayerError } = await supabase
         .from('players')
-        .select('id')
-        .eq('id', player.walletAddress)
-        .maybeSingle();
+        .upsert({
+          id: player.walletAddress,
+          name: player.name.trim(),
+          color: player.color
+        }, {
+          onConflict: 'id'
+        });
 
-      if (playerCheckError && playerCheckError.code !== 'PGRST116') {
-        console.error("Error checking player:", playerCheckError);
-        throw new Error(`Erreur lors de la vérification du joueur: ${playerCheckError.message}`);
+      if (upsertPlayerError) {
+        console.error("Error upserting player:", upsertPlayerError);
+        throw new Error(`Impossible de créer/mettre à jour le joueur: ${upsertPlayerError.message}`);
       }
 
-      if (!existingPlayer) {
-        console.log("Creating player in database...");
-        const { error: createPlayerError } = await supabase
-          .from('players')
-          .insert({
-            id: player.walletAddress,
-            name: player.name.trim(),
-            color: player.color
-          });
-
-        if (createPlayerError) {
-          console.error("Error creating player:", createPlayerError);
-          throw new Error(`Impossible de créer le joueur: ${createPlayerError.message}`);
-        }
-        console.log("Player created successfully in database");
-      }
-
-      console.log("Adding player to room...");
-      // Ajouter le joueur à la salle
+      console.log("Adding/updating player in room...");
+      // AMÉLIORATION: Utiliser upsert au lieu d'insert pour éviter les doublons
       const { error: joinError } = await supabase
         .from('game_room_players')
-        .insert({
+        .upsert({
           room_id: roomId,
           player_id: player.walletAddress,
           player_name: player.name.trim(),
@@ -126,19 +96,19 @@ export const playerService = {
           x: player.x || 0,
           y: player.y || 0,
           is_alive: player.isAlive !== false,
-          is_ready: false
+          is_ready: false,
+          last_position_update: new Date().toISOString()
+        }, {
+          onConflict: 'room_id,player_id'
         });
 
       if (joinError) {
         console.error("Error joining room:", joinError);
-        if (joinError.code === '23505') {
-          throw new Error("Vous êtes déjà dans cette salle");
-        }
         throw new Error(`Impossible de rejoindre la salle: ${joinError.message}`);
       }
 
       await activityService.updateRoomActivity(roomId);
-      console.log("✅ Player joined room successfully");
+      console.log("✅ Player joined/rejoined room successfully");
     } catch (error) {
       console.error("Error in joinRoom:", error);
       throw error;
@@ -159,6 +129,14 @@ export const playerService = {
     }
     
     try {
+      // AMÉLIORATION: Marquer le joueur comme non-vivant avant de le supprimer
+      await supabase
+        .from('game_room_players')
+        .update({ is_alive: false })
+        .eq('room_id', roomId)
+        .eq('player_id', playerId);
+
+      // Supprimer le joueur de la salle
       const { error } = await supabase
         .from('game_room_players')
         .delete()
@@ -207,6 +185,32 @@ export const playerService = {
       console.log("Player ready status updated successfully");
     } catch (error) {
       console.error("Error in setPlayerReady:", error);
+      throw error;
+    }
+  },
+
+  // NOUVEAU: Fonction pour marquer un joueur comme déconnecté (soft-dead)
+  async markPlayerDisconnected(roomId: string, playerId: string): Promise<void> {
+    console.log(`Marking player ${playerId} as disconnected in room ${roomId}`);
+    
+    try {
+      const { error } = await supabase
+        .from('game_room_players')
+        .update({ 
+          is_alive: false,
+          last_position_update: new Date().toISOString()
+        })
+        .eq('room_id', roomId)
+        .eq('player_id', playerId);
+
+      if (error) {
+        console.error("Error marking player as disconnected:", error);
+        throw new Error(`Impossible de marquer le joueur comme déconnecté: ${error.message}`);
+      }
+
+      console.log("Player marked as disconnected successfully");
+    } catch (error) {
+      console.error("Error in markPlayerDisconnected:", error);
       throw error;
     }
   }

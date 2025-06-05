@@ -85,6 +85,11 @@ export class RoomBroadcastSyncService {
         const playerData = leftPresences[0];
         if (playerData) {
           this.callbacks.onPlayerLeft?.(playerData.playerId);
+          
+          // AMÉLIORATION: Programmer la déconnection retardée
+          import('@/services/room/disconnectionService').then(({ disconnectionService }) => {
+            disconnectionService.scheduleDisconnection(this.roomId, playerData.playerId);
+          });
         }
       });
 
@@ -127,6 +132,11 @@ export class RoomBroadcastSyncService {
 
       await this.channel.track(playerData);
       console.log('[RoomSync] Presence announced');
+      
+      // AMÉLIORATION: Annuler toute déconnection programmée
+      import('@/services/room/disconnectionService').then(({ disconnectionService }) => {
+        disconnectionService.cancelDisconnection(this.playerId);
+      });
     } catch (error) {
       console.error('[RoomSync] Error announcing presence:', error);
     }
