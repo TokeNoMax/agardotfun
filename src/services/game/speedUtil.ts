@@ -5,7 +5,7 @@
 // r in pixels, v in pixels per second
 // ---------------------------------------------------------------
 
-export const BASE_SPEED = 1100;              // tweak: 900 slower, 1300 faster
+export const BASE_SPEED = 600;                 // vitesse calibrée
 
 /**
  * Compute movement speed in px/s for a given blob radius.
@@ -13,8 +13,8 @@ export const BASE_SPEED = 1100;              // tweak: 900 slower, 1300 faster
  */
 export function computeSpeed(radiusPx: number): number {
   if (radiusPx <= 0 || !Number.isFinite(radiusPx)) return 0;
-  const mass = radiusPx * radiusPx;
-  return BASE_SPEED / Math.sqrt(mass);
+  const mass = radiusPx * radiusPx || 1;
+  return BASE_SPEED / Math.sqrt(mass);            // px/s
 }
 
 // ---------------------------------------------------------------
