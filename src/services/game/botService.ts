@@ -1,5 +1,5 @@
 import { Player, Food, Rug, PlayerColor } from "@/types/game";
-import { computeSpeedFromSize } from "./speedUtil";
+import { computeSpeed } from "./speedUtil";
 
 export interface Bot extends Player {
   targetX: number;
@@ -180,7 +180,7 @@ export class BotService {
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     if (distance > 5) {
-      const speed = computeSpeedFromSize(bot.size);
+      const speed = computeSpeed(bot.size); // Using the correct speed formula
       const normalizedDx = dx / distance;
       const normalizedDy = dy / distance;
       

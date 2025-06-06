@@ -6,7 +6,7 @@ import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
 import { MapGenerator, GeneratedMap } from "@/services/game/mapGenerator";
 import { GameStateService, GameState } from "@/services/game/gameStateService";
 import { BotService, Bot } from "@/services/game/botService";
-import { computeSpeedFromSize } from "@/services/game/speedUtil";
+import { computeSpeed } from "@/services/game/speedUtil";
 
 // Constants
 const GAME_WIDTH = 3000;
@@ -553,11 +553,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         // Movement logic with corrected speed system
         const canvas = canvasRef.current;
         if (canvas) {
-          const maxSpeedPixelsPerSecond = computeSpeedFromSize(me.size);
+          const speedPixelsPerSecond = computeSpeed(me.size); // Using the correct Agar.io speed formula
           
           if (isMobile && mobileDirection) {
             // Convert speed from px/s to px/frame using real delta
-            const frameSpeed = maxSpeedPixelsPerSecond * deltaInSeconds;
+            const frameSpeed = speedPixelsPerSecond * deltaInSeconds;
             me.x += mobileDirection.x * frameSpeed;
             me.y += mobileDirection.y * frameSpeed;
           } else if (!isMobile) {
@@ -577,7 +577,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
               const directionX = dx / distance;
               const directionY = dy / distance;
               // Convert speed from px/s to px/frame using real delta
-              const frameSpeed = maxSpeedPixelsPerSecond * deltaInSeconds;
+              const frameSpeed = speedPixelsPerSecond * deltaInSeconds;
               const actualSpeed = Math.min(frameSpeed, distance);
               
               me.x += directionX * actualSpeed;
