@@ -5,6 +5,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
 import { MapGenerator, GeneratedMap } from "@/services/game/mapGenerator";
 import { GameStateService, GameState } from "@/services/game/gameStateService";
+import { BotService, Bot } from "@/services/game/botService";
 
 // Constants
 const GAME_WIDTH = 3000;
@@ -61,6 +62,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [foods, setFoods] = useState<Food[]>([]);
   const [rugs, setRugs] = useState<Rug[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [bots, setBots] = useState<Bot[]>([]);
   const [gameMap, setGameMap] = useState<GeneratedMap | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [cameraZoom, setCameraZoom] = useState<number>(1);
@@ -86,6 +88,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+
+  // Determine if we're in solo mode
+  const isSoloMode = isLocalMode && !currentRoom;
 
   // Memoized calculations for performance
   const calculateSpeed = useMemo(() => (size: number): number => {
@@ -211,6 +216,46 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     });
   };
 
+  // Initialize bots for solo mode
+  const initSoloBots = useCallback(() => {
+    if (isSoloMode && playerRef.current) {
+      console.log("Canvas: Initializing bots for solo mode");
+      const initialBots = BotService.initSoloBots(GAME_WIDTH, GAME_HEIGHT, playerRef.current.id);
+      setBots(initialBots);
+    }
+  }, [isSoloMode]);
+
+  // Update bots in game loop
+  const updateSoloBots = useCallback((delta: number) => {
+    if (!isSoloMode) return;
+
+    setBots(prevBots => {
+      const alivePlayers = players.filter(p => p.isAlive);
+      const updatedBots = BotService.updateSoloBots(
+        prevBots, 
+        foods, 
+        alivePlayers,
+        GAME_WIDTH, 
+        GAME_HEIGHT,
+        delta
+      );
+
+      // Handle bot collisions with food and rugs
+      const { updatedBots: botsAfterCollisions, updatedFoods } = BotService.checkBotCollisions(
+        updatedBots, 
+        foods, 
+        rugs
+      );
+
+      // Update foods state if any were consumed by bots
+      if (updatedFoods.length !== foods.length) {
+        setFoods(updatedFoods);
+      }
+
+      return botsAfterCollisions;
+    });
+  }, [isSoloMode, players, foods, rugs]);
+
   // Initialize safe zone for Zone Battle mode
   const initializeSafeZone = (): SafeZone => {
     const now = Date.now();
@@ -270,14 +315,15 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     }
   }, [isLocalMode, currentRoom, gameState]);
 
-  // FIXED: Unified game initialization with shared database seed
+  // FIXED: Enhanced game initialization with bot support
   useEffect(() => {
     console.log("Canvas: Game initialization check", { 
       gameInitialized, 
       isLocalMode, 
       localPlayer: !!localPlayer, 
       currentRoom: !!currentRoom,
-      currentPlayer: !!currentPlayer 
+      currentPlayer: !!currentPlayer,
+      isSoloMode
     });
     
     if (gameInitialized) {
@@ -298,13 +344,13 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       return;
     }
     
-    console.log("Canvas: Initializing synchronized game");
+    console.log("Canvas: Initializing synchronized game with bot support");
     
     const initializeGame = async () => {
       let initialPlayers: Player[] = [];
       
       if (isLocalMode && localPlayer) {
-        console.log("Canvas: Setting up local player for Zone Battle:", isZoneMode);
+        console.log("Canvas: Setting up local player for solo mode:", isSoloMode);
         initialPlayers = [{
           ...localPlayer,
           x: GAME_WIDTH / 2,
@@ -324,6 +370,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         setGameMap(localMap);
         setFoods(localMap.foods);
         setRugs(localMap.rugs);
+        
+        // Initialize bots for solo mode
+        if (isSoloMode) {
+          initSoloBots();
+        }
         
       } else if (currentRoom) {
         console.log("Canvas: Initializing multiplayer game with shared seed");
@@ -418,7 +469,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         animationFrameRef.current = null;
       }
     };
-  }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized, roomId]);
+  }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized, roomId, isSoloMode, initSoloBots]);
 
   // Mouse movement handler
   useEffect(() => {
@@ -435,17 +486,23 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile, updateMousePosition]);
 
-  // FIXED: Enhanced game loop with faster position sync (100ms)
+  // FIXED: Enhanced game loop with bot support
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
       return;
     }
     
-    console.log("Canvas: Starting synchronized game loop");
+    console.log("Canvas: Starting synchronized game loop with bot support");
     
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
+      const delta = timestamp / 1000; // Convert to seconds for bot updates
+      
+      // Update bots in solo mode
+      if (isSoloMode) {
+        updateSoloBots(delta);
+      }
       
       // Zone Battle logic
       if (isZoneMode && safeZone) {
@@ -602,8 +659,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           return prevRugs;
         });
         
-        // Player collisions (only for multiplayer)
-        if (!isLocalMode) {
+        // Player collisions (including bot collisions in solo mode)
+        if (!isLocalMode || isSoloMode) {
+          // Check collisions with other players
           for (let i = 0; i < updatedPlayers.length; i++) {
             if (i === ourPlayerIndex || !updatedPlayers[i].isAlive) continue;
             
@@ -616,10 +674,14 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
               if (me.size > otherPlayer.size * 1.2) {
                 otherPlayer.isAlive = false;
                 me.size += otherPlayer.size / 2;
-                handlePlayerElimination(otherPlayer, me);
+                if (!isLocalMode) {
+                  handlePlayerElimination(otherPlayer, me);
+                }
               } else if (otherPlayer.size > me.size * 1.2) {
                 me.isAlive = false;
-                handlePlayerElimination(me, otherPlayer);
+                if (!isLocalMode) {
+                  handlePlayerElimination(me, otherPlayer);
+                }
               } else {
                 const angle = Math.atan2(dy, dx);
                 const pushDistance = Math.min(5, distance * 0.3);
@@ -630,6 +692,45 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
                 me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
               }
             }
+          }
+
+          // Check collisions with bots in solo mode
+          if (isSoloMode) {
+            setBots(prevBots => {
+              return prevBots.map(bot => {
+                if (!bot.isAlive) return bot;
+                
+                const dx = me.x - bot.x;
+                const dy = me.y - bot.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < me.size + bot.size) {
+                  if (me.size > bot.size * 1.2) {
+                    bot.isAlive = false;
+                    me.size += bot.size / 2;
+                    console.log(`Player eliminated bot ${bot.name}`);
+                  } else if (bot.size > me.size * 1.2) {
+                    me.isAlive = false;
+                    console.log(`Bot ${bot.name} eliminated player`);
+                    if (!gameOverCalled) {
+                      setGameOverCalled(true);
+                      onGameOver(bot);
+                    }
+                  } else {
+                    // Push apart
+                    const angle = Math.atan2(dy, dx);
+                    const pushDistance = Math.min(5, distance * 0.3);
+                    me.x += Math.cos(angle) * pushDistance;
+                    me.y += Math.sin(angle) * pushDistance;
+                    
+                    me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
+                    me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
+                  }
+                }
+                
+                return bot;
+              });
+            });
           }
         }
         
@@ -661,9 +762,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, calculateSpeed]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, calculateSpeed, isSoloMode, updateSoloBots, gameOverCalled, onGameOver]);
 
-  // Optimized rendering - 60fps stable
+  // Optimized rendering with bot support
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -677,7 +778,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     
-    // Optimized drawing with reduced calculations
+    // Optimized drawing with bots included
     const renderCanvas = () => {
       const context = canvas.getContext('2d');
       if (!context) return;
@@ -810,6 +911,41 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.restore();
       });
       
+      // Draw bots in solo mode
+      if (isSoloMode) {
+        bots.forEach(bot => {
+          if (!bot.isAlive) return;
+          
+          context.save();
+          
+          // Draw bot with a slightly different style (glowing border)
+          context.beginPath();
+          context.fillStyle = `#${getColorHex(bot.color)}`;
+          context.arc(bot.x, bot.y, bot.size, 0, Math.PI * 2);
+          context.fill();
+          
+          // Add bot glow effect
+          context.beginPath();
+          context.strokeStyle = '#ffff00';
+          context.lineWidth = 2 / cameraZoom;
+          context.arc(bot.x, bot.y, bot.size, 0, Math.PI * 2);
+          context.stroke();
+          
+          // Bot name with [BOT] prefix
+          context.font = `${12 / cameraZoom}px Arial`;
+          context.fillStyle = '#fff';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.strokeStyle = '#000';
+          context.lineWidth = 2 / cameraZoom;
+          const botLabel = `[BOT] ${bot.name} (${Math.round(bot.size)})`;
+          context.strokeText(botLabel, bot.x, bot.y);
+          context.fillText(botLabel, bot.x, bot.y);
+          
+          context.restore();
+        });
+      }
+      
       context.restore();
       
       animationFrameRef.current = requestAnimationFrame(renderCanvas);
@@ -824,7 +960,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         animationFrameRef.current = null;
       }
     };
-  }, [players, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone, imageCache]);
+  }, [players, bots, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone, imageCache, isSoloMode]);
 
   const getColorHex = (color: string): string => {
     const colorMap: Record<string, string> = {
