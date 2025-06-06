@@ -1,22 +1,25 @@
 
 // speedUtil.ts – Standard Agar.io-like speed curve for *all* modes
 // ---------------------------------------------------------------
-// v = BASE_SPEED / radius  where radius = sqrt(size)
+// v = max(MIN_SPEED, BASE_SPEED / radius^EXPONENT)
 // size = mass (r²), v in pixels per second
 // ---------------------------------------------------------------
 
-export const BASE_SPEED = 2160; // calibré : 180 px/s à radius 12
+export const BASE_SPEED = 267;   // rythme global (400 / 1.5 = 266.67 ≈ 267)
+export const EXPONENT = 0.75;    // décroissance plus forte
+export const MIN_SPEED = 20;     // plancher jouabilité
 
 /**
  * Compute movement speed in px/s for a given blob size.
- * Matches the classic Agar.io feeling (small fast, big slow).
+ * Uses a steeper curve with minimum speed floor for better gameplay.
  * @param size - The blob size (mass = r²)
  * @returns Speed in pixels per second
  */
 export function computeSpeed(size: number): number {
   if (!Number.isFinite(size) || size <= 0) return 0;
   const radius = Math.sqrt(size);
-  return BASE_SPEED / radius;
+  const v = BASE_SPEED / Math.pow(radius, EXPONENT);
+  return Math.max(MIN_SPEED, v);
 }
 
 // ---------------------------------------------------------------
