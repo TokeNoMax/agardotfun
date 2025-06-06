@@ -1,4 +1,5 @@
-import { Player, Food, Rug } from "@/types/game";
+
+import { Player, Food, Rug, PlayerColor } from "@/types/game";
 
 export interface Bot extends Player {
   targetX: number;
@@ -14,7 +15,7 @@ export class BotService {
     "Zeta", "Theta", "Lambda", "Sigma", "Omega"
   ];
 
-  private static botColors = [
+  private static botColors: PlayerColor[] = [
     "red", "green", "yellow", "purple", "orange", "cyan", "pink"
   ];
 
