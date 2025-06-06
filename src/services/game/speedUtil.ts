@@ -1,11 +1,12 @@
 
+
 // speedUtil.ts – Standard Agar.io-like speed curve for *all* modes
 // ---------------------------------------------------------------
 // v = BASE_SPEED / sqrt(mass)  where mass = r^2
 // r in pixels, v in pixels per second
 // ---------------------------------------------------------------
 
-export const BASE_SPEED = 600;                 // vitesse calibrée
+export const BASE_SPEED = 200; // ajusté (÷3) pour vitesse réaliste
 
 /**
  * Compute movement speed in px/s for a given blob radius.
@@ -41,3 +42,4 @@ export function moveToward(
 export function computeSpeedFromSize(size: number): number {
   return computeSpeed(size);
 }
+
