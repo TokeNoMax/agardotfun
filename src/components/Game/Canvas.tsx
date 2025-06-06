@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from "react";
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
 import { Food, Rug, Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -84,6 +84,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const lastTimestampRef = useRef<number>(0); // Pour calculer le vrai delta
 
   // Determine if we're in solo mode
   const isSoloMode = isLocalMode && !currentRoom;
@@ -214,7 +215,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   }, [isSoloMode]);
 
   // Update bots in game loop
-  const updateSoloBots = useCallback((delta: number) => {
+  const updateSoloBots = useCallback((deltaInSeconds: number) => {
     if (!isSoloMode) return;
 
     setBots(prevBots => {
@@ -225,7 +226,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         alivePlayers,
         GAME_WIDTH, 
         GAME_HEIGHT,
-        delta
+        deltaInSeconds
       );
 
       // Handle bot collisions with food and rugs
@@ -303,7 +304,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     }
   }, [isLocalMode, currentRoom, gameState]);
 
-  // FIXED: Enhanced game initialization with bot support
+  // Game initialization useEffect
   useEffect(() => {
     console.log("Canvas: Game initialization check", { 
       gameInitialized, 
@@ -367,13 +368,13 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       } else if (currentRoom) {
         console.log("Canvas: Initializing multiplayer game with shared seed");
         
-        // FIXED: Get shared game state and seed from database
+        // Get shared game state and seed from database
         const roomGameState = await GameStateService.getGameState(currentRoom.id);
         if (roomGameState) {
           console.log("Canvas: Using shared seed:", roomGameState.mapSeed);
           setGameState(roomGameState);
           
-          // FIXED: Generate map from shared seed - all players use same map
+          // Generate map from shared seed - all players use same map
           const sharedMap = MapGenerator.generateMap(roomGameState.mapSeed);
           setGameMap(sharedMap);
           
@@ -386,7 +387,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           
           console.log(`Canvas: Shared map loaded with ${availableFoods.length}/${sharedMap.foods.length} foods`);
           
-          // FIXED: Initialize players with synchronized spawn points
+          // Initialize players with synchronized spawn points
           initialPlayers = currentRoom.players.map((p, index) => {
             const spawnPoint = MapGenerator.getSpawnPoint(sharedMap.spawnPoints, index);
             console.log(`Canvas: Player ${p.name} spawning at:`, spawnPoint);
@@ -405,7 +406,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             playerRef.current = ourPlayer;
             console.log("Canvas: Our player initialized:", ourPlayer);
             
-            // FIXED: Sync spawn position to database immediately
+            // Sync spawn position to database immediately
             const playerIndex = initialPlayers.findIndex(p => p.id === currentPlayer?.id);
             if (playerIndex >= 0) {
               console.log("Canvas: Syncing spawn position to database");
@@ -474,7 +475,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile, updateMousePosition]);
 
-  // FIXED: Enhanced game loop with bot support
+  // Enhanced game loop with proper delta calculation and speed system
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
@@ -485,11 +486,18 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
-      const delta = timestamp / 1000; // Convert to seconds for bot updates
+      
+      // Calculate proper delta time in seconds
+      let deltaInSeconds = 0.016; // Default to 60fps
+      if (lastTimestampRef.current > 0) {
+        deltaInSeconds = (timestamp - lastTimestampRef.current) / 1000;
+        deltaInSeconds = Math.min(deltaInSeconds, 0.033); // Cap at 30fps minimum
+      }
+      lastTimestampRef.current = timestamp;
       
       // Update bots in solo mode
       if (isSoloMode) {
-        updateSoloBots(delta);
+        updateSoloBots(deltaInSeconds);
       }
       
       // Zone Battle logic
@@ -542,14 +550,14 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           }
         }
         
-        // Movement logic with new speed system
+        // Movement logic with corrected speed system
         const canvas = canvasRef.current;
         if (canvas) {
-          const maxSpeed = computeSpeedFromSize(me.size);
+          const maxSpeedPixelsPerSecond = computeSpeedFromSize(me.size);
           
           if (isMobile && mobileDirection) {
-            // Convert speed from px/s to px/frame
-            const frameSpeed = maxSpeed * delta;
+            // Convert speed from px/s to px/frame using real delta
+            const frameSpeed = maxSpeedPixelsPerSecond * deltaInSeconds;
             me.x += mobileDirection.x * frameSpeed;
             me.y += mobileDirection.y * frameSpeed;
           } else if (!isMobile) {
@@ -568,8 +576,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             if (distance > 5) {
               const directionX = dx / distance;
               const directionY = dy / distance;
-              // Convert speed from px/s to px/frame
-              const frameSpeed = maxSpeed * delta;
+              // Convert speed from px/s to px/frame using real delta
+              const frameSpeed = maxSpeedPixelsPerSecond * deltaInSeconds;
               const actualSpeed = Math.min(frameSpeed, distance);
               
               me.x += directionX * actualSpeed;
