@@ -1,6 +1,5 @@
 
 import React from "react";
-import { useNavigate } from "react-router-dom";
 
 interface FeatureCardProps {
   color: string;
@@ -26,12 +25,6 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ color, icon, title, desc }) =
 );
 
 export const LandingHero: React.FC = () => {
-  const navigate = useNavigate();
-
-  const handleEnterMainnet = () => {
-    navigate("/lobby");
-  };
-
   return (
     <section className="flex flex-col items-center pt-16 text-center gap-10 select-none">
       {/* LOGO */}
@@ -58,14 +51,6 @@ export const LandingHero: React.FC = () => {
       <h2 className="text-3xl md:text-5xl font-extrabold neon-gradient animate-neon-pulse font-mono">
         Move, Eat, Hodl to the Moon !
       </h2>
-
-      {/* CTA */}
-      <button
-        onClick={handleEnterMainnet}
-        className="mt-8 px-10 py-3 bg-gradient-to-r from-cyber-magenta to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-magenta text-black font-bold rounded-none border-2 border-cyber-cyan shadow-neon hover:shadow-neon-lg transition-all duration-300 transform hover:scale-105 font-mono"
-      >
-        ▷ ENTER_THE_MAINNET
-      </button>
 
       {/* CARDS */}
       <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-12 max-w-6xl w-full px-4">
