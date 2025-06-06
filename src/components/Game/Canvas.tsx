@@ -6,6 +6,7 @@ import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
 import { MapGenerator, GeneratedMap } from "@/services/game/mapGenerator";
 import { GameStateService, GameState } from "@/services/game/gameStateService";
 import { BotService, Bot } from "@/services/game/botService";
+import { computeSpeedFromSize } from "@/services/game/speedUtil";
 
 // Constants
 const GAME_WIDTH = 3000;
@@ -16,11 +17,6 @@ const FOOD_VALUE = 1;
 const RUG_PENALTY = 5;
 const GRID_SIZE = 150;
 const GRID_COLOR = "#333333";
-
-// Speed configuration constants
-const BASE_SPEED = 3.5;
-const MIN_SPEED_RATIO = 0.25;
-const SPEED_REDUCTION_FACTOR = 0.025;
 
 // Zone Battle constants
 const ZONE_SHRINK_INTERVAL = 120000;
@@ -91,14 +87,6 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
   // Determine if we're in solo mode
   const isSoloMode = isLocalMode && !currentRoom;
-
-  // Memoized calculations for performance
-  const calculateSpeed = useMemo(() => (size: number): number => {
-    const sizeAboveBase = Math.max(0, size - 15);
-    const speedReduction = sizeAboveBase * SPEED_REDUCTION_FACTOR;
-    const speedFactor = Math.max(MIN_SPEED_RATIO, 1 - speedReduction);
-    return BASE_SPEED * speedFactor;
-  }, []);
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -554,14 +542,16 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           }
         }
         
-        // Movement logic
+        // Movement logic with new speed system
         const canvas = canvasRef.current;
         if (canvas) {
-          const maxSpeed = calculateSpeed(me.size);
+          const maxSpeed = computeSpeedFromSize(me.size);
           
           if (isMobile && mobileDirection) {
-            me.x += mobileDirection.x * maxSpeed;
-            me.y += mobileDirection.y * maxSpeed;
+            // Convert speed from px/s to px/frame
+            const frameSpeed = maxSpeed * delta;
+            me.x += mobileDirection.x * frameSpeed;
+            me.y += mobileDirection.y * frameSpeed;
           } else if (!isMobile) {
             const canvasWidth = canvas.width;
             const canvasHeight = canvas.height;
@@ -578,7 +568,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             if (distance > 5) {
               const directionX = dx / distance;
               const directionY = dy / distance;
-              const actualSpeed = Math.min(maxSpeed, distance);
+              // Convert speed from px/s to px/frame
+              const frameSpeed = maxSpeed * delta;
+              const actualSpeed = Math.min(frameSpeed, distance);
               
               me.x += directionX * actualSpeed;
               me.y += directionY * actualSpeed;
@@ -762,7 +754,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, calculateSpeed, isSoloMode, updateSoloBots, gameOverCalled, onGameOver]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver]);
 
   // Optimized rendering with bot support
   useEffect(() => {

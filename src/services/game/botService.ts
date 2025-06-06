@@ -1,5 +1,5 @@
-
 import { Player, Food, Rug, PlayerColor } from "@/types/game";
+import { computeSpeedFromSize } from "./speedUtil";
 
 export interface Bot extends Player {
   targetX: number;
@@ -69,7 +69,7 @@ export class BotService {
         bot.lastDirectionChange = currentTime;
       }
 
-      // Move towards target
+      // Move towards target using new speed system
       this.moveBotTowardsTarget(bot, delta);
 
       return bot;
@@ -180,22 +180,16 @@ export class BotService {
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     if (distance > 5) {
-      const speed = this.calculateBotSpeed(bot.size);
+      const speed = computeSpeedFromSize(bot.size);
       const normalizedDx = dx / distance;
       const normalizedDy = dy / distance;
       
-      bot.x += normalizedDx * speed;
-      bot.y += normalizedDy * speed;
+      // Convert speed from px/s to px/frame using delta time
+      const frameSpeed = speed * delta;
+      
+      bot.x += normalizedDx * frameSpeed;
+      bot.y += normalizedDy * frameSpeed;
     }
-  }
-
-  private static calculateBotSpeed(size: number): number {
-    const baseSpeed = 3.0;
-    const minSpeedRatio = 0.3;
-    const speedReduction = Math.max(0, size - 15) * 0.02;
-    const speedFactor = Math.max(minSpeedRatio, 1 - speedReduction);
-    
-    return baseSpeed * speedFactor;
   }
 
   private static getDistance(obj1: { x: number; y: number }, obj2: { x: number; y: number }): number {
