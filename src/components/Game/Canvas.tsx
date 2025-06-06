@@ -24,6 +24,11 @@ const ZONE_DAMAGE_PER_SECOND = 3;
 const ZONE_SHRINK_PERCENTAGE = 0.2;
 const INITIAL_ZONE_RADIUS = 1400;
 
+// Zoom constants
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 2.0;
+const ZOOM_SMOOTH_FACTOR = 0.08;
+
 interface CanvasProps {
   onGameOver: (winner: Player | null, eliminationType?: 'absorption' | 'zone' | 'timeout') => void;
   isLocalMode?: boolean;
@@ -88,6 +93,18 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
   // Determine if we're in solo mode
   const isSoloMode = isLocalMode && !currentRoom;
+
+  // Calculate target zoom based on player size
+  const calculateTargetZoom = useCallback((playerSize: number): number => {
+    // Zoom inversely proportional to blob size
+    // Smaller blobs get more zoom (closer view), larger blobs get less zoom (wider view)
+    const baseZoom = 1.0;
+    const sizeInfluence = Math.sqrt(playerSize) / 20; // Normalize size influence
+    const targetZoom = baseZoom / (1 + sizeInfluence * 0.8);
+    
+    // Clamp between min and max zoom
+    return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetZoom));
+  }, []);
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -475,14 +492,14 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile, updateMousePosition]);
 
-  // Enhanced game loop with proper delta calculation and speed system
+  // Enhanced game loop with proper delta calculation and zoom system
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
       return;
     }
     
-    console.log("Canvas: Starting synchronized game loop with bot support");
+    console.log("Canvas: Starting synchronized game loop with bot support and zoom");
     
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
@@ -734,18 +751,16 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           }
         }
         
-        // Update camera
+        // Update camera position to follow player
         setCameraPosition(prev => ({
           x: prev.x + (me.x - prev.x) * 0.1,
           y: prev.y + (me.y - prev.y) * 0.1
         }));
         
-        // Update zoom
-        const maxSize = 50;
-        const effectiveSize = Math.min(me.size, maxSize);
+        // Update zoom based on player size with smooth transition
+        const targetZoom = calculateTargetZoom(me.size);
         setCameraZoom(prev => {
-          const targetZoom = Math.max(0.5, Math.min(1.5, 20 / Math.sqrt(effectiveSize)));
-          return prev + (targetZoom - prev) * 0.05;
+          return prev + (targetZoom - prev) * ZOOM_SMOOTH_FACTOR;
         });
         
         return updatedPlayers;
@@ -762,7 +777,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver, calculateTargetZoom]);
 
   // Optimized rendering with bot support
   useEffect(() => {
