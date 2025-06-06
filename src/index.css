@@ -133,6 +133,25 @@
   animation: scan-line 4s linear infinite reverse;
 }
 
+/* Neon gradient text effect */
+.neon-gradient {
+  background: linear-gradient(45deg, #00ffff, #ff00ff, #ffff00, #00ff00);
+  background-size: 400% 400%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Shadow effects */
+.shadow-neon {
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5), 0 0 20px rgba(0, 255, 255, 0.3), 0 0 30px rgba(0, 255, 255, 0.1);
+}
+
+.shadow-neon-lg {
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.7), 0 0 40px rgba(0, 255, 255, 0.5), 0 0 60px rgba(0, 255, 255, 0.3);
+}
+
 /* Pixel art style adjustments */
 .font-pixel {
   image-rendering: pixelated;
@@ -156,4 +175,11 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #ff00ff;
+}
+
+/* Gradient animation */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
