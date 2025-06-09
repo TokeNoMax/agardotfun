@@ -560,19 +560,37 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Zone Battle damage logic
+        // Zone Battle damage logic - MODIFIED: Allow size to reach 0
         if (isZoneMode && safeZone && playerRef.current) {
           const inZone = isPlayerInSafeZone(me, safeZone);
           
           if (!inZone && currentTime - lastDamageTime >= 1000) {
-            me.size = Math.max(10, me.size - safeZone.damagePerSecond);
+            // Remove minimum size limit - allow size to reach 0
+            me.size -= safeZone.damagePerSecond;
             setLastDamageTime(currentTime);
             console.log("Canvas: Player took zone damage, size now:", me.size);
+            
+            // Check if player died from zone damage
+            if (me.size <= 0) {
+              me.isAlive = false;
+              me.size = 0; // Ensure size doesn't go negative
+              console.log("Canvas: Player died from zone damage");
+              
+              if (!gameOverCalled) {
+                setGameOverCalled(true);
+                onGameOver(null, 'zone'); // No winner, death by zone
+              }
+            }
           }
           
           if (onZoneUpdate) {
             onZoneUpdate(safeZone, inZone);
           }
+        }
+        
+        // Only continue with movement and other logic if player is still alive
+        if (!me.isAlive) {
+          return updatedPlayers;
         }
         
         // Movement logic with corrected speed system
