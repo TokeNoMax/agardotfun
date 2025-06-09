@@ -23,6 +23,7 @@ const ZONE_SHRINK_INTERVAL = 120000;
 const ZONE_DAMAGE_PER_SECOND = 3;
 const ZONE_SHRINK_PERCENTAGE = 0.2;
 const INITIAL_ZONE_RADIUS = 1400;
+const ZONE_DEATH_TIMER = 15000; // 15 seconds before death outside zone
 
 // Zoom constants - optimized for better dynamic zoom experience
 const MIN_ZOOM = 0.25;  // Reduced from 0.3 for wider view with larger blobs
@@ -34,7 +35,7 @@ interface CanvasProps {
   isLocalMode?: boolean;
   localPlayer?: Player | null;
   isZoneMode?: boolean;
-  onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
+  onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean, timeUntilDeath?: number) => void;
   onPlayerPositionSync?: (position: { x: number; y: number; size: number }) => void;
   onPlayerCollision?: (eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) => Promise<void>;
   roomId?: string;
@@ -82,6 +83,10 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
   const [lastDamageTime, setLastDamageTime] = useState<number>(0);
   const [lastPositionSync, setLastPositionSync] = useState<number>(0);
+  
+  // Zone death timer state
+  const [timeOutsideZone, setTimeOutsideZone] = useState<number>(0);
+  const [lastZoneCheckTime, setLastZoneCheckTime] = useState<number>(0);
 
   // NFT Image cache
   const [imageCache, setImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
@@ -500,7 +505,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile, updateMousePosition]);
 
-  // Enhanced game loop with proper delta calculation and zoom system
+  // Enhanced game loop with zone death timer
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
@@ -560,18 +565,49 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         const updatedPlayers = [...prevPlayers];
         const me = updatedPlayers[ourPlayerIndex];
         
-        // Zone Battle damage logic
+        // Zone Battle damage and death timer logic
         if (isZoneMode && safeZone && playerRef.current) {
           const inZone = isPlayerInSafeZone(me, safeZone);
           
-          if (!inZone && currentTime - lastDamageTime >= 1000) {
-            me.size = Math.max(10, me.size - safeZone.damagePerSecond);
-            setLastDamageTime(currentTime);
-            console.log("Canvas: Player took zone damage, size now:", me.size);
+          // Initialize zone check time if not set
+          if (lastZoneCheckTime === 0) {
+            setLastZoneCheckTime(currentTime);
           }
           
+          if (!inZone) {
+            // Player is outside zone
+            const deltaMs = currentTime - lastZoneCheckTime;
+            setTimeOutsideZone(prev => {
+              const newTime = prev + deltaMs;
+              
+              // Check if player should die from being outside zone too long
+              if (newTime >= ZONE_DEATH_TIMER && !gameOverCalled) {
+                console.log("Canvas: Player died from being outside zone too long");
+                setGameOverCalled(true);
+                onGameOver(null, 'zone');
+                return newTime;
+              }
+              
+              return newTime;
+            });
+            
+            // Apply zone damage every second
+            if (currentTime - lastDamageTime >= 1000) {
+              me.size = Math.max(10, me.size - safeZone.damagePerSecond);
+              setLastDamageTime(currentTime);
+              console.log("Canvas: Player took zone damage, size now:", me.size);
+            }
+          } else {
+            // Player is in zone, reset timer
+            setTimeOutsideZone(0);
+          }
+          
+          setLastZoneCheckTime(currentTime);
+          
+          // Update zone info with death timer
           if (onZoneUpdate) {
-            onZoneUpdate(safeZone, inZone);
+            const timeUntilDeath = inZone ? 0 : Math.max(0, ZONE_DEATH_TIMER - timeOutsideZone);
+            onZoneUpdate(safeZone, inZone, timeUntilDeath);
           }
         }
         
@@ -785,7 +821,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver, calculateTargetZoom]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver, calculateTargetZoom, lastZoneCheckTime, timeOutsideZone]);
 
   // Optimized rendering with bot support
   useEffect(() => {

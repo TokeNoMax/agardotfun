@@ -7,12 +7,14 @@ interface ZoneCounterProps {
   safeZone: SafeZone;
   isPlayerInZone: boolean;
   timeUntilShrink: number; // in milliseconds
+  timeUntilDeath?: number; // in milliseconds - time until death if outside zone
 }
 
 const ZoneCounter: React.FC<ZoneCounterProps> = ({ 
   safeZone, 
   isPlayerInZone, 
-  timeUntilShrink 
+  timeUntilShrink,
+  timeUntilDeath = 0
 }) => {
   const isMobile = useIsMobile();
   
@@ -55,7 +57,7 @@ const ZoneCounter: React.FC<ZoneCounterProps> = ({
             </div>
           </div>
 
-          {/* Compact player status */}
+          {/* Player status with death timer */}
           <div className="flex items-center justify-center gap-1">
             <div className={`w-2 h-2 rounded-full ${
               isPlayerInZone ? 'bg-green-400' : 'bg-red-400 animate-pulse'
@@ -66,6 +68,13 @@ const ZoneCounter: React.FC<ZoneCounterProps> = ({
               {isPlayerInZone ? 'Safe' : 'DANGER'}
             </span>
           </div>
+
+          {/* Death timer warning when outside zone */}
+          {!isPlayerInZone && timeUntilDeath > 0 && (
+            <div className="mt-1 text-xs text-red-300 animate-pulse">
+              Mort dans: {formatTime(timeUntilDeath)}
+            </div>
+          )}
 
           {/* Damage warning */}
           {!isPlayerInZone && (
@@ -117,6 +126,13 @@ const ZoneCounter: React.FC<ZoneCounterProps> = ({
             {isPlayerInZone ? 'Zone Safe' : 'DANGER!'}
           </span>
         </div>
+
+        {/* Death timer warning when outside zone */}
+        {!isPlayerInZone && timeUntilDeath > 0 && (
+          <div className="mt-2 text-sm text-red-300 animate-pulse font-bold">
+            ⚠️ Mort dans: {formatTime(timeUntilDeath)}
+          </div>
+        )}
 
         {/* Damage warning */}
         {!isPlayerInZone && (

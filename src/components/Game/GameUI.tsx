@@ -195,11 +195,16 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   }, [currentRoom, player, navigate, localMode, roomId, toast]);
 
-  // Handle zone updates from Canvas
-  const handleZoneUpdate = (zone: SafeZone, playerInZone: boolean) => {
+  // Handle zone updates from Canvas with death timer
+  const handleZoneUpdate = (zone: SafeZone, playerInZone: boolean, timeUntilDeath?: number) => {
     setCurrentZone(zone);
     setIsPlayerInZone(playerInZone);
     setTimeUntilShrink(zone.nextShrinkTime - Date.now());
+    
+    // Store death timer for zone counter
+    if (timeUntilDeath !== undefined && timeUntilDeath > 0) {
+      // You can add additional logic here if needed for the death timer
+    }
   };
 
   // Handle mobile direction change
@@ -351,13 +356,14 @@ export default function GameUI({ roomId }: GameUIProps) {
         )}
       </div>
       
-      {/* Zone Counter for Zone Battle mode */}
+      {/* Zone Counter for Zone Battle mode with death timer */}
       {isZoneMode && currentZone && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
           <ZoneCounter 
             safeZone={currentZone}
             isPlayerInZone={isPlayerInZone}
             timeUntilShrink={timeUntilShrink}
+            timeUntilDeath={!isPlayerInZone ? Math.max(0, 15000 - (Date.now() - gameStartTime)) : 0}
           />
         </div>
       )}
