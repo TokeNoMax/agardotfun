@@ -374,8 +374,14 @@ export default function GameUI({ roomId }: GameUIProps) {
         </Button>
       </div>
       
-      {/* Enhanced Leaderboard with real-time score updates */}
-      <div className={`absolute top-4 ${isMobile ? 'right-4 mt-12' : 'right-20'} z-10`}>
+      {/* Optimized Leaderboard positioning - moved to bottom right and made more compact */}
+      <div className={`absolute ${
+        isMobile 
+          ? 'bottom-20 right-4' // Mobile: bottom right, above touch controls
+          : isZoneMode 
+            ? 'bottom-4 right-4' // Zone mode: bottom right to avoid zone counter
+            : 'top-20 right-4' // Normal mode: top right but below exit button
+      } z-10`}>
         <Leaderboard 
           players={localMode ? (localPlayer ? [localPlayer] : []) : (currentRoom ? currentRoom.players : [])} 
           currentPlayerId={localMode ? localPlayer?.id : player?.id}
