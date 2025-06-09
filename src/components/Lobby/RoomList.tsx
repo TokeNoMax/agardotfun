@@ -165,21 +165,21 @@ export default function RoomList() {
     }
   }, [currentRoom]);
 
-  const handleCreateRoom = async (gameMode: GameMode = 'classic') => {
+  const handleCreateRoom = async (name: string, maxPlayers: number, gameMode: GameMode = 'classic') => {
     if (!player) {
       showToastWithThrottle("Erreur", "Veuillez définir votre nom et votre couleur avant de créer une salle", "destructive");
       return;
     }
     
-    if (roomName.trim()) {
+    if (name.trim()) {
       try {
-        console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max (mode: ${gameMode})`);
-        const roomId = await createRoom({ name: roomName, maxPlayers: parseInt(maxPlayers), gameMode });
+        console.log(`Création de salle: "${name}" avec ${maxPlayers} joueurs max (mode: ${gameMode})`);
+        const roomId = await createRoom(name, maxPlayers, gameMode);
         
         console.log("Salle créée avec ID:", roomId);
         setCreateDialogOpen(false);
         
-        showToastWithThrottle("Salle créée", `Votre salle "${roomName}" a été créée avec succès.`);
+        showToastWithThrottle("Salle créée", `Votre salle "${name}" a été créée avec succès.`);
         
         // Refresh immédiat
         setTimeout(async () => {
