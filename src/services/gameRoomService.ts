@@ -22,6 +22,7 @@ export const gameRoomService = {
     roomService.createRoom(name, maxPlayers, gameMode),
   startGame: roomService.startGame,
   getRoom: roomService.getRoom,
+  checkGhostRooms: roomService.checkGhostRooms,
 
   // Player management
   joinRoom: playerService.joinRoom,

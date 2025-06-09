@@ -131,5 +131,30 @@ export const roomService = {
     }
 
     console.log("Game started successfully");
+  },
+
+  async checkGhostRooms(): Promise<void> {
+    console.log("Checking for ghost rooms...");
+    
+    try {
+      // Simple implementation - this would be expanded based on your ghost room logic
+      const cutoffTime = new Date(Date.now() - 15 * 60 * 1000); // 15 minutes ago
+      
+      const { error } = await supabase
+        .from('game_rooms')
+        .delete()
+        .eq('status', 'waiting')
+        .lt('last_activity', cutoffTime.toISOString());
+
+      if (error) {
+        console.error("Error checking ghost rooms:", error);
+        throw error;
+      }
+
+      console.log("Ghost rooms check completed");
+    } catch (error) {
+      console.error("Failed to check ghost rooms:", error);
+      throw error;
+    }
   }
 };
