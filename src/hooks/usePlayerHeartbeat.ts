@@ -1,7 +1,7 @@
 
 import { useEffect, useRef } from 'react';
 import { activityService } from '@/services/room/activityService';
-import { roomService } from '@/services/room/roomService';
+import { gameRoomService } from '@/services/gameRoomService';
 
 interface UsePlayerHeartbeatOptions {
   roomId?: string;
@@ -41,7 +41,7 @@ export const usePlayerHeartbeat = (options: UsePlayerHeartbeatOptions = {}) => {
 
   const checkGhostRooms = async () => {
     try {
-      await roomService.checkGhostRooms();
+      await gameRoomService.checkGhostRooms();
     } catch (error) {
       if (enableLogging) {
         console.error('Error checking ghost rooms:', error);
