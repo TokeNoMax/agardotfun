@@ -21,6 +21,7 @@ export default function RoomList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [gameStarting, setGameStarting] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedMode, setSelectedMode] = useState<GameMode>('classic');
   const [lastToastMessage, setLastToastMessage] = useState<string>("");
   const [hasNavigated, setHasNavigated] = useState(false);
   const [emergencyRefreshing, setEmergencyRefreshing] = useState(false);
