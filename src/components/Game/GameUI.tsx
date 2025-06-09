@@ -27,6 +27,8 @@ export default function GameUI({ roomId }: GameUIProps) {
   const [eliminationType, setEliminationType] = useState<'absorption' | 'zone' | 'timeout'>('absorption');
   const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
   const [isPlayerInZone, setIsPlayerInZone] = useState(true);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [timeUntilShrink, setTimeUntilShrink] = useState(0);
   
   // Check if we're in local mode
   const isLocalMode = !currentRoom && !roomId;
@@ -52,6 +54,13 @@ export default function GameUI({ roomId }: GameUIProps) {
         size: position.size
       });
     }
+    
+    // Update players state
+    setPlayers(prev => prev.map(p => 
+      p.id === playerId 
+        ? { ...p, x: position.x, y: position.y, size: position.size }
+        : p
+    ));
   }, []);
 
   const handlePlayerCollision = useCallback((eliminatedId: string, eliminatorId: string, eliminatedSize: number, eliminatorNewSize: number) => {
@@ -61,6 +70,17 @@ export default function GameUI({ roomId }: GameUIProps) {
     if (canvasRef.current) {
       canvasRef.current.eliminatePlayer(eliminatedId, eliminatorId);
     }
+    
+    // Update players state
+    setPlayers(prev => prev.map(p => {
+      if (p.id === eliminatedId) {
+        return { ...p, isAlive: false };
+      }
+      if (p.id === eliminatorId) {
+        return { ...p, size: eliminatorNewSize };
+      }
+      return p;
+    }));
     
     // Show toast notification
     if (eliminatedId === currentPlayer?.id) {
@@ -99,6 +119,9 @@ export default function GameUI({ roomId }: GameUIProps) {
       canvasRef.current.addPlayer(player);
     }
     
+    // Update players state
+    setPlayers(prev => [...prev.filter(p => p.id !== player.id), player]);
+    
     toast({
       title: "Nouveau joueur",
       description: `${player.name} a rejoint la partie`,
@@ -108,6 +131,9 @@ export default function GameUI({ roomId }: GameUIProps) {
 
   const handlePlayerLeft = useCallback((playerId: string) => {
     console.log("GameUI: Player left:", playerId);
+    
+    // Update players state
+    setPlayers(prev => prev.filter(p => p.id !== playerId));
     
     toast({
       title: "Joueur parti",
@@ -144,6 +170,28 @@ export default function GameUI({ roomId }: GameUIProps) {
     onPlayerLeft: handlePlayerLeft,
     onGameStart: handleGameStart
   });
+
+  // Initialize players from current room
+  useEffect(() => {
+    if (currentRoom?.players) {
+      setPlayers(currentRoom.players);
+    }
+  }, [currentRoom?.players]);
+
+  // Update zone timer
+  useEffect(() => {
+    if (safeZone) {
+      const updateTimer = () => {
+        const now = Date.now();
+        const timeLeft = Math.max(0, safeZone.nextShrinkTime - now);
+        setTimeUntilShrink(timeLeft);
+      };
+      
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [safeZone]);
 
   // Position sync callback for Canvas
   const handlePlayerPositionSync = useCallback(async (position: { x: number; y: number; size: number }) => {
@@ -222,7 +270,10 @@ export default function GameUI({ roomId }: GameUIProps) {
 
       {/* Leaderboard */}
       <div className="absolute top-4 left-4 z-10">
-        <Leaderboard />
+        <Leaderboard 
+          players={players}
+          currentPlayerId={currentPlayer?.id}
+        />
       </div>
 
       {/* Zone Counter (Battle Royale mode) */}
@@ -231,6 +282,7 @@ export default function GameUI({ roomId }: GameUIProps) {
           <ZoneCounter 
             safeZone={safeZone} 
             isPlayerInZone={isPlayerInZone}
+            timeUntilShrink={timeUntilShrink}
           />
         </div>
       )}
@@ -253,10 +305,15 @@ export default function GameUI({ roomId }: GameUIProps) {
 
       {/* Game Over Modal */}
       <GameOverModal
-        isOpen={gameOver}
+        open={gameOver}
         winner={winner}
         eliminationType={eliminationType}
-        onRestart={() => {
+        onPlayAgain={() => {
+          setGameOver(false);
+          setWinner(null);
+          // Navigation handled by the modal itself
+        }}
+        onBackToLobby={() => {
           setGameOver(false);
           setWinner(null);
           // Navigation handled by the modal itself
