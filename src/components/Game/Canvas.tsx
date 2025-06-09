@@ -37,6 +37,7 @@ interface CanvasProps {
   onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
   onPlayerPositionSync?: (position: { x: number; y: number; size: number }) => void;
   onPlayerCollision?: (eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) => Promise<void>;
+  onPlayerElimination?: (eliminatedPlayerId: string, eliminatorPlayerId: string) => Promise<void>;
   roomId?: string;
 }
 
@@ -56,6 +57,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   onZoneUpdate,
   onPlayerPositionSync,
   onPlayerCollision,
+  onPlayerElimination,
   roomId
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -141,12 +143,15 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       setPlayers(prevPlayers => {
         return prevPlayers.map(player => {
           if (player.id === eliminatedPlayerId) {
+            console.log(`Canvas: Setting player ${eliminatedPlayerId} as dead`);
             return { ...player, isAlive: false };
           }
           if (player.id === eliminatorPlayerId) {
             const eliminatedPlayer = prevPlayers.find(p => p.id === eliminatedPlayerId);
             if (eliminatedPlayer) {
-              return { ...player, size: player.size + eliminatedPlayer.size / 2 };
+              const newSize = player.size + eliminatedPlayer.size / 2;
+              console.log(`Canvas: Player ${eliminatorPlayerId} grew from ${player.size} to ${newSize}`);
+              return { ...player, size: newSize };
             }
           }
           return player;
@@ -155,9 +160,10 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       
       // Check if our player was eliminated
       if (eliminatedPlayerId === playerRef.current?.id && !gameOverCalled) {
+        console.log('Canvas: Our player was eliminated, triggering game over');
         setGameOverCalled(true);
         const winner = players.find(p => p.id === eliminatorPlayerId);
-        onGameOver(winner || null);
+        onGameOver(winner || null, 'absorption');
       }
     },
     addPlayer: (newPlayer: Player) => {
@@ -308,19 +314,54 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     });
   }, [isMobile]);
 
-  // Optimized player elimination handler
-  const handlePlayerElimination = useCallback((eliminatedPlayer: Player, killerPlayer: Player) => {
-    console.log(`Player ${eliminatedPlayer.name} was eliminated by ${killerPlayer.name}`);
+  // ENHANCED: Improved player elimination handler with proper sync
+  const handlePlayerElimination = useCallback(async (eliminatedPlayer: Player, killerPlayer: Player) => {
+    console.log(`Canvas: Player ${eliminatedPlayer.name} was eliminated by ${killerPlayer.name}`);
     
-    if (!isLocalMode && onPlayerCollision) {
-      onPlayerCollision(eliminatedPlayer.id, killerPlayer.id, eliminatedPlayer.size, killerPlayer.size + eliminatedPlayer.size / 2);
+    // Update local state immediately
+    setPlayers(prevPlayers => {
+      return prevPlayers.map(player => {
+        if (player.id === eliminatedPlayer.id) {
+          return { ...player, isAlive: false };
+        }
+        if (player.id === killerPlayer.id) {
+          return { ...player, size: killerPlayer.size + eliminatedPlayer.size / 2 };
+        }
+        return player;
+      });
+    });
+    
+    // Sync elimination to other players in multiplayer
+    if (!isLocalMode) {
+      try {
+        // Broadcast collision first (for size updates)
+        if (onPlayerCollision) {
+          await onPlayerCollision(
+            eliminatedPlayer.id, 
+            killerPlayer.id, 
+            eliminatedPlayer.size, 
+            killerPlayer.size + eliminatedPlayer.size / 2
+          );
+        }
+        
+        // Then broadcast elimination (for isAlive status)
+        if (onPlayerElimination) {
+          await onPlayerElimination(eliminatedPlayer.id, killerPlayer.id);
+        }
+        
+        console.log('Canvas: Successfully broadcasted elimination');
+      } catch (error) {
+        console.error('Canvas: Error broadcasting elimination:', error);
+      }
     }
     
-    if (!isLocalMode && !gameOverCalled) {
+    // Check if our player was eliminated
+    if (eliminatedPlayer.id === playerRef.current?.id && !gameOverCalled) {
+      console.log('Canvas: Our player was eliminated, triggering game over');
       setGameOverCalled(true);
-      onGameOver(killerPlayer);
+      onGameOver(killerPlayer, 'absorption');
     }
-  }, [isLocalMode, gameOverCalled, onGameOver, onPlayerCollision]);
+  }, [isLocalMode, gameOverCalled, onGameOver, onPlayerCollision, onPlayerElimination]);
 
   // Optimized food consumption handler
   const handleFoodConsumption = useCallback(async (foodId: string) => {
@@ -702,7 +743,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           return prevRugs;
         });
         
-        // Player collisions (including bot collisions in solo mode)
+        // ENHANCED: Player collisions with proper elimination sync
         if (!isLocalMode || isSoloMode) {
           // Check collisions with other players
           for (let i = 0; i < updatedPlayers.length; i++) {
@@ -715,17 +756,15 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             
             if (distance < me.size + otherPlayer.size) {
               if (me.size > otherPlayer.size * 1.2) {
-                otherPlayer.isAlive = false;
-                me.size += otherPlayer.size / 2;
-                if (!isLocalMode) {
-                  handlePlayerElimination(otherPlayer, me);
-                }
+                // We eliminate the other player
+                console.log(`Canvas: ${me.name} eliminates ${otherPlayer.name}`);
+                handlePlayerElimination(otherPlayer, me);
               } else if (otherPlayer.size > me.size * 1.2) {
-                me.isAlive = false;
-                if (!isLocalMode) {
-                  handlePlayerElimination(me, otherPlayer);
-                }
+                // Other player eliminates us
+                console.log(`Canvas: ${otherPlayer.name} eliminates ${me.name}`);
+                handlePlayerElimination(me, otherPlayer);
               } else {
+                // Push apart - no elimination
                 const angle = Math.atan2(dy, dx);
                 const pushDistance = Math.min(5, distance * 0.3);
                 me.x += Math.cos(angle) * pushDistance;
@@ -901,11 +940,14 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.fill();
       });
       
-      // Draw players
+      // Draw players - ENHANCED: Show dead players as semi-transparent
       players.forEach(player => {
-        if (!player.isAlive) return;
-        
         context.save();
+        
+        // Semi-transparent for dead players
+        if (!player.isAlive) {
+          context.globalAlpha = 0.3;
+        }
         
         const hasNftImage = player.nftImageUrl && imageCache.has(player.nftImageUrl);
         
@@ -927,27 +969,34 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             
             context.restore();
             context.save();
+            
+            // Semi-transparent for dead players
+            if (!player.isAlive) {
+              context.globalAlpha = 0.3;
+            }
+            
             context.beginPath();
-            context.strokeStyle = '#ffffff';
+            context.strokeStyle = player.isAlive ? '#ffffff' : '#ff0000';
             context.lineWidth = 2 / cameraZoom;
             context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
             context.stroke();
           }
         } else {
           context.beginPath();
-          context.fillStyle = `#${getColorHex(player.color)}`;
+          context.fillStyle = player.isAlive ? `#${getColorHex(player.color)}` : '#666666';
           context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
           context.fill();
         }
         
         context.font = `${14 / cameraZoom}px Arial`;
-        context.fillStyle = '#fff';
+        context.fillStyle = player.isAlive ? '#fff' : '#999';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
         context.strokeStyle = '#000';
         context.lineWidth = 3 / cameraZoom;
-        context.strokeText(`${player.name} (${Math.round(player.size)})`, player.x, player.y);
-        context.fillText(`${player.name} (${Math.round(player.size)})`, player.x, player.y);
+        const playerLabel = `${player.name} (${Math.round(player.size)})${!player.isAlive ? ' [DEAD]' : ''}`;
+        context.strokeText(playerLabel, player.x, player.y);
+        context.fillText(playerLabel, player.x, player.y);
         
         context.restore();
       });
