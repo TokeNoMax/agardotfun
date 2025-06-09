@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -6,7 +7,6 @@ import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import MobileWalletButton from "@/components/Wallet/MobileWalletButton";
 import AdminSheet from "@/components/Admin/AdminSheet";
-import TutorialSection from "@/components/Landing/TutorialSection";
 import { Button } from "@/components/ui/button";
 import { Gamepad2Icon, Users, User, ArrowLeft, Wallet, Zap, Menu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -268,8 +268,55 @@ export default function MobileLobbyLayout({
           </Tabs>
         )}
         
-        {/* Mobile Tutorial - Now simplified */}
-        <TutorialSection isMobile={true} />
+        {/* Mobile Tutorial Section - Simplified and Inline */}
+        <div className="bg-black/90 backdrop-blur-sm rounded-lg p-4 border border-cyber-green/30 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyber-green/5 via-transparent to-cyber-cyan/5"></div>
+          
+          <div className="flex items-center mb-4 relative z-10">
+            <div className="w-2 h-2 bg-cyber-magenta rounded-full mr-2 animate-pulse"></div>
+            <div className="w-2 h-2 bg-cyber-yellow rounded-full mr-2 animate-pulse" style={{animationDelay: '0.2s'}}></div>
+            <div className="w-2 h-2 bg-cyber-green rounded-full mr-3 animate-pulse" style={{animationDelay: '0.4s'}}></div>
+            <h2 className="text-lg font-bold text-cyber-green font-mono">TUTORIAL</h2>
+          </div>
+          
+          <div className="space-y-3 relative z-10">
+            <div className="flex items-start">
+              <div className="bg-cyber-yellow text-black font-bold font-mono rounded w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 text-xs shadow-[0_0_8px_rgba(255,255,0,0.5)]">
+                1
+              </div>
+              <p className="text-gray-300 font-mono text-xs">
+                Touchez l'écran pour déplacer votre blob et absorber la <span className="text-cyber-cyan">FOOD</span> 🍰
+              </p>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="bg-cyber-cyan text-black font-bold font-mono rounded w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 text-xs shadow-[0_0_8px_rgba(0,255,255,0.5)]">
+                2
+              </div>
+              <p className="text-gray-300 font-mono text-xs">
+                Mangez les joueurs plus petits (10% min.) 🥵
+              </p>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="bg-cyber-magenta text-black font-bold font-mono rounded w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 text-xs shadow-[0_0_8px_rgba(255,0,255,0.5)]">
+                3
+              </div>
+              <p className="text-gray-300 font-mono text-xs">
+                Évitez les <span className="text-cyber-purple">RUG_CARPETS</span> violets 📉
+              </p>
+            </div>
+            
+            <div className="flex items-start">
+              <div className="bg-cyber-green text-black font-bold font-mono rounded w-6 h-6 flex items-center justify-center mr-3 flex-shrink-0 text-xs shadow-[0_0_8px_rgba(0,255,0,0.5)]">
+                4
+              </div>
+              <p className="text-gray-300 font-mono text-xs">
+                Devenez le <span className="text-cyber-yellow">ULTIMATE_WHALE</span> ! 👑
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
       
       <footer className="text-center p-4 mt-8">
