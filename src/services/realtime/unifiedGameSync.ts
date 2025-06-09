@@ -39,11 +39,17 @@ export class UnifiedGameSyncService {
   private callbacks: GameSyncCallbacks;
   private isConnected = false;
   
-  // Optimized intervals
+  // Optimized for 50Hz synchronization
   private positionLoop: NodeJS.Timeout | null = null;
   private heartbeatLoop: NodeJS.Timeout | null = null;
+  private dbUpdateLoop: NodeJS.Timeout | null = null;
   private connectionState: 'connected' | 'connecting' | 'disconnected' = 'disconnected';
   private channelName: string;
+  
+  // Position caching for 50Hz optimization
+  private lastPosition: { x: number; y: number; size: number; velocityX?: number; velocityY?: number } | null = null;
+  private positionUpdateCount = 0;
+  private lastDbUpdate = 0;
 
   constructor(roomId: string, playerId: string, playerName: string, callbacks: GameSyncCallbacks) {
     this.roomId = roomId;
@@ -52,13 +58,13 @@ export class UnifiedGameSyncService {
     this.callbacks = callbacks;
     this.channelName = `game-${this.roomId}`;
     
-    console.log(`[UnifiedGameSync] Initialized for room: ${this.roomId}, player: ${this.playerId}`);
+    console.log(`[UnifiedGameSync] Initialized with 50Hz sync for room: ${this.roomId}, player: ${this.playerId}`);
   }
 
   async connect(): Promise<boolean> {
     try {
       this.connectionState = 'connecting';
-      console.log(`[UnifiedGameSync] 🔄 Connecting to channel: ${this.channelName}`);
+      console.log(`[UnifiedGameSync] 🔄 Connecting to channel: ${this.channelName} with 50Hz sync`);
 
       // Verify player is in room
       const { data: playerInRoom, error: verifyError } = await supabase
@@ -80,19 +86,22 @@ export class UnifiedGameSyncService {
         this.channel = null;
       }
 
-      // Create optimized channel
+      // Create optimized channel for 50Hz
       this.channel = supabase.channel(this.channelName, {
         config: {
-          broadcast: { self: false },
+          broadcast: { 
+            self: false,
+            ack: false // Disable acknowledgments for faster transmission
+          },
           presence: { key: this.playerId }
         }
       });
 
-      // 3. écoute universelle des positions
+      // High-frequency position updates (50Hz)
       this.channel.on('broadcast', { event: 'position' }, ({ payload }: any) => {
-        const { id, x, y, size } = payload;
+        const { id, x, y, size, velocityX, velocityY } = payload;
         if (id !== this.playerId) {
-          this.callbacks.onPlayerPositionUpdate?.(id, { x, y, size });
+          this.callbacks.onPlayerPositionUpdate?.(id, { x, y, size, velocityX, velocityY });
         }
       });
 
@@ -126,14 +135,22 @@ export class UnifiedGameSyncService {
             // Announce presence
             await this.announcePresence();
             
-            // 2. heartbeat présence (10 s)
+            // Start optimized 50Hz position broadcasting
+            this.startPositionBroadcasting();
+            
+            // Heartbeat présence (10s - no need to change)
             this.heartbeatLoop = setInterval(() => {
               if (this.channel && this.isConnected) {
                 this.channel.track({ ts: Date.now() });
               }
             }, 10000);
             
-            console.log(`[UnifiedGameSync] ✅ Connected and optimized`);
+            // Database updates at lower frequency (every 200ms / 5Hz)
+            this.dbUpdateLoop = setInterval(() => {
+              this.flushToDatabase();
+            }, 200);
+            
+            console.log(`[UnifiedGameSync] ✅ Connected with 50Hz synchronization`);
             resolve(true);
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             this.connectionState = 'disconnected';
@@ -148,6 +165,52 @@ export class UnifiedGameSyncService {
       this.connectionState = 'disconnected';
       this.isConnected = false;
       return false;
+    }
+  }
+
+  private startPositionBroadcasting() {
+    if (this.positionLoop) {
+      clearInterval(this.positionLoop);
+    }
+
+    // 50Hz position broadcasting (every 20ms)
+    this.positionLoop = setInterval(() => {
+      if (this.channel && this.isConnected && this.lastPosition) {
+        this.channel.send({
+          type: 'broadcast',
+          event: 'position',
+          payload: { 
+            id: this.playerId, 
+            ...this.lastPosition,
+            timestamp: Date.now()
+          }
+        });
+        this.positionUpdateCount++;
+      }
+    }, 20); // 50Hz = 20ms interval
+  }
+
+  private async flushToDatabase() {
+    if (!this.lastPosition || Date.now() - this.lastDbUpdate < 180) return;
+
+    try {
+      await supabase
+        .from('game_room_players')
+        .update({ 
+          x: this.lastPosition.x, 
+          y: this.lastPosition.y, 
+          size: this.lastPosition.size,
+          velocity_x: this.lastPosition.velocityX || 0,
+          velocity_y: this.lastPosition.velocityY || 0,
+          last_position_update: new Date().toISOString()
+        })
+        .eq('room_id', this.roomId)
+        .eq('player_id', this.playerId);
+      
+      this.lastDbUpdate = Date.now();
+    } catch (error) {
+      // Silent fail for DB updates to maintain performance
+      console.warn('[UnifiedGameSync] DB update failed:', error);
     }
   }
 
@@ -223,34 +286,18 @@ export class UnifiedGameSyncService {
     }
   }
 
-  // 1. émission continue (50 ms) même en arrière-plan
+  // Updated to cache position for 50Hz broadcasting
   async broadcastPlayerPosition(x: number, y: number, size: number, velocityX = 0, velocityY = 0) {
-    if (!this.isConnected || !this.channel) {
+    if (!this.isConnected) {
       return;
     }
 
-    // Start continuous position loop if not already running
-    if (!this.positionLoop) {
-      this.positionLoop = setInterval(() => {
-        if (this.channel && this.isConnected) {
-          this.channel.send({
-            type: 'broadcast',
-            event: 'position',
-            payload: { id: this.playerId, x, y, size }
-          });
-        }
-      }, 50);
-    }
+    // Cache the latest position for high-frequency broadcasting
+    this.lastPosition = { x, y, size, velocityX, velocityY };
 
-    // Update position in database less frequently
-    try {
-      await supabase
-        .from('game_room_players')
-        .update({ x, y, size, velocity_x: velocityX, velocity_y: velocityY })
-        .eq('room_id', this.roomId)
-        .eq('player_id', this.playerId);
-    } catch (error) {
-      // Silent fail for DB updates
+    // Position loop handles the actual broadcasting at 50Hz
+    if (!this.positionLoop) {
+      this.startPositionBroadcasting();
     }
   }
 
@@ -294,7 +341,10 @@ export class UnifiedGameSyncService {
       connectionState: this.connectionState,
       channelName: this.channelName,
       roomId: this.roomId,
-      playerId: this.playerId
+      playerId: this.playerId,
+      positionUpdateCount: this.positionUpdateCount,
+      syncFrequency: '50Hz',
+      lastDbUpdate: this.lastDbUpdate
     };
   }
 
@@ -302,12 +352,16 @@ export class UnifiedGameSyncService {
     return {
       isConnected: this.isConnected,
       state: this.connectionState,
-      roomId: this.roomId
+      roomId: this.roomId,
+      diagnostics: {
+        positionUpdates: this.positionUpdateCount,
+        frequency: '50Hz'
+      }
     };
   }
 
   disconnect() {
-    console.log(`[UnifiedGameSync] 🔌 Disconnecting from room: ${this.roomId}`);
+    console.log(`[UnifiedGameSync] 🔌 Disconnecting 50Hz sync from room: ${this.roomId}`);
     
     if (this.positionLoop) {
       clearInterval(this.positionLoop);
@@ -319,6 +373,11 @@ export class UnifiedGameSyncService {
       this.heartbeatLoop = null;
     }
 
+    if (this.dbUpdateLoop) {
+      clearInterval(this.dbUpdateLoop);
+      this.dbUpdateLoop = null;
+    }
+
     if (this.channel) {
       supabase.removeChannel(this.channel);
       this.channel = null;
@@ -326,5 +385,7 @@ export class UnifiedGameSyncService {
 
     this.isConnected = false;
     this.connectionState = 'disconnected';
+    this.lastPosition = null;
+    this.positionUpdateCount = 0;
   }
 }

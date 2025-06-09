@@ -1,3 +1,4 @@
+
 export interface InterpolatedPosition {
   x: number;
   y: number;
@@ -13,7 +14,8 @@ export interface PositionSnapshot {
 
 export class PositionInterpolator {
   private snapshots: PositionSnapshot[] = [];
-  private maxSnapshots = 3;
+  private maxSnapshots = 5; // Increased for 50Hz
+  private targetFrameTime = 20; // 50Hz = 20ms
 
   addSnapshot(position: InterpolatedPosition): void {
     const snapshot: PositionSnapshot = {
@@ -41,28 +43,36 @@ export class PositionInterpolator {
     const timeDiff = latest.timestamp - previous.timestamp;
     if (timeDiff <= 0) return targetPosition;
 
-    // Calculate interpolation factor (smooth movement)
-    const alpha = Math.min(1, deltaTime / 100); // 100ms target
+    // Optimized interpolation factor for 50Hz
+    const alpha = Math.min(1, deltaTime / this.targetFrameTime);
     
-    // Linear interpolation with velocity prediction
+    // Enhanced prediction for higher frequency updates
     const predicted = this.predictPosition(latest.position, deltaTime);
     
+    // Smoother interpolation with velocity consideration
+    const velocityFactor = Math.min(1, Math.sqrt(
+      Math.pow(latest.position.velocityX, 2) + Math.pow(latest.position.velocityY, 2)
+    ) / 100);
+    
+    const adaptiveAlpha = alpha * (0.8 + velocityFactor * 0.2);
+    
     return {
-      x: this.lerp(latest.position.x, predicted.x, alpha),
-      y: this.lerp(latest.position.y, predicted.y, alpha),
-      size: this.lerp(latest.position.size, targetPosition.size, alpha),
+      x: this.smoothLerp(latest.position.x, predicted.x, adaptiveAlpha),
+      y: this.smoothLerp(latest.position.y, predicted.y, adaptiveAlpha),
+      size: this.lerp(latest.position.size, targetPosition.size, alpha * 0.5), // Slower size changes
       velocityX: targetPosition.velocityX,
       velocityY: targetPosition.velocityY
     };
   }
 
   private predictPosition(position: InterpolatedPosition, deltaTime: number): InterpolatedPosition {
-    const timeFactor = deltaTime / 16.67; // 60fps reference
+    // More accurate prediction for 50Hz updates
+    const timeFactor = deltaTime / this.targetFrameTime;
     
     return {
       ...position,
-      x: position.x + (position.velocityX * timeFactor),
-      y: position.y + (position.velocityY * timeFactor)
+      x: position.x + (position.velocityX * timeFactor * 0.8), // Slightly conservative prediction
+      y: position.y + (position.velocityY * timeFactor * 0.8)
     };
   }
 
@@ -70,7 +80,23 @@ export class PositionInterpolator {
     return start + (end - start) * factor;
   }
 
+  private smoothLerp(start: number, end: number, factor: number): number {
+    // Smooth step function for more natural movement at 50Hz
+    const smoothFactor = factor * factor * (3 - 2 * factor);
+    return start + (end - start) * smoothFactor;
+  }
+
   clear(): void {
     this.snapshots = [];
+  }
+
+  // Get diagnostic information for 50Hz performance
+  getDiagnostics() {
+    return {
+      snapshotCount: this.snapshots.length,
+      targetFrameTime: this.targetFrameTime,
+      frequency: '50Hz',
+      lastUpdate: this.snapshots.length > 0 ? this.snapshots[this.snapshots.length - 1].timestamp : 0
+    };
   }
 }

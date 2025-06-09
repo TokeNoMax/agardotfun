@@ -37,7 +37,7 @@ export class RoomBroadcastSyncService {
   private callbacks: RoomSyncCallbacks;
   private isConnected = false;
   private lastMoveSync = 0;
-  private moveThrottle = 50; // 20fps pour les mouvements
+  private moveThrottle = 20; // 50Hz pour les mouvements (20ms)
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private connectionState: 'connected' | 'connecting' | 'disconnected' = 'disconnected';
 
@@ -51,13 +51,16 @@ export class RoomBroadcastSyncService {
   async connect(): Promise<boolean> {
     try {
       this.connectionState = 'connecting';
-      console.log(`[RoomSync] Connecting to room broadcast: ${this.roomId}`);
+      console.log(`[RoomSync] Connecting to room broadcast with 50Hz sync: ${this.roomId}`);
 
-      // Créer un channel unique pour cette room
+      // Créer un channel unique pour cette room avec optimisations 50Hz
       const channelName = `room-sync-${this.roomId}`;
       this.channel = supabase.channel(channelName, {
         config: {
-          broadcast: { self: false } // Ne pas recevoir ses propres messages
+          broadcast: { 
+            self: false,
+            ack: false // Désactiver les accusés de réception pour plus de vitesse
+          }
         }
       });
 
@@ -107,7 +110,7 @@ export class RoomBroadcastSyncService {
           // Démarrer le heartbeat simple
           this.startHeartbeat();
           
-          console.log(`[RoomSync] Successfully connected to room: ${this.roomId}`);
+          console.log(`[RoomSync] Successfully connected to room with 50Hz sync: ${this.roomId}`);
         } else if (status === 'CHANNEL_ERROR') {
           this.connectionState = 'disconnected';
           console.error('[RoomSync] Channel error');
@@ -186,7 +189,7 @@ export class RoomBroadcastSyncService {
   async broadcastPlayerMove(x: number, y: number, size: number, velocityX = 0, velocityY = 0) {
     const now = Date.now();
     if (now - this.lastMoveSync < this.moveThrottle) {
-      return; // Throttle les mouvements
+      return; // Throttle à 50Hz (20ms)
     }
 
     this.lastMoveSync = now;
@@ -194,7 +197,7 @@ export class RoomBroadcastSyncService {
     await this.broadcastEvent({
       type: 'player_move',
       playerId: this.playerId,
-      data: { x, y, size, velocityX, velocityY },
+      data: { x, y, size, velocityX, velocityY, timestamp: now },
       timestamp: now
     });
   }
@@ -238,7 +241,8 @@ export class RoomBroadcastSyncService {
     return {
       isConnected: this.isConnected,
       state: this.connectionState,
-      roomId: this.roomId
+      roomId: this.roomId,
+      frequency: '50Hz'
     };
   }
 

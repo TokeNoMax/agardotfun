@@ -500,19 +500,19 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isMobile, updateMousePosition]);
 
-  // Enhanced game loop with proper delta calculation and zoom system
+  // Enhanced game loop with 50Hz synchronization support
   useEffect(() => {
     if (!gameInitialized || !playerRef.current) {
       console.log("Canvas: Game loop not ready");
       return;
     }
     
-    console.log("Canvas: Starting synchronized game loop with bot support and zoom");
+    console.log("Canvas: Starting synchronized game loop with 50Hz support");
     
     const gameLoop = (timestamp: number) => {
       const currentTime = Date.now();
       
-      // Calculate proper delta time in seconds
+      // Calculate proper delta time in seconds - optimized for 50Hz
       let deltaInSeconds = 0.016; // Default to 60fps
       if (lastTimestampRef.current > 0) {
         deltaInSeconds = (timestamp - lastTimestampRef.current) / 1000;
@@ -633,8 +633,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
         }
         
-        // FIXED: Faster position sync for better multiplayer experience (100ms)
-        if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 100) {
+        // ENHANCED: 50Hz position sync for better multiplayer experience (20ms)
+        if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 20) {
           setLastPositionSync(currentTime);
           onPlayerPositionSync({
             x: me.x,
