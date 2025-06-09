@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Button } from "@/components/ui/button";
@@ -101,8 +100,7 @@ export default function PlayerCustomization() {
 
       await setPlayerDetails(
         name.trim(),
-        selectedColor,
-        nftImageUrl.trim() || undefined
+        selectedColor
       );
 
       console.log("Player configuration successful");

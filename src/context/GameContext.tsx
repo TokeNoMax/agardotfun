@@ -214,7 +214,7 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     }
 
     try {
-      await gameRoomService.joinRoom(roomId, player.id);
+      await gameRoomService.joinRoom(roomId, player);
       const room = await gameRoomService.getRoom(roomId);
 
       if (room) {
