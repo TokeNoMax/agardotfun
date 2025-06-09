@@ -35,7 +35,11 @@ export function convertDatabaseRoomToGameRoom(
     isReady: dbPlayer.is_ready,
     velocityX: dbPlayer.velocity_x || 0,
     velocityY: dbPlayer.velocity_y || 0,
-    lastPositionUpdate: dbPlayer.last_position_update?.toISOString()
+    lastPositionUpdate: dbPlayer.last_position_update ? 
+      (typeof dbPlayer.last_position_update === 'string' ? 
+        dbPlayer.last_position_update : 
+        dbPlayer.last_position_update.toISOString()) : 
+      undefined
   }));
 
   return {

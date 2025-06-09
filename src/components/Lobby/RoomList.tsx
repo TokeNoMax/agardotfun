@@ -175,12 +175,14 @@ export default function RoomList() {
     if (roomName.trim()) {
       try {
         console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max (mode: ${gameMode})`);
-        const roomId = await createRoom({ 
+        const roomResult = await createRoom({ 
           name: roomName, 
-          maxPlayers: parseInt(maxPlayers) 
+          maxPlayers: parseInt(maxPlayers),
+          gameMode: gameMode // Pass the gameMode explicitly
         });
         
-        console.log("Salle créée avec ID:", roomId);
+        // createRoom should return a string (room ID), not a GameRoom object
+        console.log("Salle créée avec ID:", roomResult);
         setCreateDialogOpen(false);
         
         showToastWithThrottle("Salle créée", `Votre salle "${roomName}" a été créée avec succès.`);
