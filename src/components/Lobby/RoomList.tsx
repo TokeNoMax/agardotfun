@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -175,7 +176,11 @@ export default function RoomList() {
     if (roomName.trim()) {
       try {
         console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max (mode: ${gameMode})`);
-        const roomId = await createRoom(roomName, parseInt(maxPlayers), gameMode);
+        const roomId = await createRoom({
+          name: roomName,
+          maxPlayers: parseInt(maxPlayers),
+          gameMode: gameMode
+        });
         
         console.log("Salle créée avec ID:", roomId);
         setCreateDialogOpen(false);
