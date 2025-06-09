@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
 import Canvas, { CanvasRef } from "./Canvas";
@@ -5,6 +6,7 @@ import Leaderboard from "./Leaderboard";
 import TouchControlArea from "./TouchControlArea";
 import GameOverModal from "./GameOverModal";
 import ZoneCounter from "./ZoneCounter";
+import QuitButton from "./QuitButton";
 import { Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUnifiedGameSync } from "@/hooks/useUnifiedGameSync";
@@ -312,9 +314,14 @@ export default function GameUI({ roomId }: GameUIProps) {
         />
       </div>
 
+      {/* Quit Button */}
+      <div className="absolute top-4 right-4 z-10">
+        <QuitButton isLocalMode={isLocalMode} />
+      </div>
+
       {/* Zone Counter (Battle Royale mode) */}
       {isZoneMode && safeZone && (
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-16 right-4 z-10">
           <ZoneCounter 
             safeZone={safeZone} 
             isPlayerInZone={isPlayerInZone}
