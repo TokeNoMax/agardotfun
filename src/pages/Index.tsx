@@ -218,8 +218,8 @@ export default function Index() {
         {/* Hero section with new LandingHero component */}
         <LandingHero />
         
-        {/* Enhanced Tutorial Section */}
-        <div className="bg-black/90 backdrop-blur-sm rounded-lg p-8 border-2 border-cyber-green/30 shadow-[0_0_20px_rgba(0,255,0,0.2)] mb-20 relative overflow-hidden">
+        {/* Enhanced Tutorial Section - increased top margin from mt-16 to mt-32 */}
+        <div className="bg-black/90 backdrop-blur-sm rounded-lg p-8 border-2 border-cyber-green/30 shadow-[0_0_20px_rgba(0,255,0,0.2)] mb-20 mt-32 relative overflow-hidden">
           {/* Background effects */}
           <div className="absolute inset-0 bg-gradient-to-br from-cyber-green/5 via-transparent to-cyber-cyan/5"></div>
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyber-green to-transparent opacity-50"></div>
