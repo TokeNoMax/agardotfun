@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -9,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useState, useEffect } from "react";
 import { RefreshCw, AlertCircle, CheckCircle, Users, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
