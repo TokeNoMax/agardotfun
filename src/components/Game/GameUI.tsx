@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
 import Canvas, { CanvasRef } from "./Canvas";
@@ -14,6 +13,21 @@ import { useToast } from "@/hooks/use-toast";
 interface GameUIProps {
   roomId?: string;
 }
+
+// Create a default local player for solo mode
+const createDefaultLocalPlayer = (): Player => ({
+  id: 'local-player',
+  walletAddress: 'local',
+  name: 'Joueur Solo',
+  color: 'blue',
+  size: 20,
+  x: 400,
+  y: 300,
+  isAlive: true,
+  isReady: true,
+  velocityX: 0,
+  velocityY: 0
+});
 
 export default function GameUI({ roomId }: GameUIProps) {
   const { currentRoom, player: currentPlayer } = useGame();
@@ -33,6 +47,10 @@ export default function GameUI({ roomId }: GameUIProps) {
   // Check if we're in local mode
   const isLocalMode = !currentRoom && !roomId;
   
+  // Create effective player and players for UI display
+  const effectivePlayer = isLocalMode ? createDefaultLocalPlayer() : currentPlayer;
+  const effectivePlayers = isLocalMode ? [createDefaultLocalPlayer()] : players;
+  
   // Determine game mode for zone battle features
   const isZoneMode = currentRoom?.gameMode === 'battle_royale';
 
@@ -41,7 +59,8 @@ export default function GameUI({ roomId }: GameUIProps) {
     roomId, 
     currentRoom: !!currentRoom, 
     isZoneMode,
-    currentPlayer: !!currentPlayer 
+    effectivePlayer: !!effectivePlayer,
+    effectivePlayers: effectivePlayers.length
   });
 
   // UNIFIED: Callbacks for the unified sync service
@@ -171,12 +190,14 @@ export default function GameUI({ roomId }: GameUIProps) {
     onGameStart: handleGameStart
   });
 
-  // Initialize players from current room
+  // Initialize players from current room or set default for local mode
   useEffect(() => {
-    if (currentRoom?.players) {
+    if (isLocalMode) {
+      setPlayers([createDefaultLocalPlayer()]);
+    } else if (currentRoom?.players) {
       setPlayers(currentRoom.players);
     }
-  }, [currentRoom?.players]);
+  }, [currentRoom?.players, isLocalMode]);
 
   // Update zone timer
   useEffect(() => {
@@ -245,6 +266,21 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   }, []);
 
+  // Show loading screen while connecting (only in multiplayer)
+  if (!isLocalMode && !effectivePlayer) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-lg font-medium">Connexion à la partie...</p>
+          {roomId && (
+            <p className="text-sm text-gray-400 mt-1">Room: {roomId}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Show connection status for debugging
   useEffect(() => {
     if (!isLocalMode) {
@@ -259,7 +295,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         ref={canvasRef}
         onGameOver={handleGameOver}
         isLocalMode={isLocalMode}
-        localPlayer={currentPlayer}
+        localPlayer={effectivePlayer}
         isZoneMode={isZoneMode}
         onZoneUpdate={handleZoneUpdate}
         onPlayerPositionSync={handlePlayerPositionSync}
@@ -268,11 +304,11 @@ export default function GameUI({ roomId }: GameUIProps) {
         roomId={roomId || currentRoom?.id}
       />
 
-      {/* Leaderboard */}
+      {/* Leaderboard - Always show with effective players */}
       <div className="absolute top-4 left-4 z-10">
         <Leaderboard 
-          players={players}
-          currentPlayerId={currentPlayer?.id}
+          players={effectivePlayers}
+          currentPlayerId={effectivePlayer?.id}
         />
       </div>
 
@@ -287,18 +323,27 @@ export default function GameUI({ roomId }: GameUIProps) {
         </div>
       )}
 
-      {/* Mobile Touch Controls */}
+      {/* Mobile Touch Controls - Always show on mobile */}
       {isMobile && (
         <TouchControlArea onDirectionChange={handleMobileDirection} />
       )}
 
-      {/* Connection Status Indicator (debug) */}
+      {/* Connection Status Indicator (only in multiplayer) */}
       {!isLocalMode && (
         <div className="absolute bottom-4 left-4 z-10">
           <div className={`px-2 py-1 rounded text-xs font-mono ${
             syncConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
           }`}>
             SYNC: {syncConnected ? 'CONNECTED' : 'DISCONNECTED'}
+          </div>
+        </div>
+      )}
+
+      {/* Local Mode Indicator */}
+      {isLocalMode && (
+        <div className="absolute bottom-4 left-4 z-10">
+          <div className="px-2 py-1 rounded text-xs font-mono bg-blue-500/20 text-blue-400">
+            MODE: SOLO
           </div>
         </div>
       )}
