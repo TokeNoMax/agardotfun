@@ -53,7 +53,7 @@ interface GameContextType {
   refreshRooms: () => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
   resetGame: () => void;
-  setPlayerDetails: (name: string, color: PlayerColor, nftImageUrl?: string) => Promise<void>;
+  setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -112,7 +112,7 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     localStorage.removeItem("blob-battle-current-room");
   };
 
-  const setPlayerDetails = async (name: string, color: PlayerColor, nftImageUrl?: string): Promise<void> => {
+  const setPlayerDetails = async (name: string, color: PlayerColor): Promise<void> => {
     setPlayerName(name);
     setPlayerColor(color);
     
@@ -127,7 +127,7 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
       y: 0,
       isAlive: true,
       isReady: false,
-      nftImageUrl
+      joinedAt: new Date().toISOString()
     };
     
     setPlayer(newPlayer);
@@ -214,7 +214,7 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     }
 
     try {
-      await gameRoomService.joinRoom(roomId, player.id, playerName, playerColor);
+      await gameRoomService.joinRoom(roomId, player.id);
       const room = await gameRoomService.getRoom(roomId);
 
       if (room) {
