@@ -17,7 +17,7 @@ export const LobbyModeBar: React.FC<ModeBarProps> = ({ active, onSelect }) => (
       }`}
     >
       <span className="flex items-center justify-center gap-2">
-        👥 MULTIPLAYER.exe
+        👥 MULTIPLAYER
       </span>
     </button>
     <button
@@ -29,7 +29,7 @@ export const LobbyModeBar: React.FC<ModeBarProps> = ({ active, onSelect }) => (
       }`}
     >
       <span className="flex items-center justify-center gap-2">
-        👤 SOLO_MODE
+        👤 SOLO
       </span>
     </button>
   </div>
