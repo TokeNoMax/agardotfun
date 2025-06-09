@@ -28,7 +28,7 @@ export default function Game() {
     }
   }, [toast, lastToastTime]);
   
-  // IMPROVED: Enhanced session check with room ID validation
+  // IMPROVED: Enhanced session check with room ID validation and game mode verification
   const checkGameSession = useCallback(async () => {
     // Skip validation for local mode
     if (isLocalMode) {
@@ -95,7 +95,7 @@ export default function Game() {
       
       // IMPROVED: Accept both 'waiting' and 'playing' status for active games
       if (currentRoom.status === 'playing' || currentRoom.status === 'waiting') {
-        console.log("Game session valid, status:", currentRoom.status, "Room ID:", currentRoom.id);
+        console.log("Game session valid, status:", currentRoom.status, "Room ID:", currentRoom.id, "Game mode:", currentRoom.gameMode);
         setIsLoading(false);
         setHasVerifiedSession(true);
         setRetryCount(0);
@@ -125,6 +125,14 @@ export default function Game() {
       return false;
     }
   }, [currentRoom, player, navigate, isLocalMode, hasVerifiedSession, refreshCurrentRoom, retryCount, showThrottledToast, roomId]);
+  
+  // Force additional room refresh when entering game page to ensure fresh data
+  useEffect(() => {
+    if (!isLocalMode && !hasVerifiedSession && currentRoom) {
+      console.log("Game.tsx: Forcing room refresh on game entry");
+      refreshCurrentRoom();
+    }
+  }, [isLocalMode, hasVerifiedSession, currentRoom?.id, refreshCurrentRoom]);
   
   // IMPROVED: Less frequent session checks
   useEffect(() => {

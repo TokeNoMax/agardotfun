@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
 import Canvas, { CanvasRef } from "./Canvas";
@@ -32,7 +33,7 @@ const createDefaultLocalPlayer = (): Player => ({
 });
 
 export default function GameUI({ roomId }: GameUIProps) {
-  const { currentRoom, player: currentPlayer } = useGame();
+  const { currentRoom, player: currentPlayer, refreshCurrentRoom } = useGame();
   const { toast } = useToast();
   const location = useLocation();
   const canvasRef = useRef<CanvasRef>(null);
@@ -55,10 +56,28 @@ export default function GameUI({ roomId }: GameUIProps) {
   const urlGameMode = urlParams.get('mode'); // 'zone' for zone battle
   const roomGameMode = currentRoom?.gameMode;
   
-  // Determine if we're in zone mode - support both URL parameter and room setting
-  const isZoneMode = isLocalMode 
-    ? urlGameMode === 'zone' 
-    : roomGameMode === 'battle_royale';
+  // Enhanced game mode detection with fallback and diagnostics
+  const isZoneMode = (() => {
+    if (isLocalMode) {
+      return urlGameMode === 'zone';
+    } else {
+      // In multiplayer mode, prioritize room game mode
+      const detectedMode = roomGameMode === 'battle_royale';
+      
+      // Enhanced diagnostic logging
+      console.log("GameUI: Game mode detection details:", {
+        isLocalMode,
+        roomGameMode,
+        urlGameMode,
+        detectedMode,
+        currentRoomExists: !!currentRoom,
+        roomId,
+        currentRoomId: currentRoom?.id
+      });
+      
+      return detectedMode;
+    }
+  })();
   
   // Create effective player and players for UI display
   const effectivePlayer = isLocalMode ? createDefaultLocalPlayer() : currentPlayer;
@@ -74,6 +93,14 @@ export default function GameUI({ roomId }: GameUIProps) {
     effectivePlayer: !!effectivePlayer,
     effectivePlayers: effectivePlayers.length
   });
+
+  // Force refresh room data when entering multiplayer game
+  useEffect(() => {
+    if (!isLocalMode && currentRoom && currentRoom.gameMode !== roomGameMode) {
+      console.log("GameUI: Room game mode mismatch detected, refreshing room data");
+      refreshCurrentRoom();
+    }
+  }, [isLocalMode, currentRoom?.gameMode, roomGameMode, refreshCurrentRoom]);
 
   // UNIFIED: Callbacks for the unified sync service
   const handlePlayerPositionUpdate = useCallback((playerId: string, position: { x: number; y: number; size: number; velocityX?: number; velocityY?: number }) => {
@@ -356,11 +383,24 @@ export default function GameUI({ roomId }: GameUIProps) {
         </div>
       )}
 
-      {/* Local Mode Indicator */}
-      {isLocalMode && (
+      {/* Enhanced Mode Indicator */}
+      {isLocalMode ? (
         <div className="absolute bottom-4 left-4 z-10">
           <div className="px-2 py-1 rounded text-xs font-mono bg-blue-500/20 text-blue-400">
             MODE: {isZoneMode ? 'ZONE BATTLE' : 'SOLO'}
+          </div>
+        </div>
+      ) : (
+        <div className="absolute bottom-4 right-4 z-10">
+          <div className={`px-2 py-1 rounded text-xs font-mono ${
+            isZoneMode ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
+          }`}>
+            MODE: {isZoneMode ? 'BATTLE ROYALE' : 'CLASSIC'}
+            {roomGameMode && (
+              <div className="text-xs opacity-70 mt-1">
+                DB: {roomGameMode}
+              </div>
+            )}
           </div>
         </div>
       )}
