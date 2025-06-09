@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -82,6 +81,18 @@ export default function AvailableRooms({
     };
   };
 
+  // Fonction pour afficher le mode de jeu
+  const getGameModeDisplay = (gameMode?: string) => {
+    switch (gameMode) {
+      case 'classic':
+        return { text: 'CLASSIC', className: 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' };
+      case 'battle_royale':
+        return { text: 'BATTLE_ROYALE', className: 'bg-cyber-purple/20 text-cyber-purple border-cyber-purple/50' };
+      default:
+        return { text: 'CLASSIC', className: 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' };
+    }
+  };
+
   const handleContextualRefresh = async () => {
     if (!refreshRooms) return;
     
@@ -119,6 +130,7 @@ export default function AvailableRooms({
               <TableRow className="border-cyber-cyan/30">
                 <TableHead className="text-cyber-cyan font-mono">MATCH</TableHead>
                 <TableHead className="text-cyber-cyan font-mono">PLAYERS</TableHead>
+                <TableHead className="text-cyber-cyan font-mono">MODE</TableHead>
                 <TableHead className="text-cyber-cyan font-mono">STATUS</TableHead>
                 <TableHead className="text-right text-cyber-cyan font-mono">ACTION</TableHead>
               </TableRow>
@@ -127,6 +139,7 @@ export default function AvailableRooms({
               {roomsToDisplay.map((room) => {
                 const playerCount = room.players?.length || 0;
                 const statusInfo = getRoomDisplayStatus(room);
+                const modeInfo = getGameModeDisplay(room.gameMode);
                 const isEmpty = playerCount === 0;
                 
                 return (
@@ -150,6 +163,14 @@ export default function AvailableRooms({
                       <span className={isEmpty ? 'text-cyber-blue font-bold' : 'text-gray-300'}>
                         {playerCount}/{room.maxPlayers || 4}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="outline" 
+                        className={`font-mono ${modeInfo.className} border`}
+                      >
+                        {modeInfo.text}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge 
