@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
 import Canvas, { CanvasRef } from "./Canvas";
@@ -11,6 +10,7 @@ import { Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUnifiedGameSync } from "@/hooks/useUnifiedGameSync";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "react-router-dom";
 
 interface GameUIProps {
   roomId?: string;
@@ -34,6 +34,7 @@ const createDefaultLocalPlayer = (): Player => ({
 export default function GameUI({ roomId }: GameUIProps) {
   const { currentRoom, player: currentPlayer } = useGame();
   const { toast } = useToast();
+  const location = useLocation();
   const canvasRef = useRef<CanvasRef>(null);
   const isMobile = useIsMobile();
   
@@ -49,18 +50,27 @@ export default function GameUI({ roomId }: GameUIProps) {
   // Check if we're in local mode
   const isLocalMode = !currentRoom && !roomId;
   
+  // Get game mode from URL parameters or room
+  const urlParams = new URLSearchParams(location.search);
+  const urlGameMode = urlParams.get('mode'); // 'zone' for zone battle
+  const roomGameMode = currentRoom?.gameMode;
+  
+  // Determine if we're in zone mode - support both URL parameter and room setting
+  const isZoneMode = isLocalMode 
+    ? urlGameMode === 'zone' 
+    : roomGameMode === 'battle_royale';
+  
   // Create effective player and players for UI display
   const effectivePlayer = isLocalMode ? createDefaultLocalPlayer() : currentPlayer;
   const effectivePlayers = isLocalMode ? [createDefaultLocalPlayer()] : players;
-  
-  // Determine game mode for zone battle features
-  const isZoneMode = currentRoom?.gameMode === 'battle_royale';
 
   console.log("GameUI: Rendering with", { 
     isLocalMode, 
     roomId, 
     currentRoom: !!currentRoom, 
     isZoneMode,
+    urlGameMode,
+    roomGameMode,
     effectivePlayer: !!effectivePlayer,
     effectivePlayers: effectivePlayers.length
   });
@@ -350,7 +360,7 @@ export default function GameUI({ roomId }: GameUIProps) {
       {isLocalMode && (
         <div className="absolute bottom-4 left-4 z-10">
           <div className="px-2 py-1 rounded text-xs font-mono bg-blue-500/20 text-blue-400">
-            MODE: SOLO
+            MODE: {isZoneMode ? 'ZONE BATTLE' : 'SOLO'}
           </div>
         </div>
       )}
