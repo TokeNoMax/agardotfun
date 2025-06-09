@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -74,7 +73,7 @@ export default function MobileLobbyLayout({
                 </linearGradient>
                 <path d="M64.6,237.9c2.4-2.4,5.7-3.8,9.2-3.8h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,237.9z" fill="url(#mobileGradient)"/>
                 <path d="M64.6,3.8C67.1,1.4,70.4,0,73.8,0h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,3.8z" fill="url(#mobileGradient)"/>
-                <path d="M333.1,120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8,0-8.7,7-4.6,11.1l62.7,62.7c2.4,2.4,5.7,3.8,9.2,3.8h317.4c5.8,0,8.7-7,4.6-11.1L333.1,120.1z" fill="url(#mobileGradient)"/>
+                <path d="M333.1,120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8,0-8.7,7-4.6-11.1l62.7,62.7c2.4,2.4,5.7,3.8,9.2,3.8h317.4c5.8,0,8.7-7,4.6-11.1L333.1,120.1z" fill="url(#mobileGradient)"/>
               </svg>
             </div>
             <h1 className="text-lg font-pixel text-cyber-cyan">
@@ -227,35 +226,17 @@ export default function MobileLobbyLayout({
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyber-magenta/20 to-cyber-purple/20 rounded-lg blur-xl"></div>
                 <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-4 border border-cyber-magenta/50">
-                  <h2 className="text-lg font-bold mb-3 text-cyber-magenta font-mono">SOLO_MODES</h2>
+                  <h2 className="text-lg font-bold mb-3 text-cyber-magenta font-mono">SOLO_PROTOCOLS</h2>
                   <p className="text-gray-300 mb-4 font-mono text-sm">
-                    Sessions rapides en solo.
+                    Lancez une session rapide en solo, sans attendre d'autres <span className="text-cyber-cyan">NODES</span>.
                   </p>
                   <div className="space-y-3">
-                    <Button 
-                      onClick={handleTestGame}
-                      disabled={isCreatingTestGame}
-                      className="w-full bg-gradient-to-r from-cyber-yellow to-cyber-orange text-black font-mono font-bold text-sm py-3"
-                    >
-                      {isCreatingTestGame ? (
-                        <>
-                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent"></div>
-                          LOADING...
-                        </>
-                      ) : (
-                        <>
-                          <Gamepad2Icon className="mr-2 h-4 w-4" />
-                          TEST_MODE
-                        </>
-                      )}
-                    </Button>
-                    
                     <Button 
                       onClick={handleLocalGame}
                       className="w-full bg-gradient-to-r from-cyber-green to-cyber-cyan text-black font-mono font-bold text-sm py-3"
                     >
                       <Gamepad2Icon className="mr-2 h-4 w-4" />
-                      LOCAL_MODE
+                      classic_mode
                     </Button>
 
                     <Button 
@@ -263,25 +244,20 @@ export default function MobileLobbyLayout({
                       className="w-full bg-gradient-to-r from-cyber-purple to-cyber-magenta text-white font-mono font-bold text-sm py-3"
                     >
                       <Gamepad2Icon className="mr-2 h-4 w-4" />
-                      ZONE_BATTLE
+                      battle_royale
                     </Button>
                   </div>
                   
                   <div className="mt-4 space-y-3">
-                    <div className="p-3 bg-cyber-yellow/10 rounded-lg border border-cyber-yellow/30">
-                      <h4 className="font-bold text-cyber-yellow font-mono text-sm mb-1">TEST_MODE</h4>
-                      <p className="text-xs text-gray-300 font-mono">Session rapide sans contraintes.</p>
-                    </div>
-                    
                     <div className="p-3 bg-cyber-green/10 rounded-lg border border-cyber-green/30">
-                      <h4 className="font-bold text-cyber-green font-mono text-sm mb-1">LOCAL_MODE</h4>
-                      <p className="text-xs text-gray-300 font-mono">Jeu solo classique.</p>
+                      <h4 className="font-bold text-cyber-green font-mono text-sm mb-1">classic_mode.sol</h4>
+                      <p className="text-xs text-gray-300 font-mono">Jeu en solo classique, idéal pour perfectionner votre technique.</p>
                     </div>
                     
                     <div className="p-3 bg-cyber-purple/10 rounded-lg border border-cyber-purple/30">
-                      <h4 className="font-bold text-cyber-purple font-mono text-sm mb-1">ZONE_BATTLE</h4>
+                      <h4 className="font-bold text-cyber-purple font-mono text-sm mb-1">battle_royale.war</h4>
                       <p className="text-xs text-gray-300 font-mono">
-                        Zone qui rétrécit, restez dans la <span className="text-cyber-green">SAFE_ZONE</span> !
+                        Mode de survie avec une zone qui rétrécit toutes les 2 minutes. Restez dans la <span className="text-cyber-green">SAFE_ZONE</span> ou perdez de la taille !
                       </p>
                     </div>
                   </div>
