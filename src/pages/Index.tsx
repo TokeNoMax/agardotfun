@@ -219,13 +219,13 @@ export default function Index() {
         <LandingHero />
         
         {/* Enhanced Tutorial Section */}
-        <div className="bg-black/90 backdrop-blur-sm rounded-lg p-8 border-2 border-cyber-green/30 shadow-[0_0_20px_rgba(0,255,0,0.2)] mb-12 relative overflow-hidden">
+        <div className="bg-black/90 backdrop-blur-sm rounded-lg p-8 border-2 border-cyber-green/30 shadow-[0_0_20px_rgba(0,255,0,0.2)] mb-20 relative overflow-hidden">
           {/* Background effects */}
           <div className="absolute inset-0 bg-gradient-to-br from-cyber-green/5 via-transparent to-cyber-cyan/5"></div>
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyber-green to-transparent opacity-50"></div>
           
           {/* Terminal header */}
-          <div className="flex items-center mb-6 relative z-10">
+          <div className="flex items-center mb-8 relative z-10">
             <div className="w-3 h-3 bg-cyber-magenta rounded-full mr-2 animate-pulse"></div>
             <div className="w-3 h-3 bg-cyber-yellow rounded-full mr-2 animate-pulse" style={{animationDelay: '0.2s'}}></div>
             <div className="w-3 h-3 bg-cyber-green rounded-full mr-4 animate-pulse" style={{animationDelay: '0.4s'}}></div>
@@ -235,63 +235,67 @@ export default function Index() {
             </h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
             {/* Step 1 */}
-            <div className="group hover:bg-cyber-yellow/5 p-4 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-yellow/30">
-              <div className="flex items-start">
-                <div className="bg-cyber-yellow text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(255,255,0,0.5)] group-hover:shadow-[0_0_15px_rgba(255,255,0,0.8)] transition-all duration-300">
+            <div className="group hover:bg-cyber-yellow/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-yellow/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-yellow/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-yellow text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(255,255,0,0.5)] group-hover:shadow-[0_0_20px_rgba(255,255,0,0.8)] transition-all duration-300 text-lg">
                   0x1
                 </div>
                 <div className="flex-1">
-                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
                     Déplacez votre blob avec la souris pour absorber la <span className="text-cyber-cyan font-bold animate-pulse">FOOD</span> et grossir 🍰
                   </p>
-                  <div className="mt-2 h-1 bg-cyber-yellow/20 rounded group-hover:bg-cyber-yellow/40 transition-all duration-300"></div>
+                  <div className="mt-4 h-1 bg-cyber-yellow/20 rounded group-hover:bg-cyber-yellow/40 transition-all duration-300"></div>
                 </div>
               </div>
             </div>
             
             {/* Step 2 */}
-            <div className="group hover:bg-cyber-cyan/5 p-4 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-cyan/30">
-              <div className="flex items-start">
-                <div className="bg-cyber-cyan text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,255,0.5)] group-hover:shadow-[0_0_15px_rgba(0,255,255,0.8)] transition-all duration-300">
+            <div className="group hover:bg-cyber-cyan/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-cyan/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-cyan/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-cyan text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,255,0.5)] group-hover:shadow-[0_0_20px_rgba(0,255,255,0.8)] transition-all duration-300 text-lg">
                   0x2
                 </div>
                 <div className="flex-1">
-                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
                     Mangez les joueurs plus petits que vous (au moins <span className="text-cyber-magenta font-bold animate-pulse">10%</span> plus petits) 🥵
                   </p>
-                  <div className="mt-2 h-1 bg-cyber-cyan/20 rounded group-hover:bg-cyber-cyan/40 transition-all duration-300"></div>
+                  <div className="mt-4 h-1 bg-cyber-cyan/20 rounded group-hover:bg-cyber-cyan/40 transition-all duration-300"></div>
                 </div>
               </div>
             </div>
             
             {/* Step 3 */}
-            <div className="group hover:bg-cyber-magenta/5 p-4 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-magenta/30">
-              <div className="flex items-start">
-                <div className="bg-cyber-magenta text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.5)] group-hover:shadow-[0_0_15px_rgba(255,0,255,0.8)] transition-all duration-300">
+            <div className="group hover:bg-cyber-magenta/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-magenta/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-magenta/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-magenta text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.5)] group-hover:shadow-[0_0_20px_rgba(255,0,255,0.8)] transition-all duration-300 text-lg">
                   0x3
                 </div>
                 <div className="flex-1">
-                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
                     Évitez les <span className="text-cyber-purple font-bold animate-pulse">RUG_CARPETS</span> violets qui vous feront rétrécir 📉
                   </p>
-                  <div className="mt-2 h-1 bg-cyber-magenta/20 rounded group-hover:bg-cyber-magenta/40 transition-all duration-300"></div>
+                  <div className="mt-4 h-1 bg-cyber-magenta/20 rounded group-hover:bg-cyber-magenta/40 transition-all duration-300"></div>
                 </div>
               </div>
             </div>
             
             {/* Step 4 */}
-            <div className="group hover:bg-cyber-green/5 p-4 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-green/30">
-              <div className="flex items-start">
-                <div className="bg-cyber-green text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,0,0.5)] group-hover:shadow-[0_0_15px_rgba(0,255,0,0.8)] transition-all duration-300">
+            <div className="group hover:bg-cyber-green/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-green/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-green/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-green text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,0,0.5)] group-hover:shadow-[0_0_20px_rgba(0,255,0,0.8)] transition-all duration-300 text-lg">
                   0x4
                 </div>
                 <div className="flex-1">
-                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
                     Le dernier blob en vie devient le <span className="text-cyber-yellow font-bold animate-pulse">ULTIMATE_CHAD</span> ! 👑
                   </p>
-                  <div className="mt-2 h-1 bg-cyber-green/20 rounded group-hover:bg-cyber-green/40 transition-all duration-300"></div>
+                  <div className="mt-4 h-1 bg-cyber-green/20 rounded group-hover:bg-cyber-green/40 transition-all duration-300"></div>
                 </div>
               </div>
             </div>
