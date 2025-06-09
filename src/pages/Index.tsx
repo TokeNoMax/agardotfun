@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { LandingHero } from "@/components/Landing/LandingHero";
+import TutorialSection from "@/components/Landing/TutorialSection";
 import WalletButton from "@/components/Wallet/WalletButton";
 
 export default function Index() {
@@ -218,34 +219,8 @@ export default function Index() {
         {/* Hero section with new LandingHero component */}
         <LandingHero />
         
-        {/* How to play section - Terminal style */}
-        <div className="bg-black/90 backdrop-blur-sm rounded-lg p-8 mb-12 border-2 border-cyber-green/30 shadow-[0_0_20px_rgba(0,255,0,0.2)] mt-16">
-          <div className="flex items-center mb-6">
-            <div className="w-3 h-3 bg-cyber-magenta rounded-full mr-2 animate-pulse"></div>
-            <div className="w-3 h-3 bg-cyber-yellow rounded-full mr-2 animate-pulse" style={{animationDelay: '0.2s'}}></div>
-            <div className="w-3 h-3 bg-cyber-green rounded-full mr-4 animate-pulse" style={{animationDelay: '0.4s'}}></div>
-            <h2 className="text-3xl font-bold text-cyber-green font-mono">TUTORIAL.md</h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-start">
-              <div className="bg-cyber-yellow text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(255,255,0,0.5)]">0x1</div>
-              <p className="text-gray-300 font-mono">Déplacez votre blob avec la souris pour absorber la <span className="text-cyber-cyan">FOOD</span> et grossir 🍰</p>
-            </div>
-            <div className="flex items-start">
-              <div className="bg-cyber-cyan text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,255,0.5)]">0x2</div>
-              <p className="text-gray-300 font-mono">Mangez les joueurs plus petits que vous (au moins <span className="text-cyber-magenta">10%</span> plus petits) 🥵</p>
-            </div>
-            <div className="flex items-start">
-              <div className="bg-cyber-magenta text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.5)]">0x3</div>
-              <p className="text-gray-300 font-mono">Évitez les <span className="text-cyber-purple">RUG_CARPETS</span> violets qui vous feront rétrécir 📉</p>
-            </div>
-            <div className="flex items-start">
-              <div className="bg-cyber-green text-black font-bold font-mono rounded w-8 h-8 flex items-center justify-center mr-3 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,0,0.5)]">0x4</div>
-              <p className="text-gray-300 font-mono">Le dernier blob en vie devient le <span className="text-cyber-yellow">ULTIMATE_CHAD</span> ! 👑</p>
-            </div>
-          </div>
-        </div>
+        {/* How to play section - Now simplified */}
+        <TutorialSection />
         
         <div className="text-center" id="mainnet">
           <Button 
