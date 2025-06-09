@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,7 +123,7 @@ export default function CreateRoomDialog({
         <DialogHeader>
           <DialogTitle className="text-cyber-green font-mono text-xl">CREATE_NEW_ROOM</DialogTitle>
           <DialogDescription className="text-gray-400 font-mono">
-            Créez votre propre salle de jeu et invitez d'autres <span className="text-cyber-cyan">NODES</span> à vous rejoindre
+            Créez votre propre salle de jeu et invitez d'autres <span className="text-cyber-cyan">PLAYERS</span> à vous rejoindre
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -176,7 +175,7 @@ export default function CreateRoomDialog({
 
           <div className="grid gap-2">
             <Label htmlFor="players" className="text-cyber-cyan font-mono">
-              MAX_NODES <span className="text-cyber-magenta">*</span>
+              MAX_PLAYERS <span className="text-cyber-magenta">*</span>
             </Label>
             <Select value={maxPlayers} onValueChange={setMaxPlayers}>
               <SelectTrigger 
@@ -188,14 +187,14 @@ export default function CreateRoomDialog({
                 <SelectValue placeholder="Sélectionnez le nombre de joueurs" />
               </SelectTrigger>
               <SelectContent className="bg-black/95 backdrop-blur-md border-cyber-cyan/30">
-                <SelectItem value="2" className="font-mono text-cyber-cyan">2 Nodes</SelectItem>
-                <SelectItem value="4" className="font-mono text-cyber-cyan">4 Nodes</SelectItem>
-                <SelectItem value="6" className="font-mono text-cyber-cyan">6 Nodes</SelectItem>
-                <SelectItem value="8" className="font-mono text-cyber-cyan">8 Nodes</SelectItem>
+                <SelectItem value="2" className="font-mono text-cyber-cyan">2 Players</SelectItem>
+                <SelectItem value="4" className="font-mono text-cyber-cyan">4 Players</SelectItem>
+                <SelectItem value="6" className="font-mono text-cyber-cyan">6 Players</SelectItem>
+                <SelectItem value="8" className="font-mono text-cyber-cyan">8 Players</SelectItem>
               </SelectContent>
             </Select>
             {maxPlayers === "" && (
-              <p className="text-sm text-cyber-magenta font-mono">MAX_NODES_REQUIRED</p>
+              <p className="text-sm text-cyber-magenta font-mono">MAX_PLAYERS_REQUIRED</p>
             )}
           </div>
         </div>

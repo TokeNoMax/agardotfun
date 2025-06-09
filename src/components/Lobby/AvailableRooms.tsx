@@ -130,7 +130,7 @@ export default function AvailableRooms({
             <TableHeader>
               <TableRow className="border-cyber-cyan/30">
                 <TableHead className="text-cyber-cyan font-mono">MATCH</TableHead>
-                <TableHead className="text-cyber-cyan font-mono">NODES</TableHead>
+                <TableHead className="text-cyber-cyan font-mono">PLAYERS</TableHead>
                 <TableHead className="text-cyber-cyan font-mono">STATUS</TableHead>
                 <TableHead className="text-right text-cyber-cyan font-mono">ACTION</TableHead>
               </TableRow>

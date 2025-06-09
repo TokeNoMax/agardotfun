@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
@@ -412,7 +411,7 @@ export default function RoomList() {
               <div className="flex flex-col gap-4">
                 <div>
                   <p className="text-gray-300 font-mono">
-                    {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} NODES
+                    {selectedRoom.players?.length || 0}/{selectedRoom.maxPlayers} PLAYERS
                   </p>
                   <p className="text-xs text-gray-500 mt-1 font-mono">
                     ID: {selectedRoom.id}
@@ -424,7 +423,7 @@ export default function RoomList() {
                   )}
                   {selectedRoom.players && selectedRoom.players.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-sm font-medium mb-1 text-cyber-cyan font-mono">CONNECTED_NODES:</p>
+                      <p className="text-sm font-medium mb-1 text-cyber-cyan font-mono">CONNECTED_PLAYERS:</p>
                       <div className="flex flex-wrap gap-2">
                         {selectedRoom.players.map(player => (
                           <span 
