@@ -40,6 +40,10 @@ export default function AvailableRooms({
       setHasSuccessfulConnection(true);
       if (rooms.length > 0) {
         console.log("First room:", rooms[0]);
+        // Debug game mode for each room
+        rooms.forEach(room => {
+          console.log(`Room ${room.name} - gameMode:`, room.gameMode, "| DB gameMode:", room.gameMode);
+        });
       }
     } else {
       console.log("rooms is not an array:", rooms);
@@ -83,12 +87,19 @@ export default function AvailableRooms({
 
   // Fonction pour afficher le mode de jeu
   const getGameModeDisplay = (gameMode?: string) => {
-    switch (gameMode) {
-      case 'classic':
-        return { text: 'CLASSIC', className: 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' };
+    console.log("getGameModeDisplay called with:", gameMode);
+    
+    // Normaliser le mode de jeu
+    const normalizedMode = gameMode?.toLowerCase().trim();
+    
+    switch (normalizedMode) {
       case 'battle_royale':
         return { text: 'BATTLE_ROYALE', className: 'bg-cyber-purple/20 text-cyber-purple border-cyber-purple/50' };
+      case 'classic':
+        return { text: 'CLASSIC', className: 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' };
       default:
+        // Fallback avec diagnostic
+        console.warn("Unknown game mode detected:", gameMode, "| normalized:", normalizedMode);
         return { text: 'CLASSIC', className: 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' };
     }
   };
@@ -142,6 +153,8 @@ export default function AvailableRooms({
                 const modeInfo = getGameModeDisplay(room.gameMode);
                 const isEmpty = playerCount === 0;
                 
+                console.log(`Rendering room ${room.name} with gameMode:`, room.gameMode, "| modeInfo:", modeInfo);
+                
                 return (
                   <TableRow 
                     key={room.id} 
@@ -168,8 +181,13 @@ export default function AvailableRooms({
                       <Badge 
                         variant="outline" 
                         className={`font-mono ${modeInfo.className} border`}
+                        title={`Raw DB value: ${room.gameMode}`}
                       >
                         {modeInfo.text}
+                        {/* Debug indicator */}
+                        <span className="text-xs opacity-50 ml-1">
+                          ({room.gameMode || 'null'})
+                        </span>
                       </Badge>
                     </TableCell>
                     <TableCell>

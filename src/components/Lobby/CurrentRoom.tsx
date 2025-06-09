@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { GameRoom } from "@/types/game";
@@ -31,6 +32,25 @@ export default function CurrentRoom({
 }: CurrentRoomProps) {
   const { player } = useGame();
   
+  // FIXED: Improved game mode display
+  const getGameModeDisplay = (gameMode?: string) => {
+    console.log("CurrentRoom - Game mode:", gameMode);
+    
+    const normalizedMode = gameMode?.toLowerCase().trim();
+    
+    switch (normalizedMode) {
+      case 'battle_royale':
+        return { text: 'BATTLE_ROYALE', color: 'text-cyber-purple' };
+      case 'classic':
+        return { text: 'CLASSIC', color: 'text-cyber-green' };
+      default:
+        console.warn("CurrentRoom - Unknown game mode:", gameMode);
+        return { text: 'CLASSIC', color: 'text-cyber-green' };
+    }
+  };
+  
+  const modeInfo = getGameModeDisplay(currentRoom.gameMode);
+  
   return (
     <div className="relative mb-6">
       {/* Ghost Room Detector */}
@@ -54,6 +74,13 @@ export default function CurrentRoom({
                 currentRoom.status === 'playing' ? 'text-cyber-green' : 'text-gray-400'
               }`}>
                 {currentRoom.status === 'waiting' ? 'WAITING' : currentRoom.status === 'playing' ? 'PLAYING' : 'FINISHED'}
+              </span>
+              {/* FIXED: Added game mode display */}
+              <span className={`ml-2 ${modeInfo.color} font-bold`}>
+                • {modeInfo.text}
+              </span>
+              <span className="text-xs opacity-50 ml-1">
+                ({currentRoom.gameMode || 'null'})
               </span>
             </p>
             {countdown !== null && (
