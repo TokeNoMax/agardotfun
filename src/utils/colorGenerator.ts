@@ -2,14 +2,14 @@
 import { PlayerColor } from '@/types/game';
 
 const colors: PlayerColor[] = [
-  'cyber-yellow',
-  'cyber-cyan',
-  'cyber-magenta',
-  'cyber-green',
-  'cyber-blue',
-  'cyber-purple',
-  'cyber-orange',
-  'cyber-red'
+  'blue',
+  'red',
+  'green',
+  'yellow',
+  'purple',
+  'orange',
+  'cyan',
+  'pink'
 ];
 
 export function generateColor(): PlayerColor {
