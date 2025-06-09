@@ -10,7 +10,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useState, useEffect } from "react";
 import { RefreshCw, AlertCircle, CheckCircle, Users, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -112,17 +111,6 @@ export default function AvailableRooms({
       <div className="mb-4">
         <h3 className="text-xl font-bold text-cyber-cyan font-mono">AVAILABLE_ROOMS ({roomsToDisplay.length})</h3>
       </div>
-      
-      {/* Connection status indicator */}
-      {hasSuccessfulConnection && (
-        <Alert className="mb-4 border-cyber-green/30 bg-cyber-green/10">
-          <CheckCircle className="h-4 w-4 text-cyber-green" />
-          <AlertTitle className="text-cyber-green font-mono">SUPABASE_CONNECTED</AlertTitle>
-          <AlertDescription className="text-cyber-green font-mono">
-            Connexion réussie au système de salles de jeu.
-          </AlertDescription>
-        </Alert>
-      )}
       
       {roomsToDisplay.length > 0 ? (
         <div className="border border-cyber-cyan/30 rounded-lg overflow-hidden bg-black/50 backdrop-blur-sm">
