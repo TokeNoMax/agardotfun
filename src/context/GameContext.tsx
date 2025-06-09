@@ -11,7 +11,6 @@ import {
   Player,
   GameMode,
   PlayerColor,
-  InitialGameState,
 } from "@/types/game";
 import { gameRoomService } from "@/services/gameRoomService";
 import { playerService } from "@/services/player/playerService";
@@ -54,7 +53,7 @@ interface GameContextType {
   refreshRooms: () => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
   resetGame: () => void;
-  setPlayerDetails: (details: { name: string; color: PlayerColor }) => void;
+  setPlayerDetails: (name: string, color: PlayerColor, nftImageUrl?: string) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -113,9 +112,25 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     localStorage.removeItem("blob-battle-current-room");
   };
 
-  const setPlayerDetails = (details: { name: string; color: PlayerColor }) => {
-    setPlayerName(details.name);
-    setPlayerColor(details.color);
+  const setPlayerDetails = async (name: string, color: PlayerColor, nftImageUrl?: string): Promise<void> => {
+    setPlayerName(name);
+    setPlayerColor(color);
+    
+    // Create or update player with wallet address and other details
+    const newPlayer: Player = {
+      id: crypto.randomUUID(),
+      walletAddress: crypto.randomUUID(), // This should be replaced with actual wallet address
+      name,
+      color,
+      size: 30,
+      x: 0,
+      y: 0,
+      isAlive: true,
+      isReady: false,
+      nftImageUrl
+    };
+    
+    setPlayer(newPlayer);
   };
 
   const refreshRooms = useCallback(async () => {
