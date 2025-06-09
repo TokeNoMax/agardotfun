@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +33,7 @@ export default function GameOverModal({
   eliminationType = 'absorption',
 }: GameOverModalProps) {
   const [showConfetti, setShowConfetti] = useState(false);
+  const [countdown, setCountdown] = useState(10);
   
   // Trigger confetti animation when modal opens with a winner
   useEffect(() => {
@@ -43,6 +43,26 @@ export default function GameOverModal({
       return () => clearTimeout(timer);
     }
   }, [open, winner]);
+
+  // Countdown timer for automatic return to lobby
+  useEffect(() => {
+    if (open) {
+      setCountdown(10); // Reset countdown when modal opens
+      
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            // Time's up, return to lobby
+            onBackToLobby();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [open, onBackToLobby]);
 
   // Get victory message based on context
   const getVictoryMessage = () => {
@@ -205,6 +225,18 @@ export default function GameOverModal({
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Countdown Display */}
+        <div className="text-center py-4 border-t border-border">
+          <p className="text-sm text-muted-foreground mb-2">
+            Retour automatique au lobby dans :
+          </p>
+          <div className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
+            <Clock className="w-5 h-5" />
+            {countdown}s
+          </div>
+        </div>
+
         <DialogFooter>
           <div className="flex w-full space-x-4">
             <Button 
