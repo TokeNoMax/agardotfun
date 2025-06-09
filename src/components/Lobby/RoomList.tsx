@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 import CreateRoomDialog from "./CreateRoomDialog";
 import CurrentRoom from "./CurrentRoom";
 import AvailableRooms from "./AvailableRooms";
-import { GameRoom } from "@/types/game";
+import { GameRoom, GameMode } from "@/types/game";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAutoCleanup } from "@/hooks/useAutoCleanup";
@@ -165,7 +165,7 @@ export default function RoomList() {
     }
   }, [currentRoom]);
 
-  const handleCreateRoom = async () => {
+  const handleCreateRoom = async (gameMode: GameMode = 'classic') => {
     if (!player) {
       showToastWithThrottle("Erreur", "Veuillez définir votre nom et votre couleur avant de créer une salle", "destructive");
       return;
@@ -173,8 +173,8 @@ export default function RoomList() {
     
     if (roomName.trim()) {
       try {
-        console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max`);
-        const roomId = await createRoom({ name: roomName, maxPlayers: parseInt(maxPlayers) });
+        console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max (mode: ${gameMode})`);
+        const roomId = await createRoom({ name: roomName, maxPlayers: parseInt(maxPlayers), gameMode });
         
         console.log("Salle créée avec ID:", roomId);
         setCreateDialogOpen(false);
@@ -412,6 +412,11 @@ export default function RoomList() {
                   <p className="text-xs text-gray-500 mt-1 font-mono">
                     ID: {selectedRoom.id}
                   </p>
+                  {selectedRoom.gameMode && (
+                    <p className="text-xs text-cyber-magenta mt-1 font-mono">
+                      MODE: {selectedRoom.gameMode.toUpperCase()}
+                    </p>
+                  )}
                   {selectedRoom.players && selectedRoom.players.length > 0 && (
                     <div className="mt-2">
                       <p className="text-sm font-medium mb-1 text-cyber-cyan font-mono">CONNECTED_NODES:</p>

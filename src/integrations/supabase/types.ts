@@ -78,6 +78,7 @@ export type Database = {
       game_rooms: {
         Row: {
           created_at: string
+          game_mode: string
           game_seed: string | null
           game_state: Json | null
           id: string
@@ -90,6 +91,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          game_mode?: string
           game_seed?: string | null
           game_state?: Json | null
           id?: string
@@ -102,6 +104,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          game_mode?: string
           game_seed?: string | null
           game_state?: Json | null
           id?: string

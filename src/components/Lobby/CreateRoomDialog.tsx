@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useGame } from "@/context/GameContext";
-import { Plus, Zap } from "lucide-react";
+import { Plus, Zap, Gamepad2 } from "lucide-react";
+import { GameMode, GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS } from "@/types/game";
 
 interface CreateRoomDialogProps {
   open: boolean;
@@ -31,7 +32,7 @@ interface CreateRoomDialogProps {
   setRoomName: (name: string) => void;
   maxPlayers: string;
   setMaxPlayers: (value: string) => void;
-  handleCreateRoom: () => Promise<void>;
+  handleCreateRoom: (gameMode?: GameMode) => Promise<void>;
   playerExists: boolean;
 }
 
@@ -46,11 +47,12 @@ export default function CreateRoomDialog({
   playerExists
 }: CreateRoomDialogProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedGameMode, setSelectedGameMode] = useState<GameMode>('classic');
   const { toast } = useToast();
   const { refreshCurrentRoom } = useGame();
   
   // Vérifier si le formulaire est valide pour activer le bouton
-  const isFormValid = roomName.trim() !== "" && maxPlayers !== "";
+  const isFormValid = roomName.trim() !== "" && maxPlayers !== "" && selectedGameMode;
   
   // Gérer la création de salle avec validation et protection contre les doubles clics
   const handleCreateRoomWithValidation = async () => {
@@ -72,15 +74,15 @@ export default function CreateRoomDialog({
     
     try {
       console.log("Début du processus de création de salle");
-      console.log(`Nom: ${roomName}, Max Joueurs: ${maxPlayers}`);
+      console.log(`Nom: ${roomName}, Max Joueurs: ${maxPlayers}, Mode: ${selectedGameMode}`);
       
-      await handleCreateRoom();
+      await handleCreateRoom(selectedGameMode);
       console.log("Création de salle terminée avec succès");
       
       // Notification immédiate de succès
       toast({
         title: "Salle créée",
-        description: "Votre salle a été créée avec succès.",
+        description: `Votre salle "${roomName}" (${GAME_MODE_LABELS[selectedGameMode]}) a été créée avec succès.`,
       });
       
       // Un timeout pour s'assurer que le dialog se ferme même si onOpenChange n'est pas appelé
@@ -118,7 +120,7 @@ export default function CreateRoomDialog({
           CREATE_ROOM
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-black/95 backdrop-blur-md border-2 border-cyber-green/50 shadow-[0_0_20px_rgba(0,255,0,0.2)]">
+      <DialogContent className="sm:max-w-[500px] bg-black/95 backdrop-blur-md border-2 border-cyber-green/50 shadow-[0_0_20px_rgba(0,255,0,0.2)]">
         <DialogHeader>
           <DialogTitle className="text-cyber-green font-mono text-xl">CREATE_NEW_ROOM</DialogTitle>
           <DialogDescription className="text-gray-400 font-mono">
@@ -144,6 +146,34 @@ export default function CreateRoomDialog({
               <p className="text-sm text-cyber-magenta font-mono">ROOM_NAME_REQUIRED</p>
             )}
           </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="game-mode" className="text-cyber-cyan font-mono">
+              GAME_MODE <span className="text-cyber-magenta">*</span>
+            </Label>
+            <Select value={selectedGameMode} onValueChange={(value: GameMode) => setSelectedGameMode(value)}>
+              <SelectTrigger 
+                id="game-mode" 
+                className="bg-black/50 border border-cyber-cyan/30 text-cyber-cyan font-mono"
+              >
+                <SelectValue placeholder="Sélectionnez le mode de jeu" />
+              </SelectTrigger>
+              <SelectContent className="bg-black/95 backdrop-blur-md border-cyber-cyan/30">
+                {(Object.keys(GAME_MODE_LABELS) as GameMode[]).map((mode) => (
+                  <SelectItem key={mode} value={mode} className="font-mono text-cyber-cyan">
+                    <div className="flex items-center gap-2">
+                      <Gamepad2 className="h-4 w-4" />
+                      <div>
+                        <div className="font-bold">{GAME_MODE_LABELS[mode]}</div>
+                        <div className="text-xs text-gray-400">{GAME_MODE_DESCRIPTIONS[mode]}</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="players" className="text-cyber-cyan font-mono">
               MAX_NODES <span className="text-cyber-magenta">*</span>

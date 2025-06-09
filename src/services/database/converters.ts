@@ -1,5 +1,5 @@
 
-import { GameRoom, Player } from "@/types/game";
+import { GameRoom, Player, GameMode } from "@/types/game";
 import { DatabaseGameRoom, DatabaseGameRoomPlayer } from "./types";
 
 export function convertToGameRoom(
@@ -32,6 +32,7 @@ export function convertToGameRoom(
     lastActivity: dbRoom.last_activity,
     matchNumber: dbRoom.match_number,
     gameSeed: dbRoom.game_seed || undefined,
-    gameState: dbRoom.game_state || undefined
+    gameState: dbRoom.game_state || undefined,
+    gameMode: (dbRoom.game_mode as GameMode) || 'classic'
   };
 }

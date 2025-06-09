@@ -1,4 +1,3 @@
-
 export interface Player {
   id: string;
   walletAddress: string;
@@ -15,6 +14,18 @@ export interface Player {
   nftImageUrl?: string;
 }
 
+export type GameMode = 'classic' | 'battle_royale';
+
+export const GAME_MODE_LABELS: Record<GameMode, string> = {
+  classic: 'CLASSIC_MODE',
+  battle_royale: 'BATTLE_ROYALE'
+};
+
+export const GAME_MODE_DESCRIPTIONS: Record<GameMode, string> = {
+  classic: 'Mode classique sans contraintes temporelles',
+  battle_royale: 'Zone de combat qui rétrécit toutes les 2 minutes'
+};
+
 export interface GameRoom {
   id: string;
   name: string;
@@ -26,6 +37,7 @@ export interface GameRoom {
   matchNumber: number;
   gameSeed?: string;
   gameState?: any;
+  gameMode?: GameMode;
 }
 
 export interface SafeZone {

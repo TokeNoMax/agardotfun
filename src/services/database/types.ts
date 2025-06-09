@@ -10,6 +10,7 @@ export interface DatabaseGameRoom {
   match_number: number;
   game_seed?: string;
   game_state?: any;
+  game_mode?: string;
 }
 
 export interface DatabaseGameRoomPlayer {

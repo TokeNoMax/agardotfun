@@ -1,5 +1,5 @@
 
-import { GameRoom, Player } from "@/types/game";
+import { GameRoom, Player, GameMode } from "@/types/game";
 import { roomService } from "./room/roomService";
 import { playerService } from "./player/playerService";
 import { verificationService } from "./room/verificationService";
@@ -18,7 +18,8 @@ export const gameRoomService = {
 
   // Room management
   getAllRooms: roomService.getAllRooms,
-  createRoom: roomService.createRoom,
+  createRoom: (name: string, maxPlayers: number, gameMode: GameMode = 'classic') => 
+    roomService.createRoom(name, maxPlayers, gameMode),
   startGame: roomService.startGame,
   getRoom: roomService.getRoom,
 

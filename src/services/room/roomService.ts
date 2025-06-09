@@ -1,6 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { GameRoom } from "@/types/game";
+import { GameRoom, GameMode } from "@/types/game";
 import { convertToGameRoom } from "../database/converters";
 import { activityService } from "./activityService";
 import { GameStateService } from "../game/gameStateService";
@@ -37,7 +36,7 @@ export const roomService = {
     const gameRooms = rooms.map(room => {
       const roomPlayers = players?.filter(p => p.room_id === room.id) || [];
       const convertedRoom = convertToGameRoom(room, roomPlayers);
-      console.log(`Room ${room.name} (Match #${room.match_number}): ${roomPlayers.length} players`, roomPlayers.map(p => p.player_name));
+      console.log(`Room ${room.name} (Match #${room.match_number}, Mode: ${room.game_mode || 'classic'}): ${roomPlayers.length} players`);
       return convertedRoom;
     });
 
@@ -45,8 +44,8 @@ export const roomService = {
     return gameRooms;
   },
 
-  async createRoom(name: string, maxPlayers: number): Promise<string> {
-    console.log(`Creating room: ${name} with max ${maxPlayers} players`);
+  async createRoom(name: string, maxPlayers: number, gameMode: GameMode = 'classic'): Promise<string> {
+    console.log(`Creating room: ${name} with max ${maxPlayers} players (mode: ${gameMode})`);
     
     const { data, error } = await supabase
       .from('game_rooms')
@@ -54,6 +53,7 @@ export const roomService = {
         name,
         max_players: maxPlayers,
         status: 'waiting',
+        game_mode: gameMode,
         last_activity: new Date().toISOString()
       })
       .select()
