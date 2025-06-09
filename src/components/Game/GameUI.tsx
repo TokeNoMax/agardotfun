@@ -1,5 +1,4 @@
-
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useGame } from "@/context/GameContext";
 import Canvas, { CanvasRef } from "./Canvas";
 import Leaderboard from "./Leaderboard";
@@ -81,7 +80,35 @@ export default function GameUI({ roomId }: GameUIProps) {
   
   // Create effective player and players for UI display
   const effectivePlayer = isLocalMode ? createDefaultLocalPlayer() : currentPlayer;
-  const effectivePlayers = isLocalMode ? [createDefaultLocalPlayer()] : players;
+
+  // ENHANCED: Filter out players with invalid or incomplete data
+  const validatePlayer = useCallback((player: Player): boolean => {
+    return !!(
+      player.id && 
+      player.name && 
+      player.name.trim() !== '' && 
+      player.name !== 'undefined' &&
+      player.color &&
+      typeof player.size === 'number' &&
+      typeof player.x === 'number' &&
+      typeof player.y === 'number'
+    );
+  }, []);
+
+  const effectivePlayers = useMemo(() => {
+    if (isLocalMode) {
+      return [createDefaultLocalPlayer()];
+    } else {
+      // Filter and validate players
+      const validPlayers = players.filter(validatePlayer);
+      console.log("GameUI: Player validation results:", {
+        totalPlayers: players.length,
+        validPlayers: validPlayers.length,
+        invalidPlayers: players.filter(p => !validatePlayer(p))
+      });
+      return validPlayers;
+    }
+  }, [isLocalMode, players, validatePlayer]);
 
   console.log("GameUI: Rendering with", { 
     isLocalMode, 
@@ -91,7 +118,8 @@ export default function GameUI({ roomId }: GameUIProps) {
     urlGameMode,
     roomGameMode,
     effectivePlayer: !!effectivePlayer,
-    effectivePlayers: effectivePlayers.length
+    effectivePlayers: effectivePlayers.length,
+    totalPlayers: players.length
   });
 
   // Force refresh room data when entering multiplayer game
@@ -171,21 +199,33 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   }, [currentPlayer?.id]);
 
+  // ENHANCED: Better player join handling with validation
   const handlePlayerJoined = useCallback((player: any) => {
     console.log("GameUI: Player joined:", player);
+    
+    // Validate player data before processing
+    if (!validatePlayer(player)) {
+      console.warn("GameUI: ⚠️ Skipping invalid player join:", player);
+      return;
+    }
+
     if (canvasRef.current) {
       canvasRef.current.addPlayer(player);
     }
     
-    // Update players state
-    setPlayers(prev => [...prev.filter(p => p.id !== player.id), player]);
+    // Update players state, avoiding duplicates
+    setPlayers(prev => {
+      // Remove any existing player with same ID
+      const filtered = prev.filter(p => p.id !== player.id);
+      return [...filtered, player];
+    });
     
     toast({
       title: "Nouveau joueur",
       description: `${player.name} a rejoint la partie`,
       duration: 2000
     });
-  }, [toast]);
+  }, [toast, validatePlayer]);
 
   const handlePlayerLeft = useCallback((playerId: string) => {
     console.log("GameUI: Player left:", playerId);
@@ -234,9 +274,16 @@ export default function GameUI({ roomId }: GameUIProps) {
     if (isLocalMode) {
       setPlayers([createDefaultLocalPlayer()]);
     } else if (currentRoom?.players) {
-      setPlayers(currentRoom.players);
+      // Filter and validate room players
+      const validRoomPlayers = currentRoom.players.filter(validatePlayer);
+      console.log("GameUI: Setting room players:", {
+        totalRoomPlayers: currentRoom.players.length,
+        validRoomPlayers: validRoomPlayers.length,
+        invalidPlayers: currentRoom.players.filter(p => !validatePlayer(p))
+      });
+      setPlayers(validRoomPlayers);
     }
-  }, [currentRoom?.players, isLocalMode]);
+  }, [currentRoom?.players, isLocalMode, validatePlayer]);
 
   // Update zone timer
   useEffect(() => {
@@ -326,6 +373,15 @@ export default function GameUI({ roomId }: GameUIProps) {
       console.log("GameUI: Sync connection status:", syncConnected);
     }
   }, [syncConnected, isLocalMode]);
+
+  // Debug Info for Players (only in development)
+  {process.env.NODE_ENV === 'development' && !isLocalMode && (
+    <div className="absolute bottom-16 left-4 z-10">
+      <div className="px-2 py-1 rounded text-xs font-mono bg-yellow-500/20 text-yellow-400">
+        Players: {effectivePlayers.length}/{players.length}
+      </div>
+    </div>
+  )}
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
