@@ -42,7 +42,7 @@ export default function AvailableRooms({
         console.log("First room:", rooms[0]);
         // Debug game mode for each room
         rooms.forEach(room => {
-          console.log(`Room ${room.name} - gameMode:`, room.gameMode, "| DB gameMode:", room.gameMode);
+          console.log(`Room ${room.name} - gameMode:`, room.gameMode);
         });
       }
     } else {
@@ -181,13 +181,8 @@ export default function AvailableRooms({
                       <Badge 
                         variant="outline" 
                         className={`font-mono ${modeInfo.className} border`}
-                        title={`Raw DB value: ${room.gameMode}`}
                       >
                         {modeInfo.text}
-                        {/* Debug indicator */}
-                        <span className="text-xs opacity-50 ml-1">
-                          ({room.gameMode || 'null'})
-                        </span>
                       </Badge>
                     </TableCell>
                     <TableCell>

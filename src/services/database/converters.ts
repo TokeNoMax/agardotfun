@@ -2,13 +2,30 @@
 import { GameRoom, Player, GameMode } from "@/types/game";
 import { DatabaseGameRoom, DatabaseGameRoomPlayer } from "./types";
 
-export function convertToGameRoom(
+export function convertDatabaseRoomToGameRoom(
   dbRoom: DatabaseGameRoom, 
   dbPlayers: DatabaseGameRoomPlayer[]
 ): GameRoom {
+  // FIXED: Properly convert game_mode with debugging
+  console.log(`Converting room ${dbRoom.name} - DB game_mode:`, dbRoom.game_mode);
+  
+  // Ensure game_mode is properly mapped and normalized
+  let gameMode: GameMode = 'classic'; // default fallback
+  
+  if (dbRoom.game_mode) {
+    const normalizedMode = dbRoom.game_mode.toLowerCase().trim();
+    if (normalizedMode === 'battle_royale' || normalizedMode === 'classic') {
+      gameMode = normalizedMode as GameMode;
+    } else {
+      console.warn(`Unknown game mode from DB: ${dbRoom.game_mode}, using classic as fallback`);
+    }
+  }
+  
+  console.log(`Final gameMode for room ${dbRoom.name}:`, gameMode);
+
   const players: Player[] = dbPlayers.map(dbPlayer => ({
     id: dbPlayer.player_id,
-    walletAddress: dbPlayer.player_id,
+    walletAddress: '', // We don't store wallet address in game room players
     name: dbPlayer.player_name,
     color: dbPlayer.player_color as any,
     size: dbPlayer.size,
@@ -18,8 +35,7 @@ export function convertToGameRoom(
     isReady: dbPlayer.is_ready,
     velocityX: dbPlayer.velocity_x || 0,
     velocityY: dbPlayer.velocity_y || 0,
-    lastPositionUpdate: dbPlayer.last_position_update || undefined,
-    nftImageUrl: undefined // Will be populated from players table if needed
+    lastPositionUpdate: dbPlayer.last_position_update?.toISOString()
   }));
 
   return {
@@ -33,6 +49,6 @@ export function convertToGameRoom(
     matchNumber: dbRoom.match_number,
     gameSeed: dbRoom.game_seed || undefined,
     gameState: dbRoom.game_state || undefined,
-    gameMode: (dbRoom.game_mode as GameMode) || 'classic'
+    gameMode // FIXED: Use the properly converted gameMode
   };
 }

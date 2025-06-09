@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { GameRoom } from "@/types/game";
@@ -75,12 +74,9 @@ export default function CurrentRoom({
               }`}>
                 {currentRoom.status === 'waiting' ? 'WAITING' : currentRoom.status === 'playing' ? 'PLAYING' : 'FINISHED'}
               </span>
-              {/* FIXED: Added game mode display */}
+              {/* FIXED: Single game mode display */}
               <span className={`ml-2 ${modeInfo.color} font-bold`}>
                 • {modeInfo.text}
-              </span>
-              <span className="text-xs opacity-50 ml-1">
-                ({currentRoom.gameMode || 'null'})
               </span>
             </p>
             {countdown !== null && (
