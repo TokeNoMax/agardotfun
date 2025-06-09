@@ -5,7 +5,7 @@
 // size = mass (r²), v in pixels per second
 // ---------------------------------------------------------------
 
-export const BASE_SPEED = 350;   // rythme global
+export const BASE_SPEED = 400;   // rythme global (increased from 350)
 export const EXPONENT = 0.75;    // décroissance plus forte
 export const MIN_SPEED = 20;     // plancher jouabilité
 

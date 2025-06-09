@@ -24,10 +24,10 @@ const ZONE_DAMAGE_PER_SECOND = 3;
 const ZONE_SHRINK_PERCENTAGE = 0.2;
 const INITIAL_ZONE_RADIUS = 1400;
 
-// Zoom constants
-const MIN_ZOOM = 0.3;
-const MAX_ZOOM = 2.0;
-const ZOOM_SMOOTH_FACTOR = 0.08;
+// Zoom constants - optimized for better dynamic zoom experience
+const MIN_ZOOM = 0.25;  // Reduced from 0.3 for wider view with larger blobs
+const MAX_ZOOM = 2.5;   // Increased from 2.0 for closer view with smaller blobs
+const ZOOM_SMOOTH_FACTOR = 0.12;  // Increased from 0.08 for more responsive zoom
 
 interface CanvasProps {
   onGameOver: (winner: Player | null, eliminationType?: 'absorption' | 'zone' | 'timeout') => void;
@@ -94,16 +94,24 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   // Determine if we're in solo mode
   const isSoloMode = isLocalMode && !currentRoom;
 
-  // Calculate target zoom based on player size
+  // Calculate target zoom based on player size - improved formula
   const calculateTargetZoom = useCallback((playerSize: number): number => {
-    // Zoom inversely proportional to blob size
-    // Smaller blobs get more zoom (closer view), larger blobs get less zoom (wider view)
+    // Improved zoom formula for better scaling with faster movement
     const baseZoom = 1.0;
-    const sizeInfluence = Math.sqrt(playerSize) / 20; // Normalize size influence
-    const targetZoom = baseZoom / (1 + sizeInfluence * 0.8);
+    const radius = Math.sqrt(playerSize);
+    
+    // More aggressive zoom scaling for better gameplay at higher speeds
+    const sizeInfluence = radius / 15; // Reduced from 20 for more zoom variation
+    const targetZoom = baseZoom / (1 + sizeInfluence * 0.9); // Increased from 0.8
+    
+    // Smoother zoom curve using logarithmic scaling
+    const smoothedZoom = baseZoom * Math.pow(0.85, Math.log(playerSize / 15));
+    
+    // Blend the two approaches for optimal zoom
+    const finalZoom = (targetZoom + smoothedZoom) / 2;
     
     // Clamp between min and max zoom
-    return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetZoom));
+    return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, finalZoom));
   }, []);
 
   // Expose methods to parent component
