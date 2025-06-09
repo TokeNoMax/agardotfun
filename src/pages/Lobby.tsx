@@ -7,8 +7,9 @@ import RoomList from "@/components/Lobby/RoomList";
 import WalletButton from "@/components/Wallet/WalletButton";
 import MobileLobbyLayout from "@/components/Lobby/MobileLobbyLayout";
 import AdminSheet from "@/components/Admin/AdminSheet";
+import { LobbyModeBar } from "@/components/Lobby/LobbyModeBar";
 import { Button } from "@/components/ui/button";
-import { Gamepad2Icon, Users, User, ArrowLeft, Wallet, Zap } from "lucide-react";
+import { Gamepad2Icon, ArrowLeft, Wallet, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -28,6 +29,7 @@ export default function Lobby() {
   const { toast } = useToast();
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [activeMode, setActiveMode] = useState<"multiplayer" | "solo">("multiplayer");
   const isMobile = useIsMobile();
   
   // Utiliser le nettoyage automatique amélioré
@@ -177,7 +179,7 @@ export default function Lobby() {
     );
   }
   
-  // Desktop layout remains unchanged
+  // Desktop layout with new mode bar
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       {/* Tron Grid Background */}
@@ -341,32 +343,23 @@ export default function Lobby() {
             </div>
           </div>
         ) : (
-          <Tabs defaultValue="multiplayer" className="w-full max-w-5xl mx-auto">
-            <TabsList className="grid w-full grid-cols-2 mb-6 bg-black/50 backdrop-blur-sm border border-cyber-cyan/30">
-              <TabsTrigger 
-                value="multiplayer" 
-                className="text-lg py-3 font-mono data-[state=active]:bg-cyber-cyan/20 data-[state=active]:text-cyber-cyan data-[state=active]:border-cyber-cyan/50 text-gray-400"
-              >
-                <Users className="mr-2" /> MULTIPLAYER.exe
-              </TabsTrigger>
-              <TabsTrigger 
-                value="solo" 
-                className="text-lg py-3 font-mono data-[state=active]:bg-cyber-magenta/20 data-[state=active]:text-cyber-magenta data-[state=active]:border-cyber-magenta/50 text-gray-400"
-              >
-                <User className="mr-2" /> SOLO_MODE
-              </TabsTrigger>
-            </TabsList>
+          <div className="w-full max-w-5xl mx-auto">
+            {/* New Mode Bar - Fixed width overflow issue */}
+            <div className="mb-6 max-w-2xl mx-auto">
+              <LobbyModeBar 
+                active={activeMode} 
+                onSelect={setActiveMode}
+              />
+            </div>
             
-            <TabsContent value="multiplayer" className="space-y-8">
+            {activeMode === "multiplayer" ? (
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
                 <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-6 border-2 border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
                   <RoomList />
                 </div>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="solo" className="space-y-8">
+            ) : (
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyber-magenta/20 to-cyber-purple/20 rounded-lg blur-xl"></div>
                 <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-6 border-2 border-cyber-magenta/50 shadow-[0_0_20px_rgba(255,0,255,0.2)]">
@@ -431,8 +424,8 @@ export default function Lobby() {
                   </div>
                 </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            )}
+          </div>
         )}
         
         {/* How to play section - Terminal style */}
