@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
 import {
@@ -13,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
 import { RefreshCw, AlertCircle, CheckCircle, Users, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface AvailableRoomsProps {
   rooms: GameRoom[];
