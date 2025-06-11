@@ -9,6 +9,7 @@ import { GameProvider } from "@/context/GameContext";
 import { WalletContextProvider } from "@/context/WalletContext";
 import { PageSkeleton, GameSkeleton } from "@/components/ui/page-skeleton";
 import { gameRoomService } from "@/services/gameRoomService";
+import { checkForDangerousKeys } from "@/utils/securityCheck";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -36,6 +37,11 @@ const PrefetchHandler = () => {
 
   return null;
 };
+
+// Effectuer la vérification de sécurité au démarrage
+if (process.env.NODE_ENV === 'development') {
+  checkForDangerousKeys();
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

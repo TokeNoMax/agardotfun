@@ -240,11 +240,77 @@ export type Database = {
         }
         Relationships: []
       }
+      scores: {
+        Row: {
+          created_at: string | null
+          id: string
+          room_id: string | null
+          score: number
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          room_id?: string | null
+          score?: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          room_id?: string | null
+          score?: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scores_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      siws_nonces: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          nonce: string
+          used: boolean | null
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          nonce: string
+          used?: boolean | null
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          nonce?: string
+          used?: boolean | null
+          wallet_address?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_nonces: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       get_user_id: {
         Args: Record<PropertyKey, never>
         Returns: string
