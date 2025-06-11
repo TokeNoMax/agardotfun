@@ -18,16 +18,21 @@ export const siwsService = {
   async generateChallenge(walletAddress: string): Promise<SIWSChallenge> {
     console.log("Generating SIWS challenge for:", walletAddress);
     
-    const { data, error } = await supabase.functions.invoke('siws-challenge', {
-      body: { walletAddress }
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke('siws-challenge', {
+        body: { walletAddress }
+      });
 
-    if (error) {
-      console.error("Challenge generation error:", error);
-      throw new Error(error.message || 'Failed to generate challenge');
+      if (error) {
+        console.error("Challenge generation error:", error);
+        throw new Error(error.message || 'Failed to generate challenge');
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error("Challenge generation failed:", error);
+      throw new Error(error.message || 'Failed to connect to authentication service');
     }
-
-    return data;
   },
 
   async verifySignature(
@@ -39,19 +44,24 @@ export const siwsService = {
     console.log("Nonce:", nonce);
     console.log("Signature length:", signature.length);
     
-    const { data, error } = await supabase.functions.invoke('siws-verify', {
-      body: { 
-        nonce, 
-        signature: Array.from(signature), 
-        walletAddress 
+    try {
+      const { data, error } = await supabase.functions.invoke('siws-verify', {
+        body: { 
+          nonce, 
+          signature: Array.from(signature), 
+          walletAddress 
+        }
+      });
+
+      if (error) {
+        console.error("Signature verification error:", error);
+        return { success: false, error: error.message || 'Verification failed' };
       }
-    });
 
-    if (error) {
-      console.error("Signature verification error:", error);
-      return { success: false, error: error.message || 'Verification failed' };
+      return data;
+    } catch (error: any) {
+      console.error("Verification request failed:", error);
+      return { success: false, error: error.message || 'Failed to connect to verification service' };
     }
-
-    return data;
   }
 };

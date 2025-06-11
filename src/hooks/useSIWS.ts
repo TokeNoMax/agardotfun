@@ -40,7 +40,7 @@ export const useSIWS = () => {
       // Générer le challenge
       const challenge = await siwsService.generateChallenge(walletAddress);
       
-      // Construire le message simplifié
+      // Construire le message simplifié EXACTEMENT comme dans l'Edge Function
       const msg = `Sign-in nonce: ${challenge.nonce}`;
       console.log('Message à signer:', msg);
       
@@ -86,6 +86,8 @@ export const useSIWS = () => {
         errorMessage = 'Votre wallet ne supporte pas signMessage.';
       } else if (error.message?.includes('User rejected')) {
         errorMessage = 'Signature annulée par l\'utilisateur.';
+      } else if (error.message?.includes('Failed to connect')) {
+        errorMessage = 'Impossible de se connecter au service d\'authentification. Vérifiez votre connexion.';
       } else if (error.message) {
         errorMessage = `La signature a échoué : ${error.message}`;
       }

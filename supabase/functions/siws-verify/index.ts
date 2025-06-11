@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { PublicKey } from 'https://esm.sh/@solana/web3.js@1.98.2'
-import { sign } from 'https://esm.sh/tweetnacl@1.0.3'
+import nacl from 'https://esm.sh/tweetnacl@1.0.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,7 +13,7 @@ function verifySignature(message: string, signature: Uint8Array, publicKey: stri
   try {
     const messageBytes = new TextEncoder().encode(message)
     const publicKeyBytes = new PublicKey(publicKey).toBytes()
-    return sign.detached.verify(messageBytes, signature, publicKeyBytes)
+    return nacl.sign.detached.verify(messageBytes, signature, publicKeyBytes)
   } catch (error) {
     console.error('Signature verification error:', error)
     return false
@@ -73,8 +73,8 @@ serve(async (req) => {
       )
     }
 
-    // Reconstituer le message original
-    const message = `Sign this message to authenticate with agar.fun\n\nNonce: ${nonce}\nIssued: ${nonceData.created_at}`
+    // Reconstituer le message original EXACTEMENT comme côté front
+    const message = `Sign-in nonce: ${nonce}`
 
     // Vérifier la signature
     const signatureBytes = new Uint8Array(signature.data || signature)
