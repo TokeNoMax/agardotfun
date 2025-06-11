@@ -58,7 +58,7 @@ export const roomService = {
         .insert({
           name,
           max_players: maxPlayers,
-          game_mode: gameMode, // FIXED: Ensure gameMode is properly inserted
+          game_mode: gameMode,
           status: 'waiting'
         })
         .select()
