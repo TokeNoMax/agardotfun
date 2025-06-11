@@ -9,9 +9,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useGame } from "@/context/GameContext";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { GameUI } from "@/components/Game/GameUI";
+import GameUI from "@/components/Game/GameUI";
 import { Player, GameRoom, Food, Rug, SafeZone } from "@/types/game";
-import { generateRandomName, generateRandomColor } from "@/utils/nameUtils";
+import { generateName } from "@/utils/nameGenerator";
+import { generateColor } from "@/utils/colorGenerator";
 import { GameStateService } from "@/services/game/gameStateService";
 import { MapGenerator } from "@/services/game/mapGenerator";
 import GameOverModal from "@/components/Game/GameOverModal";
@@ -27,8 +28,6 @@ const Game = () => {
     currentRoom,
     leaveRoom,
     refreshCurrentRoom,
-    setPlayerSize,
-    setPlayerPosition,
   } = useGame();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -92,8 +91,8 @@ const Game = () => {
       const newPlayer: Player = {
         id: id,
         walletAddress: id,
-        name: generateRandomName(),
-        color: generateRandomColor(),
+        name: generateName(),
+        color: generateColor(),
         size: 20,
         x: Math.random() * 2000,
         y: Math.random() * 1500,

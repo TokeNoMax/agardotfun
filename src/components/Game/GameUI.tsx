@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo } from 'react';
 import Canvas from './Canvas';
 import Leaderboard from './Leaderboard';
@@ -134,6 +135,11 @@ const GameUI: React.FC<GameUIProps> = ({
     return Math.max(0, safeZone.nextShrinkTime - Date.now());
   }, [safeZone]);
 
+  // Convert effectivePlayers to array for Leaderboard
+  const playersArray = useMemo(() => {
+    return Object.values(effectivePlayers);
+  }, [effectivePlayers]);
+
   return (
     <div className="relative w-full h-full">
       <Canvas
@@ -164,7 +170,7 @@ const GameUI: React.FC<GameUIProps> = ({
       )}
       
       <Leaderboard
-        players={effectivePlayers}
+        players={playersArray}
         currentPlayerId={currentPlayer?.id}
         gameMode={gameMode || 'multiplayer'}
       />
