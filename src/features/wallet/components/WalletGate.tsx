@@ -20,24 +20,21 @@ export const WalletGate: React.FC<WalletGateProps> = ({ children }) => {
   const connected = !!publicKey;
 
   useEffect(() => {
-    // Vérifier l'état d'authentification au montage
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-      }
-      setIsLoading(false);
-    };
-
-    checkAuth();
-
-    // Écouter les changements d'état d'authentification
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.email);
         setUser(session?.user || null);
         setIsLoading(false);
       }
     );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session check:", session?.user?.email);
+      setUser(session?.user || null);
+      setIsLoading(false);
+    });
 
     return () => subscription.unsubscribe();
   }, []);

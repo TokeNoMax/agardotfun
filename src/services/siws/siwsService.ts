@@ -12,6 +12,7 @@ export interface SIWSVerification {
   user?: any;
   verified?: boolean;
   error?: string;
+  session?: any;
 }
 
 export const siwsService = {
@@ -115,6 +116,33 @@ export const siwsService = {
         }
         
         return { success: false, error: errorMessage };
+      }
+
+      // If we have session data, try to establish the Supabase session
+      if (data?.session?.access_token) {
+        console.log("Attempting to establish Supabase session...");
+        
+        try {
+          // Use the magic link to establish session
+          const url = new URL(data.session.access_token);
+          const accessToken = url.searchParams.get('access_token');
+          const refreshToken = url.searchParams.get('refresh_token');
+          
+          if (accessToken && refreshToken) {
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            });
+            
+            if (sessionError) {
+              console.warn("Failed to set session:", sessionError);
+            } else {
+              console.log("✅ Supabase session established:", sessionData);
+            }
+          }
+        } catch (sessionErr) {
+          console.warn("Session establishment failed:", sessionErr);
+        }
       }
 
       console.log("✅ Verification successful:", data);

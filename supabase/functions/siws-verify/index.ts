@@ -170,10 +170,13 @@ serve(async (req) => {
       .update({ used: true })
       .eq('id', nonceData.id)
 
-    // Create or get user
+    // Create or get user - simplified approach
     const userEmail = `${walletAddress}@wallet.local`
     
+    console.log('Creating/finding user for email:', userEmail)
+
     // Try to create user first
+    let userId;
     const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
       email: userEmail,
       email_confirm: true,
@@ -183,27 +186,64 @@ serve(async (req) => {
       }
     })
 
-    let userId = authData?.user?.id
-
-    // If user already exists, get the existing user
-    if (authError && authError.message.includes('already been registered')) {
-      console.log('User already exists, finding existing user')
-      const { data: existingUsers } = await supabaseClient.auth.admin.listUsers()
+    if (authError) {
+      console.log('User creation failed (likely exists):', authError.message)
+      
+      // User likely exists, find them
+      const { data: existingUsers, error: listError } = await supabaseClient.auth.admin.listUsers()
+      if (listError) {
+        console.error('Failed to list users:', listError)
+        return new Response(
+          JSON.stringify({ error: 'user-lookup-failed' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+      
       const existingUser = existingUsers.users.find(u => u.email === userEmail)
-      userId = existingUser?.id
+      if (!existingUser) {
+        console.error('User not found after creation failure')
+        return new Response(
+          JSON.stringify({ error: 'user-not-found' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+      
+      userId = existingUser.id
+      console.log('Found existing user:', userId)
+    } else {
+      userId = authData.user.id
+      console.log('Created new user:', userId)
     }
 
-    if (!userId) {
-      console.error('Failed to create or find user:', authError)
+    // Generate a session token for the user
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.admin.generateLink({
+      type: 'magiclink',
+      email: userEmail,
+      options: {
+        redirectTo: `${req.headers.get('origin') || 'http://localhost:3000'}/`
+      }
+    })
+
+    if (sessionError) {
+      console.error('Failed to generate session:', sessionError)
+      // Still return success since verification worked
       return new Response(
-        JSON.stringify({ error: 'user-creation-failed' }),
-        { status: 500, headers: corsHeaders }
+        JSON.stringify({ 
+          success: true,
+          verified: true,
+          user: { 
+            id: userId, 
+            email: userEmail,
+            wallet_address: walletAddress
+          }
+        }),
+        { status: 200, headers: corsHeaders }
       )
     }
 
-    console.log('✅ User created/found successfully:', userId)
+    console.log('✅ Session generated successfully')
 
-    // Instead of generating complex tokens, return success with basic user info
+    // Return success with session info
     return new Response(
       JSON.stringify({ 
         success: true,
@@ -212,6 +252,16 @@ serve(async (req) => {
           id: userId, 
           email: userEmail,
           wallet_address: walletAddress
+        },
+        session: {
+          access_token: sessionData.properties?.action_link || null,
+          user: {
+            id: userId,
+            email: userEmail,
+            user_metadata: {
+              wallet_address: walletAddress
+            }
+          }
         }
       }),
       { status: 200, headers: corsHeaders }

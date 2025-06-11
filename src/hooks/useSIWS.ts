@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { siwsService } from '@/services/siws/siwsService';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useSIWS = () => {
   const { publicKey, signMessage } = useWallet();
@@ -74,6 +75,15 @@ export const useSIWS = () => {
       console.log("Verification result:", result);
 
       if (result.success) {
+        // Check if user is now authenticated in Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          console.log("✅ Supabase session confirmed:", session.user.email);
+        } else {
+          console.log("⚠️ SIWS verification succeeded but no Supabase session");
+        }
+        
         toast({
           title: "Authentication Successful",
           description: "You are now signed in with Solana!",
