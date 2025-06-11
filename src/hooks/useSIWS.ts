@@ -11,7 +11,7 @@ export const useSIWS = () => {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Vérifier si le wallet supporte la signature de messages
-  const canSign = !!wallet?.adapter?.signMessage;
+  const canSign = !!signMessage;
 
   const authenticate = async () => {
     if (!publicKey || !signMessage) {
