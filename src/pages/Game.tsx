@@ -52,6 +52,7 @@ const Game = () => {
     "classic"
   );
 
+  // Enhanced bots state management
   const [localBots, setLocalBots] = useState<Record<string, Player>>({});
 
   const currentPlayer = useMemo(() => {
@@ -165,7 +166,6 @@ const Game = () => {
         }))
       );
 
-      // Initialize safe zone if in zone mode
       if (isZoneMode) {
         const initialSafeZone: SafeZone = {
           x: 1500,
@@ -173,17 +173,16 @@ const Game = () => {
           radius: 1000,
           currentRadius: 1000,
           maxRadius: 1000,
-          nextShrinkTime: Date.now() + 120000, // 2 minutes
-          shrinkDuration: 30000, // 30 seconds
+          nextShrinkTime: Date.now() + 120000,
+          shrinkDuration: 30000,
           isActive: true,
-          shrinkInterval: 120000, // 2 minutes
+          shrinkInterval: 120000,
           damagePerSecond: 1,
           shrinkPercentage: 0.2,
         };
         setSafeZone(initialSafeZone);
       }
 
-      // Initialize players
       const initialPlayers: Record<string, Player> = {};
       currentRoom.players.forEach((player, index) => {
         initialPlayers[player.id] = {
@@ -243,11 +242,9 @@ const Game = () => {
           return prevPlayers;
         }
 
-        // Winner absorbs loser
         winner.size += loser.size * 0.8;
         loser.isAlive = false;
 
-        // Update local state
         const updatedPlayers = {
           ...prevPlayers,
           [winnerId]: winner,
@@ -287,6 +284,7 @@ const Game = () => {
     }
   };
 
+  // Enhanced score update handler with better bot synchronization
   const handleScoreUpdate = useCallback((playerId: string, newSize: number) => {
     console.log(`[Game] Score update for ${playerId}: ${newSize}`);
     
@@ -312,6 +310,12 @@ const Game = () => {
       realtimeSync.updateLocalScore(radius);
     }
   }, [localPlayers, realtimeSync, currentPlayer?.id]);
+
+  // Enhanced bots update handler for Canvas synchronization
+  const handleBotsUpdate = useCallback((updatedBots: Record<string, Player>) => {
+    setLocalBots(updatedBots);
+    console.log(`[Game] Bots updated: ${Object.keys(updatedBots).length} bots`);
+  }, []);
 
   useEffect(() => {
     if (
@@ -370,7 +374,6 @@ const Game = () => {
   }
 
   if (gameState === "playing") {
-    // Convert game mode to the expected type
     const uiGameMode: 'multiplayer' | 'zone' | 'local' = 
       isLocalMode ? 'local' : 
       isZoneMode ? 'zone' : 

@@ -1,4 +1,3 @@
-
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Player } from "@/types/game";
 import { computeSpeed } from "@/services/game/speedUtil";
@@ -14,6 +13,7 @@ interface CanvasProps {
   onCollectFood: (foodId: string) => void;
   onCollision: (winnerId: string, loserId: string) => void;
   onScoreUpdate?: (playerId: string, newSize: number) => void;
+  onBotsUpdate?: (bots: Record<string, Player>) => void; // New prop to sync bots
   safeZone?: {
     x: number;
     y: number;
@@ -39,6 +39,7 @@ const Canvas: React.FC<CanvasProps> = ({
   onCollectFood,
   onCollision,
   onScoreUpdate,
+  onBotsUpdate,
   safeZone,
   isLocalMode = false,
   isZoneMode = false,
@@ -96,16 +97,19 @@ const Canvas: React.FC<CanvasProps> = ({
     }
     
     setBots(newBots);
+    // Sync bots to parent component
+    if (onBotsUpdate) {
+      onBotsUpdate(newBots);
+    }
     console.log(`Initialized ${Object.keys(newBots).length} bots for solo mode`);
-  }, [isLocalMode]);
+  }, [isLocalMode, onBotsUpdate]);
 
-  // Enhanced bot updates with score synchronization
+  // Enhanced bot updates with improved score synchronization
   const updateSoloBots = useCallback((deltaTime: number) => {
     if (!isLocalMode || Object.keys(bots).length === 0) return;
 
     setBots(prevBots => {
       const updatedBots = { ...prevBots };
-      let scoreUpdated = false;
 
       Object.values(updatedBots).forEach(bot => {
         if (!bot.isAlive) return;
@@ -144,7 +148,6 @@ const Canvas: React.FC<CanvasProps> = ({
             // Notify parent of bot score update
             if (onScoreUpdate && bot.size !== oldSize) {
               onScoreUpdate(bot.id, bot.size);
-              scoreUpdated = true;
             }
             
             // Remove food
@@ -171,7 +174,6 @@ const Canvas: React.FC<CanvasProps> = ({
               // Notify parent of bot score update
               if (onScoreUpdate && bot.size !== oldSize) {
                 onScoreUpdate(bot.id, bot.size);
-                scoreUpdated = true;
               }
             }
           }
@@ -192,9 +194,14 @@ const Canvas: React.FC<CanvasProps> = ({
         }
       });
 
+      // Sync updated bots to parent component
+      if (onBotsUpdate) {
+        onBotsUpdate(updatedBots);
+      }
+
       return updatedBots;
     });
-  }, [isLocalMode, bots, foods, onCollectFood, onScoreUpdate, safeZone]);
+  }, [isLocalMode, bots, foods, onCollectFood, onScoreUpdate, safeZone, onBotsUpdate]);
 
   // Initialize canvas context
   useEffect(() => {
@@ -237,6 +244,7 @@ const Canvas: React.FC<CanvasProps> = ({
     setKeysPressed(prev => ({ ...prev, [e.key]: true }));
   }, []);
 
+  // Handle keyboard input
   const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
     setKeysPressed(prev => ({ ...prev, [e.key]: false }));
   }, []);

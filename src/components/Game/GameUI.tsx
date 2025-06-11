@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo } from 'react';
 import Canvas from './Canvas';
 import Leaderboard from './Leaderboard';
@@ -8,7 +9,7 @@ import { Player, Food, Rug, SafeZone } from '@/types/game';
 
 interface GameUIProps {
   players: Record<string, Player>;
-  bots?: Record<string, Player>; // Add bots prop
+  bots?: Record<string, Player>;
   foods: Food[];
   rugs: Rug[];
   currentPlayer: Player | null;
@@ -44,8 +45,9 @@ const GameUI: React.FC<GameUIProps> = ({
   const [eliminationType, setEliminationType] = useState<'absorption' | 'zone' | 'timeout'>('absorption');
   const [gameStartTime, setGameStartTime] = useState(Date.now());
   const [localPlayers, setPlayers] = useState(players);
+  const [syncedBots, setSyncedBots] = useState<Record<string, Player>>(bots);
 
-  // Enhanced effective players calculation that includes bots
+  // Enhanced effective players calculation that properly merges players and bots
   const effectivePlayers = useMemo(() => {
     const validPlayers: Record<string, Player> = {};
     
@@ -65,27 +67,31 @@ const GameUI: React.FC<GameUIProps> = ({
       }
     });
 
-    // Add bots in local mode
-    if (isLocalMode && bots) {
-      Object.entries(bots).forEach(([id, bot]) => {
-        if (bot && 
-            typeof bot.name === 'string' && 
-            bot.name.trim() !== '' &&
-            typeof bot.size === 'number' && 
-            !isNaN(bot.size) &&
-            typeof bot.x === 'number' && 
-            !isNaN(bot.x) &&
-            typeof bot.y === 'number' && 
-            !isNaN(bot.y) &&
-            bot.isAlive) {
-          validPlayers[id] = bot;
-        }
-      });
-    }
+    // Add synced bots (especially important for local mode)
+    Object.entries(syncedBots).forEach(([id, bot]) => {
+      if (bot && 
+          typeof bot.name === 'string' && 
+          bot.name.trim() !== '' &&
+          typeof bot.size === 'number' && 
+          !isNaN(bot.size) &&
+          typeof bot.x === 'number' && 
+          !isNaN(bot.x) &&
+          typeof bot.y === 'number' && 
+          !isNaN(bot.y) &&
+          bot.isAlive) {
+        validPlayers[id] = bot;
+      }
+    });
 
-    console.log(`[GameUI] Effective players: ${Object.keys(validPlayers).length} total (${Object.keys(players).length} players + ${Object.keys(bots).length} bots)`);
+    console.log(`[GameUI] Effective players: ${Object.keys(validPlayers).length} total (${Object.keys(players).length} players + ${Object.keys(syncedBots).length} bots)`);
     return validPlayers;
-  }, [players, bots, isLocalMode]);
+  }, [players, syncedBots]);
+
+  // Handle bots synchronization from Canvas
+  const handleBotsUpdate = useCallback((updatedBots: Record<string, Player>) => {
+    setSyncedBots(updatedBots);
+    console.log(`[GameUI] Bots synced: ${Object.keys(updatedBots).length} bots`);
+  }, []);
 
   // Enhanced score update handler
   const handleScoreUpdate = useCallback((playerId: string, newSize: number) => {
@@ -98,8 +104,14 @@ const GameUI: React.FC<GameUIProps> = ({
         ...prev,
         [playerId]: { ...prev[playerId], size: newSize }
       }));
+    } else if (syncedBots[playerId]) {
+      // Update bot in synced bots
+      setSyncedBots(prev => ({
+        ...prev,
+        [playerId]: { ...prev[playerId], size: newSize }
+      }));
     }
-  }, [onScoreUpdate, players]);
+  }, [onScoreUpdate, players, syncedBots]);
 
   const handleGameOver = useCallback((winner: Player | null, eliminationType: 'absorption' | 'zone' | 'timeout' = 'absorption') => {
     console.log(`[GameUI] Game Over! Winner: ${winner?.name || 'No one'}`);
@@ -134,7 +146,7 @@ const GameUI: React.FC<GameUIProps> = ({
     return Math.max(0, safeZone.nextShrinkTime - Date.now());
   }, [safeZone]);
 
-  // Convert effectivePlayers to array for Leaderboard
+  // Convert effectivePlayers to array for Leaderboard - now includes both players and bots
   const playersArray = useMemo(() => {
     return Object.values(effectivePlayers);
   }, [effectivePlayers]);
@@ -148,6 +160,7 @@ const GameUI: React.FC<GameUIProps> = ({
         onCollectFood={onCollectFood}
         onCollision={onCollision}
         onScoreUpdate={handleScoreUpdate}
+        onBotsUpdate={handleBotsUpdate}
         safeZone={safeZone}
         isLocalMode={isLocalMode}
         isZoneMode={isZoneMode}
