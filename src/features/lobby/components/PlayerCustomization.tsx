@@ -8,6 +8,7 @@ import { useGame } from "@/context/GameContext";
 import { generateColor } from "@/utils/colorGenerator";
 import WalletButton from "@/features/wallet/components/WalletButton";
 import { Palette, User, Shuffle } from "lucide-react";
+import { PlayerColor } from "@/types/game";
 
 export default function PlayerCustomization() {
   const { player, setPlayer } = useGame();
@@ -19,7 +20,7 @@ export default function PlayerCustomization() {
     }
   };
 
-  const updatePlayerColor = (color: string) => {
+  const updatePlayerColor = (color: PlayerColor) => {
     if (player) {
       setPlayer({ ...player, color });
     }
@@ -36,7 +37,7 @@ export default function PlayerCustomization() {
     updatePlayerColor(newColor);
   };
 
-  const colorOptions = [
+  const colorOptions: Array<{ name: PlayerColor; hex: string }> = [
     { name: 'blue', hex: '#3498db' },
     { name: 'red', hex: '#e74c3c' },
     { name: 'green', hex: '#2ecc71' },

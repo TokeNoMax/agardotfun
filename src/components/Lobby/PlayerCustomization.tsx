@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useGame } from "@/context/GameContext";
 import { PlayerColor } from "@/types/game";
-import WalletButton from "@/components/Wallet/WalletButton";
+import WalletButton from "@/features/wallet/components/WalletButton";
 import { Wallet, Smartphone, Image, Zap, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
