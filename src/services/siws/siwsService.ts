@@ -55,7 +55,47 @@ export const siwsService = {
 
       if (error) {
         console.error("Signature verification error:", error);
-        return { success: false, error: error.message || 'Verification failed' };
+        
+        // Gestion d'erreurs granularisée basée sur les codes d'erreur de l'Edge Function
+        let errorMessage = 'Verification failed';
+        if (error.message?.includes('non-2xx status code')) {
+          errorMessage = 'Erreur de vérification côté serveur. Veuillez réessayer.';
+        }
+        
+        return { success: false, error: errorMessage };
+      }
+
+      // Vérifier si la réponse contient une erreur de l'Edge Function
+      if (data?.error) {
+        let errorMessage = 'Verification failed';
+        
+        switch (data.error) {
+          case 'invalid-signature':
+            errorMessage = 'Signature invalide. Veuillez signer à nouveau le message.';
+            break;
+          case 'invalid-nonce':
+            errorMessage = 'Nonce invalide ou expiré. Veuillez recommencer.';
+            break;
+          case 'nonce-expired':
+            errorMessage = 'Le délai de signature a expiré. Veuillez recommencer.';
+            break;
+          case 'missing-parameters':
+            errorMessage = 'Paramètres manquants. Veuillez réessayer.';
+            break;
+          case 'user-creation-failed':
+            errorMessage = 'Impossible de créer le compte utilisateur.';
+            break;
+          case 'session-creation-failed':
+            errorMessage = 'Impossible de créer la session. Veuillez réessayer.';
+            break;
+          case 'internal-server-error':
+            errorMessage = 'Erreur serveur interne. Veuillez réessayer plus tard.';
+            break;
+          default:
+            errorMessage = `Erreur de vérification : ${data.error}`;
+        }
+        
+        return { success: false, error: errorMessage };
       }
 
       return data;
