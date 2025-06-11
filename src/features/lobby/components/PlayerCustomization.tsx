@@ -4,37 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGame } from "@/context/GameContext";
+import { useSimplePlayer } from "@/hooks/useSimplePlayer";
 import { generateColor } from "@/utils/colorGenerator";
-import WalletButton from "@/features/wallet/components/WalletButton";
+import { SimpleWalletButton } from "@/components/wallet/SimpleWalletButton";
 import { Palette, User, Shuffle } from "lucide-react";
 import { PlayerColor } from "@/types/game";
 
 export default function PlayerCustomization() {
-  const { player, setPlayer } = useGame();
+  const { player, updatePlayer, createGuestPlayer, hasWallet } = useSimplePlayer();
   const [tempName, setTempName] = useState(player?.name || "");
-
-  const updatePlayerName = (name: string) => {
-    if (player) {
-      setPlayer({ ...player, name });
-    }
-  };
-
-  const updatePlayerColor = (color: PlayerColor) => {
-    if (player) {
-      setPlayer({ ...player, color });
-    }
-  };
 
   const handleNameUpdate = () => {
     if (tempName.trim()) {
-      updatePlayerName(tempName.trim());
+      updatePlayer({ name: tempName.trim() });
     }
   };
 
   const handleRandomColor = () => {
     const newColor = generateColor();
-    updatePlayerColor(newColor);
+    updatePlayer({ color: newColor });
+  };
+
+  const handleCreateGuest = () => {
+    const guest = createGuestPlayer();
+    setTempName(guest.name);
   };
 
   const colorOptions: Array<{ name: PlayerColor; hex: string }> = [
@@ -48,22 +41,41 @@ export default function PlayerCustomization() {
     { name: 'pink', hex: '#fd79a8' }
   ];
 
-  if (!player) {
+  if (!player && !hasWallet) {
     return (
       <Card className="w-full max-w-md mx-auto bg-black/90 backdrop-blur-sm border-cyber-cyan/50">
         <CardHeader>
           <CardTitle className="text-center text-cyber-cyan font-mono">
-            CONNECT_WALLET
+            PLAYER_SETUP
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-center">
-          <p className="text-gray-400 mb-4 font-mono text-sm">
-            Connectez votre wallet pour personnaliser votre profil
+        <CardContent className="space-y-4">
+          <p className="text-gray-400 mb-4 font-mono text-sm text-center">
+            Connect your wallet or play as guest
           </p>
-          <WalletButton />
+          
+          <div className="space-y-3">
+            <SimpleWalletButton className="w-full" />
+            
+            <div className="text-center text-gray-500 font-mono text-xs">OR</div>
+            
+            <Button 
+              onClick={handleCreateGuest}
+              variant="outline"
+              className="w-full border-cyber-green/50 text-cyber-green hover:bg-cyber-green/10 font-mono"
+            >
+              <User className="mr-2 w-4 h-4" />
+              Play as Guest
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
+  }
+
+  if (!player) {
+    handleCreateGuest();
+    return null;
   }
 
   return (
@@ -99,7 +111,7 @@ export default function PlayerCustomization() {
               type="text"
               value={tempName}
               onChange={(e) => setTempName(e.target.value)}
-              placeholder="Entrez votre nom..."
+              placeholder="Enter your name..."
               className="bg-black/50 border-cyber-green/50 text-white font-mono"
               maxLength={20}
             />
@@ -133,7 +145,7 @@ export default function PlayerCustomization() {
             {colorOptions.map((color) => (
               <button
                 key={color.name}
-                onClick={() => updatePlayerColor(color.name)}
+                onClick={() => updatePlayer({ color: color.name })}
                 className={`w-12 h-12 rounded-full border-2 transition-all hover:scale-110 ${
                   player.color === color.name 
                     ? 'border-white shadow-lg shadow-white/50' 
@@ -155,9 +167,21 @@ export default function PlayerCustomization() {
           <div className="text-xs font-mono space-y-1 text-gray-300">
             <div>Name: <span className="text-cyber-green">{player.name || 'Not set'}</span></div>
             <div>Color: <span className="text-cyber-purple">{player.color || 'blue'}</span></div>
-            <div>Wallet: <span className="text-cyber-cyan">{player.walletAddress?.slice(0, 6)}...{player.walletAddress?.slice(-4)}</span></div>
+            <div>Status: <span className="text-cyber-cyan">
+              {hasWallet ? `Wallet: ${player.walletAddress?.slice(0, 6)}...${player.walletAddress?.slice(-4)}` : 'Guest Player'}
+            </span></div>
           </div>
         </div>
+
+        {/* Wallet Connection for Guests */}
+        {!hasWallet && (
+          <div className="text-center pt-2 border-t border-gray-700">
+            <p className="text-gray-400 font-mono text-xs mb-2">
+              Connect wallet for enhanced features
+            </p>
+            <SimpleWalletButton variant="minimal" className="w-full" />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
