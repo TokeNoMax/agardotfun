@@ -1,1080 +1,761 @@
-import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback } from "react";
-import { useGame } from "@/context/GameContext";
-import { Food, Rug, Player, SafeZone } from "@/types/game";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { OptimizedPlayerPosition } from "@/services/realtime/optimizedGameSync";
-import { MapGenerator, GeneratedMap } from "@/services/game/mapGenerator";
-import { GameStateService, GameState } from "@/services/game/gameStateService";
-import { BotService, Bot } from "@/services/game/botService";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Player } from "@/types/game";
 import { computeSpeed } from "@/services/game/speedUtil";
-
-// Constants
-const GAME_WIDTH = 3000;
-const GAME_HEIGHT = 3000;
-const FOOD_SIZE = 5;
-const RUG_SIZE = 40;
-const FOOD_VALUE = 1;
-const RUG_PENALTY = 5;
-const GRID_SIZE = 150;
-const GRID_COLOR = "#333333";
-
-// Zone Battle constants
-const ZONE_SHRINK_INTERVAL = 120000;
-const ZONE_DAMAGE_PER_SECOND = 3;
-const ZONE_SHRINK_PERCENTAGE = 0.2;
-const INITIAL_ZONE_RADIUS = 1400;
-
-// Zoom constants - optimized for better dynamic zoom experience
-const MIN_ZOOM = 0.25;  // Reduced from 0.3 for wider view with larger blobs
-const MAX_ZOOM = 2.5;   // Increased from 2.0 for closer view with smaller blobs
-const ZOOM_SMOOTH_FACTOR = 0.12;  // Increased from 0.08 for more responsive zoom
+import { useIsMobile } from "@/hooks/use-mobile";
+import TouchControlArea from "./TouchControlArea";
+import { generateRandomColor, generateRandomName } from "@/utils/randomGenerators";
 
 interface CanvasProps {
-  onGameOver: (winner: Player | null, eliminationType?: 'absorption' | 'zone' | 'timeout') => void;
-  isLocalMode?: boolean;
-  localPlayer?: Player | null;
-  isZoneMode?: boolean;
-  onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
-  onPlayerPositionSync?: (position: { x: number; y: number; size: number }) => void;
-  onPlayerCollision?: (eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) => Promise<void>;
-  onPlayerElimination?: (eliminatedPlayerId: string, eliminatorPlayerId: string) => Promise<void>;
-  roomId?: string;
-}
-
-export interface CanvasRef {
-  setMobileDirection: (direction: { x: number; y: number } | null) => void;
-  updatePlayerPosition: (playerId: string, position: OptimizedPlayerPosition) => void;
-  eliminatePlayer: (eliminatedPlayerId: string, eliminatorPlayerId: string) => void;
-  addPlayer: (player: Player) => void;
-  getOrCreatePlayer: (id: string) => any;
-}
-
-const Canvas = forwardRef<CanvasRef, CanvasProps>(({ 
-  onGameOver, 
-  isLocalMode = false, 
-  localPlayer = null,
-  isZoneMode = false,
-  onZoneUpdate,
-  onPlayerPositionSync,
-  onPlayerCollision,
-  onPlayerElimination,
-  roomId
-}, ref) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { currentRoom, player: currentPlayer } = useGame();
-  const [foods, setFoods] = useState<Food[]>([]);
-  const [rugs, setRugs] = useState<Rug[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [bots, setBots] = useState<Bot[]>([]);
-  const [gameMap, setGameMap] = useState<GeneratedMap | null>(null);
-  const [gameState, setGameState] = useState<GameState | null>(null);
-  const [cameraZoom, setCameraZoom] = useState<number>(1);
-  const [cameraPosition, setCameraPosition] = useState({ x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2 });
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [gameOverCalled, setGameOverCalled] = useState(false);
-  const [gameInitialized, setGameInitialized] = useState(false);
-  const [gameStartTime, setGameStartTime] = useState<number>(Date.now());
-  const [lastTargetPosition, setLastTargetPosition] = useState({ x: 0, y: 0 });
-  
-  // Mobile-specific state
-  const isMobile = useIsMobile();
-  const [mobileDirection, setMobileDirection] = useState<{ x: number; y: number } | null>(null);
-  
-  // Zone Battle state
-  const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
-  const [lastDamageTime, setLastDamageTime] = useState<number>(0);
-  const [lastPositionSync, setLastPositionSync] = useState<number>(0);
-
-  // NFT Image cache
-  const [imageCache, setImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
-
-  const playerRef = useRef<Player | null>(null);
-  const gameLoopRef = useRef<number | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const lastTimestampRef = useRef<number>(0); // Pour calculer le vrai delta
-
-  // Determine if we're in solo mode
-  const isSoloMode = isLocalMode && !currentRoom;
-
-  // Calculate target zoom based on player size - improved formula
-  const calculateTargetZoom = useCallback((playerSize: number): number => {
-    // Improved zoom formula for better scaling with faster movement
-    const baseZoom = 1.0;
-    const radius = Math.sqrt(playerSize);
-    
-    // More aggressive zoom scaling for better gameplay at higher speeds
-    const sizeInfluence = radius / 15; // Reduced from 20 for more zoom variation
-    const targetZoom = baseZoom / (1 + sizeInfluence * 0.9); // Increased from 0.8
-    
-    // Smoother zoom curve using logarithmic scaling
-    const smoothedZoom = baseZoom * Math.pow(0.85, Math.log(playerSize / 15));
-    
-    // Blend the two approaches for optimal zoom
-    const finalZoom = (targetZoom + smoothedZoom) / 2;
-    
-    // Clamp between min and max zoom
-    return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, finalZoom));
-  }, []);
-
-  // Expose methods to parent component
-  useImperativeHandle(ref, () => ({
-    setMobileDirection: (direction: { x: number; y: number } | null) => {
-      console.log('Canvas: Setting mobile direction:', direction);
-      setMobileDirection(direction);
-    },
-    updatePlayerPosition: (playerId: string, position: OptimizedPlayerPosition) => {
-      console.log('Canvas: Updating player position from sync:', playerId, position);
-      setPlayers(prevPlayers => {
-        return prevPlayers.map(player => {
-          if (player.id === playerId && player.id !== playerRef.current?.id) {
-            return {
-              ...player,
-              x: position.x,
-              y: position.y,
-              size: position.size
-            };
-          }
-          return player;
-        });
-      });
-    },
-    eliminatePlayer: (eliminatedPlayerId: string, eliminatorPlayerId: string) => {
-      console.log('Canvas: Eliminating player from sync:', eliminatedPlayerId, 'by', eliminatorPlayerId);
-      setPlayers(prevPlayers => {
-        return prevPlayers.map(player => {
-          if (player.id === eliminatedPlayerId) {
-            console.log(`Canvas: Setting player ${eliminatedPlayerId} as dead`);
-            return { ...player, isAlive: false };
-          }
-          if (player.id === eliminatorPlayerId) {
-            const eliminatedPlayer = prevPlayers.find(p => p.id === eliminatedPlayerId);
-            if (eliminatedPlayer) {
-              const newSize = player.size + eliminatedPlayer.size / 2;
-              console.log(`Canvas: Player ${eliminatorPlayerId} grew from ${player.size} to ${newSize}`);
-              return { ...player, size: newSize };
-            }
-          }
-          return player;
-        });
-      });
-      
-      // Check if our player was eliminated
-      if (eliminatedPlayerId === playerRef.current?.id && !gameOverCalled) {
-        console.log('Canvas: Our player was eliminated, triggering game over');
-        setGameOverCalled(true);
-        const winner = players.find(p => p.id === eliminatorPlayerId);
-        onGameOver(winner || null, 'absorption');
-      }
-    },
-    addPlayer: (newPlayer: Player) => {
-      console.log('Canvas: Adding new player from sync:', newPlayer);
-      setPlayers(prevPlayers => {
-        // Check if player already exists
-        const exists = prevPlayers.some(p => p.id === newPlayer.id);
-        if (exists) {
-          console.log('Canvas: Player already exists, updating position');
-          return prevPlayers.map(p => 
-            p.id === newPlayer.id 
-              ? { ...p, x: newPlayer.x, y: newPlayer.y, size: newPlayer.size, isAlive: true }
-              : p
-          );
-        }
-        
-        // Add new player
-        console.log('Canvas: Adding completely new player');
-        return [...prevPlayers, { 
-          ...newPlayer, 
-          isAlive: true,
-          x: newPlayer.x || GAME_WIDTH / 2,
-          y: newPlayer.y || GAME_HEIGHT / 2,
-          size: newPlayer.size || 15
-        }];
-      });
-    },
-    getOrCreatePlayer: (id: string) => {
-      // Return a simple mock object that matches what the realtime sync expects
-      return {
-        setPos: (x: number, y: number) => {
-          setPlayers(prevPlayers => {
-            return prevPlayers.map(player => {
-              if (player.id === id) {
-                return { ...player, x, y };
-              }
-              return player;
-            });
-          });
-        },
-        setSize: (size: number) => {
-          setPlayers(prevPlayers => {
-            return prevPlayers.map(player => {
-              if (player.id === id) {
-                return { ...player, size };
-              }
-              return player;
-            });
-          });
-        }
-      };
-    }
-  }));
-
-  // Helper function to preload and cache NFT images
-  const preloadImage = (url: string): Promise<HTMLImageElement> => {
-    return new Promise((resolve, reject) => {
-      if (imageCache.has(url)) {
-        resolve(imageCache.get(url)!);
-        return;
-      }
-
-      const img = new Image();
-      img.onload = () => {
-        setImageCache(prev => new Map(prev.set(url, img)));
-        resolve(img);
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
+  players: Record<string, Player>;
+  foods: Array<{ id: string; x: number; y: number; size: number; value?: number }>;
+  rugs: Array<{ id: string; x: number; y: number; size: number }>;
+  onCollectFood: (foodId: string) => void;
+  onCollision: (winnerId: string, loserId: string) => void;
+  onScoreUpdate?: (playerId: string, newSize: number) => void;
+  safeZone?: {
+    x: number;
+    y: number;
+    radius: number;
+    currentRadius: number;
+    maxRadius: number;
+    nextShrinkTime: number;
+    shrinkDuration: number;
+    isActive: boolean;
+    shrinkInterval: number;
+    damagePerSecond: number;
+    shrinkPercentage: number;
   };
+  isLocalMode?: boolean;
+  isZoneMode?: boolean;
+  gameMode?: 'multiplayer' | 'zone' | 'local';
+}
 
-  // Initialize bots for solo mode
+const Canvas: React.FC<CanvasProps> = ({
+  players: externalPlayers,
+  foods,
+  rugs,
+  onCollectFood,
+  onCollision,
+  onScoreUpdate,
+  safeZone,
+  isLocalMode = false,
+  isZoneMode = false,
+  gameMode = 'multiplayer'
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const animationFrameRef = useRef<number>(0);
+  const isMobile = useIsMobile();
+
+  const [players, setPlayers] = useState<Record<string, Player>>(externalPlayers || {});
+  const [bots, setBots] = useState<Record<string, Player>>({});
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
+
+  // Camera state
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
+  const [targetPosition, setTargetPosition] = useState<{ x: number; y: number } | null>(null);
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [touchDirection, setTouchDirection] = useState<{ x: number; y: number } | null>(null);
+  const [keysPressed, setKeysPressed] = useState<Record<string, boolean>>({});
+  const [isPlayerInZone, setIsPlayerInZone] = useState(true);
+
+  // Game world boundaries
+  const WORLD_WIDTH = 3000;
+  const WORLD_HEIGHT = 3000;
+
+  // Enhanced bot initialization for solo mode
   const initSoloBots = useCallback(() => {
-    if (isSoloMode && playerRef.current) {
-      console.log("Canvas: Initializing bots for solo mode");
-      const initialBots = BotService.initSoloBots(GAME_WIDTH, GAME_HEIGHT, playerRef.current.id);
-      setBots(initialBots);
+    if (!isLocalMode) return;
+    
+    console.log("Initializing solo bots...");
+    const botCount = 7;
+    const newBots: Record<string, Player> = {};
+    
+    for (let i = 0; i < botCount; i++) {
+      const botId = `bot_${i}`;
+      const botName = generateRandomName();
+      const botColor = generateRandomColor();
+      
+      const bot: Player = {
+        id: botId,
+        walletAddress: `bot_wallet_${i}`,
+        name: botName,
+        color: botColor,
+        size: 15 + Math.random() * 10,
+        x: 400 + Math.random() * 2200,
+        y: 400 + Math.random() * 2200,
+        isAlive: true,
+        isReady: true,
+        velocityX: 0,
+        velocityY: 0
+      };
+      
+      newBots[botId] = bot;
     }
-  }, [isSoloMode]);
+    
+    setBots(newBots);
+    console.log(`Initialized ${Object.keys(newBots).length} bots for solo mode`);
+  }, [isLocalMode]);
 
-  // Update bots in game loop
-  const updateSoloBots = useCallback((deltaInSeconds: number) => {
-    if (!isSoloMode) return;
+  // Enhanced bot updates with score synchronization
+  const updateSoloBots = useCallback((deltaTime: number) => {
+    if (!isLocalMode || Object.keys(bots).length === 0) return;
 
     setBots(prevBots => {
-      const alivePlayers = players.filter(p => p.isAlive);
-      const updatedBots = BotService.updateSoloBots(
-        prevBots, 
-        foods, 
-        alivePlayers,
-        GAME_WIDTH, 
-        GAME_HEIGHT,
-        deltaInSeconds
-      );
+      const updatedBots = { ...prevBots };
+      let scoreUpdated = false;
 
-      // Handle bot collisions with food and rugs
-      const { updatedBots: botsAfterCollisions, updatedFoods } = BotService.checkBotCollisions(
-        updatedBots, 
-        foods, 
-        rugs
-      );
+      Object.values(updatedBots).forEach(bot => {
+        if (!bot.isAlive) return;
 
-      // Update foods state if any were consumed by bots
-      if (updatedFoods.length !== foods.length) {
-        setFoods(updatedFoods);
-      }
-
-      return botsAfterCollisions;
-    });
-  }, [isSoloMode, players, foods, rugs]);
-
-  // Initialize safe zone for Zone Battle mode
-  const initializeSafeZone = (): SafeZone => {
-    const now = Date.now();
-    return {
-      x: GAME_WIDTH / 2,
-      y: GAME_HEIGHT / 2,
-      radius: INITIAL_ZONE_RADIUS,
-      currentRadius: INITIAL_ZONE_RADIUS,
-      maxRadius: INITIAL_ZONE_RADIUS,
-      nextShrinkTime: now + 30000,
-      shrinkDuration: 10000,
-      isActive: true,
-      shrinkInterval: ZONE_SHRINK_INTERVAL,
-      damagePerSecond: ZONE_DAMAGE_PER_SECOND,
-      shrinkPercentage: ZONE_SHRINK_PERCENTAGE
-    };
-  };
-
-  // Check if player is in safe zone
-  const isPlayerInSafeZone = (player: Player, zone: SafeZone): boolean => {
-    if (!zone.isActive) return true;
-    const dx = player.x - zone.x;
-    const dy = player.y - zone.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    return distance <= zone.currentRadius - player.size;
-  };
-
-  // Optimized mouse position handler
-  const updateMousePosition = useCallback((clientX: number, clientY: number) => {
-    if (!canvasRef.current || isMobile) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    setMousePosition({
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    });
-  }, [isMobile]);
-
-  // ENHANCED: Improved player elimination handler with proper sync
-  const handlePlayerElimination = useCallback(async (eliminatedPlayer: Player, killerPlayer: Player) => {
-    console.log(`Canvas: Player ${eliminatedPlayer.name} was eliminated by ${killerPlayer.name}`);
-    
-    // Update local state immediately
-    setPlayers(prevPlayers => {
-      return prevPlayers.map(player => {
-        if (player.id === eliminatedPlayer.id) {
-          return { ...player, isAlive: false };
+        // Random movement with some persistence
+        if (Math.random() < 0.02) {
+          bot.velocityX = (Math.random() - 0.5) * 2;
+          bot.velocityY = (Math.random() - 0.5) * 2;
         }
-        if (player.id === killerPlayer.id) {
-          return { ...player, size: killerPlayer.size + eliminatedPlayer.size / 2 };
+
+        // Normalize velocity vector
+        const speed = computeSpeed(bot.size);
+        const magnitude = Math.sqrt(bot.velocityX * bot.velocityX + bot.velocityY * bot.velocityY) || 1;
+        const normalizedVx = bot.velocityX / magnitude;
+        const normalizedVy = bot.velocityY / magnitude;
+
+        // Update position
+        bot.x += normalizedVx * speed * deltaTime;
+        bot.y += normalizedVy * speed * deltaTime;
+
+        // Keep bots within world boundaries
+        bot.x = Math.max(0, Math.min(WORLD_WIDTH, bot.x));
+        bot.y = Math.max(0, Math.min(WORLD_HEIGHT, bot.y));
+
+        // Enhanced collision detection with score updates
+        foods.forEach(food => {
+          const dx = bot.x - food.x;
+          const dy = bot.y - food.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const botRadius = Math.sqrt(bot.size);
+          
+          if (distance < botRadius + food.size) {
+            const oldSize = bot.size;
+            bot.size += food.value || 2;
+            
+            // Notify parent of bot score update
+            if (onScoreUpdate && bot.size !== oldSize) {
+              onScoreUpdate(bot.id, bot.size);
+              scoreUpdated = true;
+            }
+            
+            // Remove food
+            onCollectFood?.(food.id);
+          }
+        });
+
+        // Bot vs bot collisions with score updates
+        Object.values(updatedBots).forEach(otherBot => {
+          if (otherBot.id === bot.id || !otherBot.isAlive) return;
+          
+          const dx = bot.x - otherBot.x;
+          const dy = bot.y - otherBot.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const botRadius = Math.sqrt(bot.size);
+          const otherRadius = Math.sqrt(otherBot.size);
+          
+          if (distance < (botRadius + otherRadius) * 0.8) {
+            if (bot.size > otherBot.size * 1.1) {
+              const oldSize = bot.size;
+              bot.size += otherBot.size * 0.5;
+              otherBot.isAlive = false;
+              
+              // Notify parent of bot score update
+              if (onScoreUpdate && bot.size !== oldSize) {
+                onScoreUpdate(bot.id, bot.size);
+                scoreUpdated = true;
+              }
+            }
+          }
+        });
+
+        // Apply zone damage if outside safe zone
+        if (safeZone && safeZone.isActive) {
+          const dx = bot.x - safeZone.x;
+          const dy = bot.y - safeZone.y;
+          const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distanceFromCenter > safeZone.currentRadius) {
+            bot.size -= safeZone.damagePerSecond * deltaTime;
+            if (bot.size <= 5) {
+              bot.isAlive = false;
+            }
+          }
         }
-        return player;
       });
+
+      return updatedBots;
     });
-    
-    // Sync elimination to other players in multiplayer
-    if (!isLocalMode) {
-      try {
-        // Broadcast collision first (for size updates)
-        if (onPlayerCollision) {
-          await onPlayerCollision(
-            eliminatedPlayer.id, 
-            killerPlayer.id, 
-            eliminatedPlayer.size, 
-            killerPlayer.size + eliminatedPlayer.size / 2
-          );
-        }
-        
-        // Then broadcast elimination (for isAlive status)
-        if (onPlayerElimination) {
-          await onPlayerElimination(eliminatedPlayer.id, killerPlayer.id);
-        }
-        
-        console.log('Canvas: Successfully broadcasted elimination');
-      } catch (error) {
-        console.error('Canvas: Error broadcasting elimination:', error);
-      }
-    }
-    
-    // Check if our player was eliminated
-    if (eliminatedPlayer.id === playerRef.current?.id && !gameOverCalled) {
-      console.log('Canvas: Our player was eliminated, triggering game over');
-      setGameOverCalled(true);
-      onGameOver(killerPlayer, 'absorption');
-    }
-  }, [isLocalMode, gameOverCalled, onGameOver, onPlayerCollision, onPlayerElimination]);
+  }, [isLocalMode, bots, foods, onCollectFood, onScoreUpdate, safeZone]);
 
-  // Optimized food consumption handler
-  const handleFoodConsumption = useCallback(async (foodId: string) => {
-    if (!isLocalMode && currentRoom && gameState) {
-      await GameStateService.consumeFood(currentRoom.id, foodId);
-    }
-  }, [isLocalMode, currentRoom, gameState]);
-
-  // Game initialization useEffect
+  // Initialize canvas context
   useEffect(() => {
-    console.log("Canvas: Game initialization check", { 
-      gameInitialized, 
-      isLocalMode, 
-      localPlayer: !!localPlayer, 
-      currentRoom: !!currentRoom,
-      currentPlayer: !!currentPlayer,
-      isSoloMode
-    });
-    
-    if (gameInitialized) {
-      console.log("Canvas: Already initialized, skipping");
-      return;
+    if (canvasRef.current) {
+      ctxRef.current = canvasRef.current.getContext("2d");
+      
+      // Focus canvas for keyboard controls
+      canvasRef.current.focus();
     }
     
-    if (gameLoopRef.current) {
-      cancelAnimationFrame(gameLoopRef.current);
-      gameLoopRef.current = null;
+    // Initialize bots for solo mode
+    if (isLocalMode) {
+      initSoloBots();
     }
-    
-    const shouldInitialize = isLocalMode ? !!localPlayer : 
-      (currentRoom?.status === 'playing' && !!currentPlayer);
-    
-    if (!shouldInitialize) {
-      console.log("Canvas: Not ready for initialization");
-      return;
-    }
-    
-    console.log("Canvas: Initializing synchronized game with bot support");
-    
-    const initializeGame = async () => {
-      let initialPlayers: Player[] = [];
-      
-      if (isLocalMode && localPlayer) {
-        console.log("Canvas: Setting up local player for solo mode:", isSoloMode);
-        initialPlayers = [{
-          ...localPlayer,
-          x: GAME_WIDTH / 2,
-          y: GAME_HEIGHT / 2,
-          isAlive: true,
-          size: 15
-        }];
-        playerRef.current = initialPlayers[0];
-        
-        if (localPlayer.nftImageUrl) {
-          preloadImage(localPlayer.nftImageUrl).catch(console.error);
-        }
-
-        // Generate local map
-        const localSeed = MapGenerator.generateSeed("local");
-        const localMap = MapGenerator.generateMap(localSeed);
-        setGameMap(localMap);
-        setFoods(localMap.foods);
-        setRugs(localMap.rugs);
-        
-        // Initialize bots for solo mode
-        if (isSoloMode) {
-          initSoloBots();
-        }
-        
-      } else if (currentRoom) {
-        console.log("Canvas: Initializing multiplayer game with shared seed");
-        
-        // Get shared game state and seed from database
-        const roomGameState = await GameStateService.getGameState(currentRoom.id);
-        if (roomGameState) {
-          console.log("Canvas: Using shared seed:", roomGameState.mapSeed);
-          setGameState(roomGameState);
-          
-          // Generate map from shared seed - all players use same map
-          const sharedMap = MapGenerator.generateMap(roomGameState.mapSeed);
-          setGameMap(sharedMap);
-          
-          // Filter out consumed foods
-          const availableFoods = sharedMap.foods.filter(food => 
-            !roomGameState.consumedFoods.includes(food.id)
-          );
-          setFoods(availableFoods);
-          setRugs(sharedMap.rugs);
-          
-          console.log(`Canvas: Shared map loaded with ${availableFoods.length}/${sharedMap.foods.length} foods`);
-          
-          // Initialize players with synchronized spawn points
-          initialPlayers = currentRoom.players.map((p, index) => {
-            const spawnPoint = MapGenerator.getSpawnPoint(sharedMap.spawnPoints, index);
-            console.log(`Canvas: Player ${p.name} spawning at:`, spawnPoint);
-            
-            return {
-              ...p,
-              x: spawnPoint.x,
-              y: spawnPoint.y,
-              isAlive: true,
-              size: 15
-            };
-          });
-          
-          const ourPlayer = initialPlayers.find(p => p.id === currentPlayer?.id);
-          if (ourPlayer) {
-            playerRef.current = ourPlayer;
-            console.log("Canvas: Our player initialized:", ourPlayer);
-            
-            // Sync spawn position to database immediately
-            const playerIndex = initialPlayers.findIndex(p => p.id === currentPlayer?.id);
-            if (playerIndex >= 0) {
-              console.log("Canvas: Syncing spawn position to database");
-              await GameStateService.syncPlayerSpawn(currentRoom.id, currentPlayer!.id, playerIndex);
-            }
-          }
-          
-          // Preload all players' NFT images
-          initialPlayers.forEach(player => {
-            if (player.nftImageUrl) {
-              preloadImage(player.nftImageUrl).catch(console.error);
-            }
-          });
-        }
-      }
-      
-      setPlayers(initialPlayers);
-      console.log("Canvas: Players initialized:", initialPlayers.length);
-      
-      // Initialize safe zone for Zone Battle mode
-      if (isZoneMode) {
-        const zone = initializeSafeZone();
-        setSafeZone(zone);
-        setGameStartTime(Date.now());
-        setLastDamageTime(Date.now());
-        console.log("Canvas: Zone Battle initialized with safe zone:", zone);
-      }
-      
-      // Center camera on player
-      if (playerRef.current) {
-        setCameraPosition({ x: playerRef.current.x, y: playerRef.current.y });
-        console.log("Canvas: Camera centered on player at:", playerRef.current.x, playerRef.current.y);
-      }
-
-      setGameInitialized(true);
-      console.log("Canvas: Game initialization completed successfully");
-    };
-
-    initializeGame();
-
-    return () => {
-      if (gameLoopRef.current) {
-        cancelAnimationFrame(gameLoopRef.current);
-        gameLoopRef.current = null;
-      }
-      
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-    };
-  }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized, roomId, isSoloMode, initSoloBots]);
-
-  // Mouse movement handler
-  useEffect(() => {
-    if (isMobile) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      updateMousePosition(e.clientX, e.clientY);
-    };
-    
-    window.addEventListener('mousemove', handleMouseMove);
     
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
+      cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [isMobile, updateMousePosition]);
+  }, [isLocalMode, initSoloBots]);
 
-  // Enhanced game loop with 50Hz synchronization support
+  // Update players state when external players change
   useEffect(() => {
-    if (!gameInitialized || !playerRef.current) {
-      console.log("Canvas: Game loop not ready");
-      return;
+    setPlayers(externalPlayers || {});
+  }, [externalPlayers]);
+
+  // Handle mouse movement
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    setMousePosition({ x, y });
+  }, []);
+
+  // Handle keyboard input
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    setKeysPressed(prev => ({ ...prev, [e.key]: true }));
+  }, []);
+
+  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+    setKeysPressed(prev => ({ ...prev, [e.key]: false }));
+  }, []);
+
+  // Handle touch direction changes
+  const handleTouchDirectionChange = useCallback((direction: { x: number; y: number } | null) => {
+    setTouchDirection(direction);
+  }, []);
+
+  // Update player movement based on input
+  const updatePlayerMovement = useCallback((deltaTime: number) => {
+    const currentPlayer = Object.values(players).find(p => p.isAlive);
+    if (!currentPlayer) return;
+
+    let targetX = currentPlayer.x;
+    let targetY = currentPlayer.y;
+    
+    // Handle keyboard input
+    if (Object.values(keysPressed).some(pressed => pressed)) {
+      const speed = computeSpeed(currentPlayer.size) * deltaTime;
+      if (keysPressed.w || keysPressed.ArrowUp) targetY -= speed;
+      if (keysPressed.s || keysPressed.ArrowDown) targetY += speed;
+      if (keysPressed.a || keysPressed.ArrowLeft) targetX -= speed;
+      if (keysPressed.d || keysPressed.ArrowRight) targetX += speed;
+      
+      setTargetPosition({ x: targetX, y: targetY });
+    }
+    // Handle mouse input
+    else if (mousePosition && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const worldX = mousePosition.x / camera.zoom + camera.x - canvas.width / (2 * camera.zoom);
+      const worldY = mousePosition.y / camera.zoom + camera.y - canvas.height / (2 * camera.zoom);
+      
+      setTargetPosition({ x: worldX, y: worldY });
+    }
+    // Handle touch input
+    else if (touchDirection) {
+      const speed = computeSpeed(currentPlayer.size) * deltaTime;
+      targetX += touchDirection.x * speed;
+      targetY += touchDirection.y * speed;
+      
+      setTargetPosition({ x: targetX, y: targetY });
     }
     
-    console.log("Canvas: Starting synchronized game loop with 50Hz support");
-    
-    const gameLoop = (timestamp: number) => {
-      const currentTime = Date.now();
+    // Move player towards target
+    if (targetPosition) {
+      const dx = targetPosition.x - currentPlayer.x;
+      const dy = targetPosition.y - currentPlayer.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
       
-      // Calculate proper delta time in seconds - optimized for 50Hz
-      let deltaInSeconds = 0.016; // Default to 60fps
-      if (lastTimestampRef.current > 0) {
-        deltaInSeconds = (timestamp - lastTimestampRef.current) / 1000;
-        deltaInSeconds = Math.min(deltaInSeconds, 0.033); // Cap at 30fps minimum
+      if (distance > 1) {
+        const speed = computeSpeed(currentPlayer.size) * deltaTime;
+        const moveX = (dx / distance) * speed;
+        const moveY = (dy / distance) * speed;
+        
+        const newX = Math.max(0, Math.min(WORLD_WIDTH, currentPlayer.x + moveX));
+        const newY = Math.max(0, Math.min(WORLD_HEIGHT, currentPlayer.y + moveY));
+        
+        setPlayers(prev => ({
+          ...prev,
+          [currentPlayer.id]: {
+            ...prev[currentPlayer.id],
+            x: newX,
+            y: newY,
+            velocityX: moveX / deltaTime,
+            velocityY: moveY / deltaTime
+          }
+        }));
       }
-      lastTimestampRef.current = timestamp;
-      
-      // Update bots in solo mode
-      if (isSoloMode) {
-        updateSoloBots(deltaInSeconds);
-      }
-      
-      // Zone Battle logic
-      if (isZoneMode && safeZone) {
-        setSafeZone(prevZone => {
-          if (!prevZone) return prevZone;
-          
-          let updatedZone = { ...prevZone };
-          
-          if (currentTime >= updatedZone.nextShrinkTime) {
-            const newRadius = updatedZone.currentRadius * (1 - updatedZone.shrinkPercentage);
-            updatedZone = {
-              ...updatedZone,
-              currentRadius: Math.max(50, newRadius),
-              nextShrinkTime: currentTime + updatedZone.shrinkInterval
-            };
-            console.log("Canvas: Zone shrunk to radius:", updatedZone.currentRadius);
-          }
-          
-          return updatedZone;
-        });
-      }
-      
-      setPlayers(prevPlayers => {
-        if (prevPlayers.length === 0) return prevPlayers;
-        
-        const ourPlayerIndex = prevPlayers.findIndex(p => 
-          p.id === playerRef.current?.id
-        );
-        
-        if (ourPlayerIndex === -1 || !prevPlayers[ourPlayerIndex].isAlive) {
-          return prevPlayers;
-        }
-        
-        const updatedPlayers = [...prevPlayers];
-        const me = updatedPlayers[ourPlayerIndex];
-        
-        // Zone Battle damage logic - MODIFIED: Allow size to reach 0
-        if (isZoneMode && safeZone && playerRef.current) {
-          const inZone = isPlayerInSafeZone(me, safeZone);
-          
-          if (!inZone && currentTime - lastDamageTime >= 1000) {
-            // Remove minimum size limit - allow size to reach 0
-            me.size -= safeZone.damagePerSecond;
-            setLastDamageTime(currentTime);
-            console.log("Canvas: Player took zone damage, size now:", me.size);
-            
-            // Check if player died from zone damage
-            if (me.size <= 0) {
-              me.isAlive = false;
-              me.size = 0; // Ensure size doesn't go negative
-              console.log("Canvas: Player died from zone damage");
-              
-              if (!gameOverCalled) {
-                setGameOverCalled(true);
-                onGameOver(null, 'zone'); // No winner, death by zone
-              }
-            }
-          }
-          
-          if (onZoneUpdate) {
-            onZoneUpdate(safeZone, inZone);
-          }
-        }
-        
-        // Only continue with movement and other logic if player is still alive
-        if (!me.isAlive) {
-          return updatedPlayers;
-        }
-        
-        // Movement logic with corrected speed system
-        const canvas = canvasRef.current;
-        if (canvas) {
-          const speedPixelsPerSecond = computeSpeed(me.size); // Using the correct Agar.io speed formula
-          
-          if (isMobile && mobileDirection) {
-            // Convert speed from px/s to px/frame using real delta
-            const frameSpeed = speedPixelsPerSecond * deltaInSeconds;
-            me.x += mobileDirection.x * frameSpeed;
-            me.y += mobileDirection.y * frameSpeed;
-          } else if (!isMobile) {
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            
-            const targetX = cameraPosition.x - (canvasWidth / 2 - mousePosition.x) / cameraZoom;
-            const targetY = cameraPosition.y - (canvasHeight / 2 - mousePosition.y) / cameraZoom;
-            
-            setLastTargetPosition({ x: targetX, y: targetY });
-            
-            const dx = targetX - me.x;
-            const dy = targetY - me.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance > 5) {
-              const directionX = dx / distance;
-              const directionY = dy / distance;
-              // Convert speed from px/s to px/frame using real delta
-              const frameSpeed = speedPixelsPerSecond * deltaInSeconds;
-              const actualSpeed = Math.min(frameSpeed, distance);
-              
-              me.x += directionX * actualSpeed;
-              me.y += directionY * actualSpeed;
-            }
-          }
-          
-          // Game boundaries
-          me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
-          me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
-        }
-        
-        // ENHANCED: 50Hz position sync for better multiplayer experience (20ms)
-        if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 20) {
-          setLastPositionSync(currentTime);
-          onPlayerPositionSync({
-            x: me.x,
-            y: me.y,
-            size: me.size
-          });
-        }
-        
-        // Food collision with sync
-        setFoods(prevFoods => {
-          const remainingFoods = prevFoods.filter(food => {
-            const dx = me.x - food.x;
-            const dy = me.y - food.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < me.size) {
-              me.size += FOOD_VALUE;
-              
-              // Sync food consumption
-              if (!isLocalMode) {
-                handleFoodConsumption(food.id);
-              }
-              
-              console.log(`Food ${food.id} consumed by ${me.name}`);
-              return false;
-            }
-            return true;
-          });
-          
-          // Respawn food only in local mode
-          if (isLocalMode && remainingFoods.length < gameMap!.foods.length / 2) {
-            const newFoodsCount = gameMap!.foods.length - remainingFoods.length;
-            const newFoods = Array(newFoodsCount).fill(0).map((_, index) => ({
-              id: `respawn_${Date.now()}_${index}`,
-              x: Math.random() * GAME_WIDTH,
-              y: Math.random() * GAME_HEIGHT,
-              size: FOOD_SIZE
-            }));
-            return [...remainingFoods, ...newFoods];
-          }
-          
-          return remainingFoods;
-        });
-        
-        // Rug collisions
-        setRugs(prevRugs => {
-          prevRugs.forEach(rug => {
-            const dx = me.x - rug.x;
-            const dy = me.y - rug.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < me.size + rug.size) {
-              me.size = Math.max(10, me.size - RUG_PENALTY);
-              
-              if (distance > 0) {
-                const pushFactor = Math.min(10, distance * 0.5);
-                me.x += (dx / distance) * pushFactor;
-                me.y += (dy / distance) * pushFactor;
-                
-                me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
-                me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
-              }
-            }
-          });
-          return prevRugs;
-        });
-        
-        // ENHANCED: Player collisions with proper elimination sync
-        if (!isLocalMode || isSoloMode) {
-          // Check collisions with other players
-          for (let i = 0; i < updatedPlayers.length; i++) {
-            if (i === ourPlayerIndex || !updatedPlayers[i].isAlive) continue;
-            
-            const otherPlayer = updatedPlayers[i];
-            const dx = me.x - otherPlayer.x;
-            const dy = me.y - otherPlayer.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < me.size + otherPlayer.size) {
-              if (me.size > otherPlayer.size * 1.2) {
-                // We eliminate the other player
-                console.log(`Canvas: ${me.name} eliminates ${otherPlayer.name}`);
-                handlePlayerElimination(otherPlayer, me);
-              } else if (otherPlayer.size > me.size * 1.2) {
-                // Other player eliminates us
-                console.log(`Canvas: ${otherPlayer.name} eliminates ${me.name}`);
-                handlePlayerElimination(me, otherPlayer);
-              } else {
-                // Push apart - no elimination
-                const angle = Math.atan2(dy, dx);
-                const pushDistance = Math.min(5, distance * 0.3);
-                me.x += Math.cos(angle) * pushDistance;
-                me.y += Math.sin(angle) * pushDistance;
-                
-                me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
-                me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
-              }
-            }
-          }
+    }
+  }, [players, targetPosition, mousePosition, keysPressed, touchDirection, camera]);
 
-          // Check collisions with bots in solo mode
-          if (isSoloMode) {
-            setBots(prevBots => {
-              return prevBots.map(bot => {
-                if (!bot.isAlive) return bot;
-                
-                const dx = me.x - bot.x;
-                const dy = me.y - bot.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                if (distance < me.size + bot.size) {
-                  if (me.size > bot.size * 1.2) {
-                    bot.isAlive = false;
-                    me.size += bot.size / 2;
-                    console.log(`Player eliminated bot ${bot.name}`);
-                  } else if (bot.size > me.size * 1.2) {
-                    me.isAlive = false;
-                    console.log(`Bot ${bot.name} eliminated player`);
-                    if (!gameOverCalled) {
-                      setGameOverCalled(true);
-                      onGameOver(bot);
-                    }
-                  } else {
-                    // Push apart
-                    const angle = Math.atan2(dy, dx);
-                    const pushDistance = Math.min(5, distance * 0.3);
-                    me.x += Math.cos(angle) * pushDistance;
-                    me.y += Math.sin(angle) * pushDistance;
-                    
-                    me.x = Math.max(me.size, Math.min(GAME_WIDTH - me.size, me.x));
-                    me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
-                  }
-                }
-                
-                return bot;
-              });
-            });
-          }
-        }
+  // Check collisions between player and food
+  const checkFoodCollisions = useCallback(() => {
+    const currentPlayer = Object.values(players).find(p => p.isAlive);
+    if (!currentPlayer) return;
+    
+    foods.forEach(food => {
+      const dx = currentPlayer.x - food.x;
+      const dy = currentPlayer.y - food.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const playerRadius = Math.sqrt(currentPlayer.size);
+      
+      if (distance < playerRadius + food.size) {
+        const oldSize = currentPlayer.size;
+        const newSize = currentPlayer.size + (food.value || 2);
         
-        // Update camera position to follow player
-        setCameraPosition(prev => ({
-          x: prev.x + (me.x - prev.x) * 0.1,
-          y: prev.y + (me.y - prev.y) * 0.1
+        setPlayers(prev => ({
+          ...prev,
+          [currentPlayer.id]: {
+            ...prev[currentPlayer.id],
+            size: newSize
+          }
         }));
         
-        // Update zoom based on player size with smooth transition
-        const targetZoom = calculateTargetZoom(me.size);
-        setCameraZoom(prev => {
-          return prev + (targetZoom - prev) * ZOOM_SMOOTH_FACTOR;
-        });
+        onCollectFood(food.id);
         
-        return updatedPlayers;
-      });
-      
-      gameLoopRef.current = requestAnimationFrame(gameLoop);
-    };
-    
-    gameLoopRef.current = requestAnimationFrame(gameLoop);
-    
-    return () => {
-      if (gameLoopRef.current) {
-        cancelAnimationFrame(gameLoopRef.current);
-        gameLoopRef.current = null;
-      }
-    };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver, calculateTargetZoom]);
-
-  // Optimized rendering with bot support
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const resizeCanvas = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-    };
-    
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    
-    // Optimized drawing with bots included
-    const renderCanvas = () => {
-      const context = canvas.getContext('2d');
-      if (!context) return;
-      
-      // Clear canvas with black background
-      context.fillStyle = "#000000";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Transform for camera position and zoom
-      context.save();
-      context.translate(canvas.width / 2, canvas.height / 2);
-      context.scale(cameraZoom, cameraZoom);
-      context.translate(-cameraPosition.x, -cameraPosition.y);
-      
-      // Draw game bounds
-      context.beginPath();
-      context.strokeStyle = '#444';
-      context.lineWidth = 4 / cameraZoom;
-      context.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-      
-      // Draw grid
-      context.beginPath();
-      context.strokeStyle = GRID_COLOR;
-      context.lineWidth = 1 / cameraZoom;
-      
-      for (let x = 0; x <= GAME_WIDTH; x += GRID_SIZE) {
-        context.moveTo(x, 0);
-        context.lineTo(x, GAME_HEIGHT);
-      }
-      
-      for (let y = 0; y <= GAME_HEIGHT; y += GRID_SIZE) {
-        context.moveTo(0, y);
-        context.lineTo(GAME_WIDTH, y);
-      }
-      
-      context.stroke();
-      
-      // Zone rendering
-      if (isZoneMode && safeZone && safeZone.isActive) {
-        context.beginPath();
-        context.strokeStyle = '#22c55e';
-        context.lineWidth = 3 / cameraZoom;
-        context.arc(safeZone.x, safeZone.y, safeZone.currentRadius, 0, Math.PI * 2);
-        context.stroke();
-        
-        context.beginPath();
-        context.strokeStyle = '#ef4444';
-        context.lineWidth = 6 / cameraZoom;
-        context.setLineDash([10 / cameraZoom, 10 / cameraZoom]);
-        context.arc(safeZone.x, safeZone.y, safeZone.currentRadius + 20, 0, Math.PI * 2);
-        context.stroke();
-        context.setLineDash([]);
-        
-        context.globalCompositeOperation = 'multiply';
-        context.fillStyle = 'rgba(239, 68, 68, 0.1)';
-        context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        
-        context.globalCompositeOperation = 'destination-out';
-        context.beginPath();
-        context.arc(safeZone.x, safeZone.y, safeZone.currentRadius, 0, Math.PI * 2);
-        context.fill();
-        
-        context.globalCompositeOperation = 'source-over';
-      }
-      
-      // Draw foods
-      foods.forEach(food => {
-        context.beginPath();
-        context.fillStyle = '#2ecc71';
-        context.arc(food.x, food.y, food.size, 0, Math.PI * 2);
-        context.fill();
-      });
-      
-      // Draw rugs
-      rugs.forEach(rug => {
-        context.beginPath();
-        context.fillStyle = '#8e44ad';
-        context.arc(rug.x, rug.y, rug.size, 0, Math.PI * 2);
-        context.fill();
-      });
-      
-      // Draw players - ENHANCED: Show dead players as semi-transparent
-      players.forEach(player => {
-        context.save();
-        
-        // Semi-transparent for dead players
-        if (!player.isAlive) {
-          context.globalAlpha = 0.3;
+        // Notify parent of score update
+        if (onScoreUpdate && newSize !== oldSize) {
+          onScoreUpdate(currentPlayer.id, newSize);
         }
-        
-        const hasNftImage = player.nftImageUrl && imageCache.has(player.nftImageUrl);
-        
-        if (hasNftImage) {
-          const img = imageCache.get(player.nftImageUrl!);
-          if (img) {
-            context.beginPath();
-            context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-            context.clip();
-            
-            const imageSize = player.size * 2;
-            context.drawImage(
-              img,
-              player.x - player.size,
-              player.y - player.size,
-              imageSize,
-              imageSize
-            );
-            
-            context.restore();
-            context.save();
-            
-            // Semi-transparent for dead players
-            if (!player.isAlive) {
-              context.globalAlpha = 0.3;
+      }
+    });
+  }, [players, foods, onCollectFood, onScoreUpdate]);
+
+  // Check collisions between player and other players
+  const checkPlayerCollisions = useCallback(() => {
+    const currentPlayer = Object.values(players).find(p => p.isAlive);
+    if (!currentPlayer) return;
+    
+    Object.values(players).forEach(otherPlayer => {
+      if (otherPlayer.id === currentPlayer.id || !otherPlayer.isAlive) return;
+      
+      const dx = currentPlayer.x - otherPlayer.x;
+      const dy = currentPlayer.y - otherPlayer.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const playerRadius = Math.sqrt(currentPlayer.size);
+      const otherRadius = Math.sqrt(otherPlayer.size);
+      
+      if (distance < (playerRadius + otherRadius) * 0.8) {
+        if (currentPlayer.size > otherPlayer.size * 1.1) {
+          const oldSize = currentPlayer.size;
+          const newSize = currentPlayer.size + otherPlayer.size * 0.5;
+          
+          setPlayers(prev => ({
+            ...prev,
+            [currentPlayer.id]: {
+              ...prev[currentPlayer.id],
+              size: newSize
             }
-            
-            context.beginPath();
-            context.strokeStyle = player.isAlive ? '#ffffff' : '#ff0000';
-            context.lineWidth = 2 / cameraZoom;
-            context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-            context.stroke();
+          }));
+          
+          onCollision(currentPlayer.id, otherPlayer.id);
+          
+          // Notify parent of score update
+          if (onScoreUpdate && newSize !== oldSize) {
+            onScoreUpdate(currentPlayer.id, newSize);
           }
-        } else {
-          context.beginPath();
-          context.fillStyle = player.isAlive ? `#${getColorHex(player.color)}` : '#666666';
-          context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-          context.fill();
         }
+      }
+    });
+    
+    // Check collisions with bots in local mode
+    if (isLocalMode) {
+      Object.values(bots).forEach(bot => {
+        if (!bot.isAlive) return;
         
-        context.font = `${14 / cameraZoom}px Arial`;
-        context.fillStyle = player.isAlive ? '#fff' : '#999';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.strokeStyle = '#000';
-        context.lineWidth = 3 / cameraZoom;
-        const playerLabel = `${player.name} (${Math.round(player.size)})${!player.isAlive ? ' [DEAD]' : ''}`;
-        context.strokeText(playerLabel, player.x, player.y);
-        context.fillText(playerLabel, player.x, player.y);
+        const dx = currentPlayer.x - bot.x;
+        const dy = currentPlayer.y - bot.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const playerRadius = Math.sqrt(currentPlayer.size);
+        const botRadius = Math.sqrt(bot.size);
         
-        context.restore();
+        if (distance < (playerRadius + botRadius) * 0.8) {
+          if (currentPlayer.size > bot.size * 1.1) {
+            const oldSize = currentPlayer.size;
+            const newSize = currentPlayer.size + bot.size * 0.5;
+            
+            setPlayers(prev => ({
+              ...prev,
+              [currentPlayer.id]: {
+                ...prev[currentPlayer.id],
+                size: newSize
+              }
+            }));
+            
+            setBots(prev => ({
+              ...prev,
+              [bot.id]: {
+                ...prev[bot.id],
+                isAlive: false
+              }
+            }));
+            
+            // Notify parent of score update
+            if (onScoreUpdate && newSize !== oldSize) {
+              onScoreUpdate(currentPlayer.id, newSize);
+            }
+          } else if (bot.size > currentPlayer.size * 1.1) {
+            // Player gets eaten by bot
+            setPlayers(prev => ({
+              ...prev,
+              [currentPlayer.id]: {
+                ...prev[currentPlayer.id],
+                isAlive: false
+              }
+            }));
+            
+            const oldBotSize = bot.size;
+            const newBotSize = bot.size + currentPlayer.size * 0.5;
+            
+            setBots(prev => ({
+              ...prev,
+              [bot.id]: {
+                ...prev[bot.id],
+                size: newBotSize
+              }
+            }));
+            
+            // Notify parent of bot score update
+            if (onScoreUpdate && newBotSize !== oldBotSize) {
+              onScoreUpdate(bot.id, newBotSize);
+            }
+          }
+        }
       });
+    }
+  }, [players, bots, isLocalMode, onCollision, onScoreUpdate]);
+
+  // Check collisions between player and rugs
+  const checkRugCollisions = useCallback(() => {
+    const currentPlayer = Object.values(players).find(p => p.isAlive);
+    if (!currentPlayer) return;
+    
+    rugs.forEach(rug => {
+      const dx = currentPlayer.x - rug.x;
+      const dy = currentPlayer.y - rug.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const playerRadius = Math.sqrt(currentPlayer.size);
       
-      // Draw bots in solo mode
-      if (isSoloMode) {
-        bots.forEach(bot => {
-          if (!bot.isAlive) return;
-          
-          context.save();
-          
-          // Draw bot with a slightly different style (glowing border)
-          context.beginPath();
-          context.fillStyle = `#${getColorHex(bot.color)}`;
-          context.arc(bot.x, bot.y, bot.size, 0, Math.PI * 2);
-          context.fill();
-          
-          // Add bot glow effect
-          context.beginPath();
-          context.strokeStyle = '#ffff00';
-          context.lineWidth = 2 / cameraZoom;
-          context.arc(bot.x, bot.y, bot.size, 0, Math.PI * 2);
-          context.stroke();
-          
-          // Bot name with [BOT] prefix
-          context.font = `${12 / cameraZoom}px Arial`;
-          context.fillStyle = '#fff';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          context.strokeStyle = '#000';
-          context.lineWidth = 2 / cameraZoom;
-          const botLabel = `[BOT] ${bot.name} (${Math.round(bot.size)})`;
-          context.strokeText(botLabel, bot.x, bot.y);
-          context.fillText(botLabel, bot.x, bot.y);
-          
-          context.restore();
-        });
+      if (distance < playerRadius + rug.size) {
+        // Player touched a rug, reduce size
+        const newSize = Math.max(10, currentPlayer.size * 0.9);
+        
+        setPlayers(prev => ({
+          ...prev,
+          [currentPlayer.id]: {
+            ...prev[currentPlayer.id],
+            size: newSize
+          }
+        }));
+        
+        // Notify parent of score update
+        if (onScoreUpdate) {
+          onScoreUpdate(currentPlayer.id, newSize);
+        }
+      }
+    });
+  }, [players, rugs, onScoreUpdate]);
+
+  // Check if player is in safe zone
+  const checkSafeZone = useCallback(() => {
+    if (!safeZone || !safeZone.isActive) {
+      setIsPlayerInZone(true);
+      return;
+    }
+    
+    const currentPlayer = Object.values(players).find(p => p.isAlive);
+    if (!currentPlayer) return;
+    
+    const dx = currentPlayer.x - safeZone.x;
+    const dy = currentPlayer.y - safeZone.y;
+    const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+    const isInZone = distanceFromCenter <= safeZone.currentRadius;
+    
+    setIsPlayerInZone(isInZone);
+    
+    // Apply damage if outside zone
+    if (!isInZone) {
+      const newSize = Math.max(5, currentPlayer.size - safeZone.damagePerSecond * 0.016);
+      
+      if (newSize <= 5) {
+        // Player died from zone damage
+        setPlayers(prev => ({
+          ...prev,
+          [currentPlayer.id]: {
+            ...prev[currentPlayer.id],
+            isAlive: false,
+            size: 5
+          }
+        }));
+      } else {
+        setPlayers(prev => ({
+          ...prev,
+          [currentPlayer.id]: {
+            ...prev[currentPlayer.id],
+            size: newSize
+          }
+        }));
+        
+        // Notify parent of score update
+        if (onScoreUpdate) {
+          onScoreUpdate(currentPlayer.id, newSize);
+        }
+      }
+    }
+  }, [players, safeZone, onScoreUpdate]);
+
+  // Update camera position to follow player
+  const updateCamera = useCallback(() => {
+    const currentPlayer = Object.values(players).find(p => p.isAlive);
+    if (!currentPlayer || !canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    
+    // Calculate zoom based on player size
+    const baseZoom = Math.min(canvas.width, canvas.height) / 1000;
+    const sizeZoom = 1 / Math.sqrt(currentPlayer.size / 15);
+    const targetZoom = baseZoom * Math.min(1.5, Math.max(0.5, sizeZoom));
+    
+    // Smooth camera movement
+    const smoothing = 0.1;
+    const newZoom = camera.zoom + (targetZoom - camera.zoom) * smoothing;
+    const newX = currentPlayer.x;
+    const newY = currentPlayer.y;
+    
+    setCamera({
+      x: newX,
+      y: newY,
+      zoom: newZoom
+    });
+  }, [players, camera]);
+
+  // Enhanced render function that combines players and bots
+  const renderGame = useCallback(() => {
+    if (!canvasRef.current || !ctxRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw background grid
+    ctx.save();
+    ctx.fillStyle = "#111827";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Apply camera transformation
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
+    
+    // Draw grid
+    ctx.beginPath();
+    ctx.strokeStyle = "#1f2937";
+    ctx.lineWidth = 1 / camera.zoom;
+    
+    const gridSize = 100;
+    const startX = Math.floor((camera.x - canvas.width / (2 * camera.zoom)) / gridSize) * gridSize;
+    const startY = Math.floor((camera.y - canvas.height / (2 * camera.zoom)) / gridSize) * gridSize;
+    const endX = Math.ceil((camera.x + canvas.width / (2 * camera.zoom)) / gridSize) * gridSize;
+    const endY = Math.ceil((camera.y + canvas.height / (2 * camera.zoom)) / gridSize) * gridSize;
+    
+    for (let x = startX; x <= endX; x += gridSize) {
+      ctx.moveTo(x, startY);
+      ctx.lineTo(x, endY);
+    }
+    
+    for (let y = startY; y <= endY; y += gridSize) {
+      ctx.moveTo(startX, y);
+      ctx.lineTo(endX, y);
+    }
+    
+    ctx.stroke();
+
+    // Combine players and bots for rendering
+    const allPlayers = { ...players, ...bots };
+    
+    // Draw world boundaries
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 2 / camera.zoom;
+    ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    
+    // Draw safe zone if active
+    if (safeZone && safeZone.isActive) {
+      ctx.beginPath();
+      ctx.arc(safeZone.x, safeZone.y, safeZone.currentRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = isPlayerInZone ? "rgba(0, 255, 0, 0.8)" : "rgba(255, 0, 0, 0.8)";
+      ctx.lineWidth = 3 / camera.zoom;
+      ctx.stroke();
+      
+      // Draw zone fill
+      ctx.fillStyle = isPlayerInZone ? "rgba(0, 255, 0, 0.1)" : "rgba(255, 0, 0, 0.1)";
+      ctx.fill();
+      
+      // Draw danger zone
+      ctx.beginPath();
+      ctx.arc(safeZone.x, safeZone.y, safeZone.maxRadius, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+      ctx.fill();
+    }
+    
+    // Draw foods
+    foods.forEach(food => {
+      ctx.beginPath();
+      ctx.arc(food.x, food.y, food.size, 0, Math.PI * 2);
+      ctx.fillStyle = "#4ade80";
+      ctx.fill();
+    });
+    
+    // Draw rugs
+    rugs.forEach(rug => {
+      ctx.beginPath();
+      ctx.arc(rug.x, rug.y, rug.size, 0, Math.PI * 2);
+      ctx.fillStyle = "#a855f7";
+      ctx.fill();
+      
+      // Draw rug pattern
+      ctx.beginPath();
+      ctx.arc(rug.x, rug.y, rug.size * 0.7, 0, Math.PI * 2);
+      ctx.fillStyle = "#7e22ce";
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.arc(rug.x, rug.y, rug.size * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = "#581c87";
+      ctx.fill();
+    });
+
+    // Render all players (including bots)
+    Object.values(allPlayers).forEach(player => {
+      if (!player.isAlive) return;
+      
+      const radius = Math.sqrt(player.size);
+      
+      // Draw player circle
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
+      
+      // Use player color or default to blue
+      let fillColor = "#3b82f6";
+      switch (player.color) {
+        case "red": fillColor = "#ef4444"; break;
+        case "green": fillColor = "#10b981"; break;
+        case "blue": fillColor = "#3b82f6"; break;
+        case "yellow": fillColor = "#f59e0b"; break;
+        case "purple": fillColor = "#8b5cf6"; break;
+        case "orange": fillColor = "#f97316"; break;
+        case "cyan": fillColor = "#06b6d4"; break;
+        case "pink": fillColor = "#ec4899"; break;
       }
       
-      context.restore();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
       
-      animationFrameRef.current = requestAnimationFrame(renderCanvas);
+      // Draw player name
+      if (player.name) {
+        ctx.font = `${14 / camera.zoom}px Arial`;
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.fillText(player.name, player.x, player.y - radius - 5 / camera.zoom);
+      }
+    });
+    
+    ctx.restore();
+  }, [players, bots, foods, rugs, camera, safeZone, isPlayerInZone]);
+
+  // Game loop
+  useEffect(() => {
+    const gameLoop = (timestamp: number) => {
+      const now = Date.now();
+      const deltaTime = Math.min(0.05, (now - lastUpdateTime) / 1000); // Cap at 50ms to prevent large jumps
+      
+      updatePlayerMovement(deltaTime);
+      checkFoodCollisions();
+      checkPlayerCollisions();
+      checkRugCollisions();
+      
+      if (isZoneMode && safeZone) {
+        checkSafeZone();
+      }
+      
+      updateCamera();
+      
+      // Update bots in local mode
+      if (isLocalMode) {
+        updateSoloBots(deltaTime);
+      }
+      
+      renderGame();
+      
+      setLastUpdateTime(now);
+      animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
     
-    animationFrameRef.current = requestAnimationFrame(renderCanvas);
+    animationFrameRef.current = requestAnimationFrame(gameLoop);
     
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
+      cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [players, bots, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone, imageCache, isSoloMode]);
-
-  const getColorHex = (color: string): string => {
-    const colorMap: Record<string, string> = {
-      blue: '3498db',
-      red: 'e74c3c',
-      green: '2ecc71',
-      yellow: 'f1c40f',
-      purple: '9b59b6',
-      orange: 'e67e22',
-      cyan: '1abc9c',
-      pink: 'fd79a8'
-    };
-    return colorMap[color] || '3498db';
-  };
+  }, [
+    lastUpdateTime, 
+    updatePlayerMovement, 
+    checkFoodCollisions, 
+    checkPlayerCollisions, 
+    checkRugCollisions, 
+    checkSafeZone, 
+    updateCamera, 
+    renderGame, 
+    isZoneMode, 
+    safeZone, 
+    isLocalMode, 
+    updateSoloBots
+  ]);
 
   return (
-    <canvas 
-      ref={canvasRef} 
-      className="w-full h-full bg-black"
-      style={{ touchAction: 'none' }}
-    />
+    <div className="relative w-full h-full overflow-hidden bg-gray-900">
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={600}
+        className="w-full h-full cursor-none"
+        onMouseMove={handleMouseMove}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
+        tabIndex={0}
+        style={{ outline: 'none' }}
+      />
+      {isMobile && (
+        <TouchControlArea onDirectionChange={handleTouchDirectionChange} />
+      )}
+      {safeZone && safeZone.isActive && !isPlayerInZone && (
+        <div className="absolute top-1/4 left-0 right-0 text-center pointer-events-none">
+          <div className="inline-block bg-red-500/80 text-white px-4 py-2 rounded-full animate-pulse">
+            ⚠️ ZONE DANGER! ⚠️
+          </div>
+        </div>
+      )}
+    </div>
   );
-});
-
-Canvas.displayName = 'Canvas';
+};
 
 export default Canvas;
