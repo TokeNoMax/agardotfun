@@ -36,6 +36,8 @@ export const siwsService = {
     walletAddress: string
   ): Promise<SIWSVerification> {
     console.log("Verifying SIWS signature for:", walletAddress);
+    console.log("Nonce:", nonce);
+    console.log("Signature length:", signature.length);
     
     const { data, error } = await supabase.functions.invoke('siws-verify', {
       body: { 
