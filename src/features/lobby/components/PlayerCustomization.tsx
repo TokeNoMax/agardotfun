@@ -1,132 +1,163 @@
 
-import { useState } from "react";
-import { useGame } from "@/context/GameContext";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Palette, User, Shuffle } from "lucide-react";
-import { generateName } from "@/utils/nameGenerator";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useGame } from "@/context/GameContext";
 import { generateColor } from "@/utils/colorGenerator";
+import WalletButton from "@/features/wallet/components/WalletButton";
+import { Palette, User, Shuffle } from "lucide-react";
 
 export default function PlayerCustomization() {
-  const { player, updatePlayerName, updatePlayerColor } = useGame();
+  const { player, setPlayer } = useGame();
   const [tempName, setTempName] = useState(player?.name || "");
-  const [tempColor, setTempColor] = useState(player?.color || "#00FF00");
 
-  const handleUpdateName = () => {
+  const updatePlayerName = (name: string) => {
+    if (player) {
+      setPlayer({ ...player, name });
+    }
+  };
+
+  const updatePlayerColor = (color: string) => {
+    if (player) {
+      setPlayer({ ...player, color });
+    }
+  };
+
+  const handleNameUpdate = () => {
     if (tempName.trim()) {
       updatePlayerName(tempName.trim());
     }
   };
 
-  const handleUpdateColor = (color: string) => {
-    setTempColor(color);
-    updatePlayerColor(color);
-  };
-
-  const handleRandomName = () => {
-    const randomName = generateName();
-    setTempName(randomName);
-    updatePlayerName(randomName);
-  };
-
   const handleRandomColor = () => {
-    const randomColor = generateColor();
-    handleUpdateColor(randomColor);
+    const newColor = generateColor();
+    updatePlayerColor(newColor);
   };
 
-  const predefinedColors = [
-    "#FF0000", "#00FF00", "#0000FF", "#FFFF00", 
-    "#FF00FF", "#00FFFF", "#FFA500", "#800080"
+  const colorOptions = [
+    { name: 'blue', hex: '#3498db' },
+    { name: 'red', hex: '#e74c3c' },
+    { name: 'green', hex: '#2ecc71' },
+    { name: 'yellow', hex: '#f1c40f' },
+    { name: 'purple', hex: '#9b59b6' },
+    { name: 'orange', hex: '#e67e22' },
+    { name: 'cyan', hex: '#1abc9c' },
+    { name: 'pink', hex: '#fd79a8' }
   ];
 
+  if (!player) {
+    return (
+      <Card className="w-full max-w-md mx-auto bg-black/90 backdrop-blur-sm border-cyber-cyan/50">
+        <CardHeader>
+          <CardTitle className="text-center text-cyber-cyan font-mono">
+            CONNECT_WALLET
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-center">
+          <p className="text-gray-400 mb-4 font-mono text-sm">
+            Connectez votre wallet pour personnaliser votre profil
+          </p>
+          <WalletButton />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="w-full max-w-md bg-black/90 backdrop-blur-sm rounded-lg border-2 border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)] p-6">
-      <h2 className="text-xl font-bold text-cyber-cyan mb-4 font-mono">PLAYER_CONFIG</h2>
-      
-      <div className="space-y-4">
-        {/* Name Configuration */}
-        <div>
-          <Label htmlFor="player-name" className="text-cyber-cyan font-mono text-sm">
+    <Card className="w-full max-w-md mx-auto bg-black/90 backdrop-blur-sm border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+      <CardHeader>
+        <CardTitle className="text-center text-cyber-cyan font-mono flex items-center justify-center gap-2">
+          <User className="w-5 h-5" />
+          PLAYER_CUSTOMIZATION
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Player Preview */}
+        <div className="text-center">
+          <div 
+            className="w-20 h-20 rounded-full mx-auto mb-3 flex items-center justify-center text-white font-bold text-2xl shadow-lg"
+            style={{ backgroundColor: colorOptions.find(c => c.name === player.color)?.hex || '#3498db' }}
+          >
+            {player.name ? player.name.substring(0, 2).toUpperCase() : 'P'}
+          </div>
+          <p className="text-cyber-cyan font-mono text-sm">
+            {player.name || 'Unnamed Player'}
+          </p>
+        </div>
+
+        {/* Name Input */}
+        <div className="space-y-2">
+          <Label htmlFor="player-name" className="text-cyber-green font-mono">
             PLAYER_NAME
           </Label>
-          <div className="flex gap-2 mt-1">
+          <div className="flex gap-2">
             <Input
               id="player-name"
+              type="text"
               value={tempName}
               onChange={(e) => setTempName(e.target.value)}
-              onBlur={handleUpdateName}
-              onKeyDown={(e) => e.key === 'Enter' && handleUpdateName()}
-              placeholder="Entrez votre nom"
-              className="bg-black/50 border-cyber-cyan/30 text-cyber-cyan font-mono"
+              placeholder="Entrez votre nom..."
+              className="bg-black/50 border-cyber-green/50 text-white font-mono"
+              maxLength={20}
             />
-            <Button
-              onClick={handleRandomName}
-              variant="outline"
-              size="icon"
-              className="text-cyber-cyan border-cyber-cyan/30 hover:bg-cyber-cyan/10"
-              title="Nom aléatoire"
+            <Button 
+              onClick={handleNameUpdate}
+              className="bg-cyber-green text-black hover:bg-cyber-green/80 font-mono font-bold"
             >
-              <Shuffle className="h-4 w-4" />
+              SET
             </Button>
           </div>
         </div>
 
-        {/* Color Configuration */}
-        <div>
-          <Label className="text-cyber-cyan font-mono text-sm">PLAYER_COLOR</Label>
-          <div className="flex gap-2 mt-2 flex-wrap">
-            {predefinedColors.map((color) => (
-              <button
-                key={color}
-                onClick={() => handleUpdateColor(color)}
-                className={`w-8 h-8 rounded-full border-2 transition-all duration-200 ${
-                  tempColor === color 
-                    ? 'border-cyber-cyan shadow-[0_0_10px_rgba(0,255,255,0.5)]' 
-                    : 'border-gray-500 hover:border-cyber-cyan/50'
-                }`}
-                style={{ backgroundColor: color }}
-              />
-            ))}
+        {/* Color Selection */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-cyber-purple font-mono">
+              PLAYER_COLOR
+            </Label>
             <Button
               onClick={handleRandomColor}
               variant="outline"
-              size="icon"
-              className="w-8 h-8 text-cyber-cyan border-cyber-cyan/30 hover:bg-cyber-cyan/10"
-              title="Couleur aléatoire"
+              size="sm"
+              className="border-cyber-purple/50 text-cyber-purple hover:bg-cyber-purple/10 font-mono"
             >
-              <Palette className="h-3 w-3" />
+              <Shuffle className="w-4 h-4 mr-1" />
+              RANDOM
             </Button>
           </div>
-        </div>
-
-        {/* Player Preview */}
-        <div className="border border-cyber-cyan/30 rounded-lg p-3 bg-black/30">
-          <p className="text-xs text-gray-400 font-mono mb-2">PREVIEW:</p>
-          <div className="flex items-center gap-2">
-            <div 
-              className="w-6 h-6 rounded-full border border-cyber-cyan/50"
-              style={{ backgroundColor: tempColor }}
-            />
-            <span className="text-cyber-cyan font-mono text-sm">
-              {tempName || "Anonymous"}
-            </span>
+          
+          <div className="grid grid-cols-4 gap-2">
+            {colorOptions.map((color) => (
+              <button
+                key={color.name}
+                onClick={() => updatePlayerColor(color.name)}
+                className={`w-12 h-12 rounded-full border-2 transition-all hover:scale-110 ${
+                  player.color === color.name 
+                    ? 'border-white shadow-lg shadow-white/50' 
+                    : 'border-gray-600 hover:border-gray-400'
+                }`}
+                style={{ backgroundColor: color.hex }}
+                title={color.name}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Player Status */}
-        <div className="text-center">
-          {player ? (
-            <p className="text-cyber-green text-sm font-mono">
-              ✓ PLAYER_READY
-            </p>
-          ) : (
-            <p className="text-cyber-yellow text-sm font-mono">
-              ⚠ CONFIGURATION_REQUIRED
-            </p>
-          )}
+        {/* Player Stats Preview */}
+        <div className="bg-black/50 rounded-lg p-3 border border-cyber-cyan/30">
+          <div className="flex items-center gap-2 mb-2">
+            <Palette className="w-4 h-4 text-cyber-cyan" />
+            <span className="text-cyber-cyan font-mono text-sm">PROFILE_PREVIEW</span>
+          </div>
+          <div className="text-xs font-mono space-y-1 text-gray-300">
+            <div>Name: <span className="text-cyber-green">{player.name || 'Not set'}</span></div>
+            <div>Color: <span className="text-cyber-purple">{player.color || 'blue'}</span></div>
+            <div>Wallet: <span className="text-cyber-cyan">{player.walletAddress?.slice(0, 6)}...{player.walletAddress?.slice(-4)}</span></div>
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

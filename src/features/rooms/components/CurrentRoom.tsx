@@ -1,162 +1,171 @@
 
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useGame } from "@/context/GameContext";
+import { useNavigate } from "react-router-dom";
+import { Users, Play, LogOut, Crown, Target } from "lucide-react";
 import { GameRoom } from "@/types/game";
-import { Zap, Users, Play, LogOut } from "lucide-react";
-import GhostRoomDetector from "./GhostRoomDetector";
+import { useToast } from "@/hooks/use-toast";
 
 interface CurrentRoomProps {
   currentRoom: GameRoom;
-  countdown: number | null;
-  gameStarting: boolean;
-  handleToggleReady: () => Promise<void>;
-  handleStartGame: () => Promise<void>;
-  handleLeaveRoom: () => Promise<void>;
-  handleJoinGame: () => void;
-  handleJoinRoom: (roomId: string) => Promise<void>;
-  isCurrentPlayerReady: () => boolean;
-  isCurrentPlayerInRoom: () => boolean;
+  playerId: string;
 }
 
-export default function CurrentRoom({
-  currentRoom,
-  countdown,
-  gameStarting,
-  handleToggleReady,
-  handleStartGame,
-  handleLeaveRoom,
-  handleJoinGame,
-  handleJoinRoom,
-  isCurrentPlayerReady,
-  isCurrentPlayerInRoom
-}: CurrentRoomProps) {
-  const { player } = useGame();
-  
-  // FIXED: Improved game mode display
-  const getGameModeDisplay = (gameMode?: string) => {
-    console.log("CurrentRoom - Game mode:", gameMode);
+export default function CurrentRoom({ currentRoom, playerId }: CurrentRoomProps) {
+  const { leaveRoom, refreshCurrentRoom } = useGame();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshCurrentRoom();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [refreshCurrentRoom]);
+
+  const handleStartGame = () => {
+    if (currentRoom.players.length < 2) {
+      toast({
+        title: "Pas assez de joueurs",
+        description: "Il faut au moins 2 joueurs pour commencer une partie.",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    const normalizedMode = gameMode?.toLowerCase().trim();
-    
-    switch (normalizedMode) {
-      case 'battle_royale':
-        return { text: 'BATTLE_ROYALE', color: 'text-cyber-purple' };
-      case 'classic':
-        return { text: 'CLASSIC', color: 'text-cyber-green' };
-      default:
-        console.warn("CurrentRoom - Unknown game mode:", gameMode);
-        return { text: 'CLASSIC', color: 'text-cyber-green' };
+    navigate(`/game/${currentRoom.id}`);
+  };
+
+  const handleLeaveRoom = async () => {
+    try {
+      await leaveRoom();
+      toast({
+        title: "Salle quittée",
+        description: "Vous avez quitté la salle avec succès.",
+      });
+    } catch (error) {
+      console.error("Error leaving room:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de quitter la salle.",
+        variant: "destructive",
+      });
     }
   };
-  
-  const modeInfo = getGameModeDisplay(currentRoom.gameMode);
-  
+
+  const getGameModeInfo = (gameMode?: string) => {
+    switch (gameMode) {
+      case 'battle_royale':
+        return {
+          icon: <Crown className="w-4 h-4" />,
+          label: "BATTLE ROYALE",
+          description: "Zone mortelle qui rétrécit",
+          className: "bg-gradient-to-r from-cyber-purple to-cyber-magenta text-white"
+        };
+      default:
+        return {
+          icon: <Target className="w-4 h-4" />,
+          label: "CLASSIC",
+          description: "Mode classique",
+          className: "bg-gradient-to-r from-cyber-green to-cyber-cyan text-black"
+        };
+    }
+  };
+
+  const modeInfo = getGameModeInfo(currentRoom.gameMode);
+
   return (
-    <div className="relative mb-6">
-      {/* Ghost Room Detector */}
-      {player && currentRoom && (
-        <GhostRoomDetector 
-          currentRoom={currentRoom} 
-          playerId={player.id} 
-        />
-      )}
-      
-      <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
-      <div className="relative bg-black/80 backdrop-blur-sm border-2 border-cyber-cyan/50 rounded-lg p-6 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h3 className="text-2xl font-bold text-cyber-cyan font-mono mb-2">{currentRoom.name}</h3>
-            <p className="text-gray-300 font-mono">
-              <Users className="inline h-4 w-4 mr-1" />
-              {currentRoom.players && currentRoom.players.length}/{currentRoom.maxPlayers} nodes • 
-              <span className={`ml-2 ${
-                currentRoom.status === 'waiting' ? 'text-cyber-yellow' : 
-                currentRoom.status === 'playing' ? 'text-cyber-green' : 'text-gray-400'
-              }`}>
-                {currentRoom.status === 'waiting' ? 'WAITING' : currentRoom.status === 'playing' ? 'PLAYING' : 'FINISHED'}
-              </span>
-              {/* FIXED: Single game mode display */}
-              <span className={`ml-2 ${modeInfo.color} font-bold`}>
-                • {modeInfo.text}
-              </span>
-            </p>
-            {countdown !== null && (
-              <p className="text-lg font-bold text-cyber-green mt-2 animate-pulse font-mono">
-                GAME_START_IN {countdown} seconds...
-              </p>
-            )}
-            {gameStarting && (
-              <p className="text-lg font-bold text-cyber-green mt-2 font-mono animate-pulse">
-                🚀 LAUNCHING_GAME... Navigation automatique en cours !
-              </p>
-            )}
-            <div className="mt-4">
-              <p className="text-sm font-medium text-cyber-cyan font-mono mb-2">CONNECTED_NODES:</p>
-              <div className="flex flex-wrap gap-2">
-                {currentRoom.players && currentRoom.players.map(player => (
-                  <span 
-                    key={player.id} 
-                    className={`px-3 py-1 rounded-full text-sm font-mono border ${
-                      player.isReady 
-                        ? 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' 
-                        : 'bg-black/50 border-cyber-cyan/30 text-gray-300'
-                    }`}
-                  >
-                    {player.name} {player.isReady ? '✓' : '○'}
-                  </span>
-                ))}
-              </div>
-            </div>
+    <Card className="w-full bg-black/90 backdrop-blur-sm border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-cyber-cyan font-mono flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            {currentRoom.name}
+          </CardTitle>
+          <Badge className={`font-mono font-bold ${modeInfo.className}`}>
+            {modeInfo.icon}
+            {modeInfo.label}
+          </Badge>
+        </div>
+        <p className="text-sm text-gray-400 font-mono">
+          {modeInfo.description}
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-cyber-green font-mono">PLAYERS</span>
+            <span className="text-cyber-cyan font-mono">
+              {currentRoom.players.length}/{currentRoom.maxPlayers}
+            </span>
           </div>
-          <div className="flex flex-col gap-3 min-w-[200px]">
-            {isCurrentPlayerInRoom() ? (
-              <>
-                <Button 
-                  onClick={handleToggleReady}
-                  className={`w-full font-mono font-bold ${
-                    isCurrentPlayerReady() 
-                      ? "bg-cyber-yellow/20 text-cyber-yellow border border-cyber-yellow/50 hover:bg-cyber-yellow/30" 
-                      : "bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black border border-cyber-green/50"
-                  }`}
-                  variant={isCurrentPlayerReady() ? "outline" : "default"}
-                  disabled={gameStarting}
-                >
-                  <Zap className="mr-2 h-4 w-4" />
-                  {isCurrentPlayerReady() ? "CANCEL_READY" : "SET_READY"}
-                </Button>
-                
-                <Button 
-                  onClick={handleStartGame}
-                  disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
-                  className="w-full bg-gradient-to-r from-cyber-magenta to-cyber-purple hover:from-cyber-purple hover:to-cyber-magenta text-white font-mono font-bold border border-cyber-magenta/50"
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  {gameStarting ? "LAUNCHING..." : "START_GAME"}
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  onClick={handleLeaveRoom}
-                  className="w-full font-mono font-bold text-cyber-magenta border-cyber-magenta/50 hover:bg-cyber-magenta/10 hover:border-cyber-magenta"
-                  disabled={gameStarting}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  LEAVE_ROOM
-                </Button>
-              </>
-            ) : (
-              <Button 
-                onClick={() => handleJoinRoom(currentRoom.id)}
-                disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
-                className="w-full bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold border border-cyber-cyan/50"
+          
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {currentRoom.players.map((player, index) => (
+              <div 
+                key={player.id} 
+                className={`flex items-center gap-3 p-2 rounded ${
+                  player.id === playerId 
+                    ? 'bg-cyber-cyan/20 border border-cyber-cyan/50' 
+                    : 'bg-gray-800/50'
+                }`}
               >
-                <Users className="mr-2 h-4 w-4" />
-                JOIN_ROOM
-              </Button>
-            )}
+                <div 
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                  style={{ backgroundColor: `#${getColorHex(player.color)}` }}
+                >
+                  {player.name ? player.name.substring(0, 2).toUpperCase() : '??'}
+                </div>
+                <span className="text-white font-mono text-sm flex-1">
+                  {player.name || 'Player'} {player.id === playerId && '(Vous)'}
+                </span>
+                {player.isReady && (
+                  <Badge className="bg-cyber-green/20 text-cyber-green border-cyber-green/50 text-xs">
+                    READY
+                  </Badge>
+                )}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
-    </div>
+
+        <div className="flex gap-2">
+          <Button
+            onClick={handleStartGame}
+            className="flex-1 bg-gradient-to-r from-cyber-green to-cyber-cyan text-black hover:from-cyber-cyan hover:to-cyber-green font-mono font-bold"
+          >
+            <Play className="mr-2 h-4 w-4" />
+            START_GAME
+          </Button>
+          <Button
+            onClick={handleLeaveRoom}
+            variant="outline"
+            className="text-red-400 border-red-400/50 hover:bg-red-400/10 font-mono"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            LEAVE
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
+}
+
+// Helper function to get color hex values
+function getColorHex(color: string): string {
+  const colorMap: Record<string, string> = {
+    blue: '3498db',
+    red: 'e74c3c',
+    green: '2ecc71',
+    yellow: 'f1c40f',
+    purple: '9b59b6',
+    orange: 'e67e22',
+    cyan: '1abc9c',
+    pink: 'fd79a8'
+  };
+  return colorMap[color] || '3498db';
 }

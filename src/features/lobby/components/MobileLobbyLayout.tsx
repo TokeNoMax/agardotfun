@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { useGame } from "@/context/GameContext";
 import { Users, Settings, Gamepad2, Crown, Target } from "lucide-react";
 import PlayerCustomization from "./PlayerCustomization";
-import RoomList from "../../rooms/components/RoomList";
-import QuickPlayButton from "../../rooms/components/QuickPlayButton";
-import MobileWalletButton from "../../wallet/components/MobileWalletButton";
-import AdminSheet from "../../admin/components/AdminSheet";
+import RoomList from "@/features/rooms/components/RoomList";
+import QuickPlayButton from "@/features/rooms/components/QuickPlayButton";
+import MobileWalletButton from "@/features/wallet/components/MobileWalletButton";
+import AdminSheet from "@/features/admin/components/AdminSheet";
 
 export default function MobileLobbyLayout() {
   const { player } = useGame();

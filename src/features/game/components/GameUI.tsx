@@ -1,9 +1,10 @@
+
 import React, { useState, useCallback, useMemo } from 'react';
-import Canvas from './Canvas';
-import Leaderboard from './Leaderboard';
-import GameOverModal from './GameOverModal';
+import Canvas from '@/components/Game/Canvas';
+import Leaderboard from '@/components/Game/Leaderboard';
+import GameOverModal from '@/components/Game/GameOverModal';
 import QuitButton from './QuitButton';
-import ZoneCounter from './ZoneCounter';
+import ZoneCounter from '@/components/Game/ZoneCounter';
 import { Player, Food, Rug, SafeZone } from '@/types/game';
 
 interface GameUIProps {
