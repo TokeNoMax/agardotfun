@@ -7,7 +7,7 @@ import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 
 // https://vitejs.dev/config/
-export default defineConfig(async ({ mode }) => ({
+export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
@@ -27,7 +27,7 @@ export default defineConfig(async ({ mode }) => ({
     minify: 'terser',
     rollupOptions: {
       output: {
-        assetFileNames: (assetInfo) => {
+        assetFileNames: (assetInfo: { name?: string }) => {
           const name = assetInfo.name || 'asset';
           const info = name.split('.');
           const extType = info[info.length - 1];
@@ -55,8 +55,9 @@ export default defineConfig(async ({ mode }) => ({
       plugins: [
         tailwindcss,
         autoprefixer,
+        // Charger cssnano uniquement en production de manière synchrone
         ...(mode === 'production' ? [
-          (await import('cssnano')).default({ preset: 'default' })
+          require('cssnano')({ preset: 'default' })
         ] : []),
       ],
     },
