@@ -11,8 +11,8 @@ import {
 import { Player } from "@/types/game";
 import { Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
-import ConfettiEffect from "@/features/game/components/ConfettiEffect";
-import CountdownTimer from "@/features/game/components/CountdownTimer";
+import ConfettiEffect from "./ConfettiEffect";
+import CountdownTimer from "./CountdownTimer";
 import VictoryDisplay from "./VictoryDisplay";
 
 interface GameOverModalProps {

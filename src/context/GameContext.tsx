@@ -11,6 +11,7 @@ import {
   Player,
   GameMode,
   PlayerColor,
+  InitialGameState,
 } from "@/types/game";
 import { gameRoomService } from "@/services/gameRoomService";
 import { playerService } from "@/services/player/playerService";
@@ -20,20 +21,6 @@ import { generateName } from "@/utils/nameGenerator";
 import { generateColor } from "@/utils/colorGenerator";
 import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
 
-// Default phrases for the game
-export const defaultPhrases = [
-  "{playerName} s'est fait absorber ! 💀",
-  "{playerName} a rejoint les légendes ! ⚰️",
-  "RIP {playerName}, tu nous manqueras ! 😢",
-  "{playerName} a été recyclé ! ♻️",
-  "Au revoir {playerName} ! 👋",
-  "{playerName} est maintenant de la nourriture ! 🍽️",
-  "{playerName} a découvert la vraie DeFi ! 📉",
-  "Liquidé : {playerName} ! 💸",
-  "{playerName} a été rug pulled ! 🪜",
-  "Diamond hands? Plus comme paper hands {playerName} ! 💎➡️📄"
-];
-
 interface GameContextType {
   player: Player | null;
   setPlayer: (player: Player | null) => void;
@@ -41,8 +28,6 @@ interface GameContextType {
   setPlayerName: (name: string) => void;
   playerColor: PlayerColor;
   setPlayerColor: (color: PlayerColor) => void;
-  customPhrases: string[];
-  setCustomPhrases: (phrases: string[]) => void;
   rooms: GameRoom[];
   currentRoom: GameRoom | null;
   createRoom: (params: { name: string; maxPlayers: number; gameMode?: GameMode }) => Promise<string>;
@@ -53,7 +38,6 @@ interface GameContextType {
   refreshRooms: () => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
   resetGame: () => void;
-  setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -75,11 +59,7 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
   );
   const [playerColor, setPlayerColor] = useLocalStorage<PlayerColor>(
     "blob-battle-player-color",
-    "blue"
-  );
-  const [customPhrases, setCustomPhrases] = useLocalStorage<string[]>(
-    "blob-battle-custom-phrases",
-    defaultPhrases
+    "cyber-yellow"
   );
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [currentRoom, setCurrentRoom] = useLocalStorage<GameRoom | null>(
@@ -110,27 +90,6 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     setCurrentRoom(null);
     localStorage.removeItem("blob-battle-player");
     localStorage.removeItem("blob-battle-current-room");
-  };
-
-  const setPlayerDetails = async (name: string, color: PlayerColor): Promise<void> => {
-    setPlayerName(name);
-    setPlayerColor(color);
-    
-    // Create or update player with wallet address and other details
-    const newPlayer: Player = {
-      id: crypto.randomUUID(),
-      walletAddress: crypto.randomUUID(), // This should be replaced with actual wallet address
-      name,
-      color,
-      size: 30,
-      x: 0,
-      y: 0,
-      isAlive: true,
-      isReady: false,
-      joinedAt: new Date().toISOString()
-    };
-    
-    setPlayer(newPlayer);
   };
 
   const refreshRooms = useCallback(async () => {
@@ -214,7 +173,7 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     }
 
     try {
-      await gameRoomService.joinRoom(roomId, player);
+      await gameRoomService.joinRoom(roomId, player.id, playerName, playerColor);
       const room = await gameRoomService.getRoom(roomId);
 
       if (room) {
@@ -316,6 +275,22 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     }
   };
 
+  const setInitialGameState = async (
+    roomId: string,
+    gameState: InitialGameState
+  ): Promise<void> => {
+    try {
+      await playerService.setInitialGameState(roomId, gameState);
+    } catch (error) {
+      console.error("Error setting initial game state:", error);
+      toast({
+        title: "Error",
+        description: "Failed to set initial game state. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const contextValue: GameContextType = {
     player,
     setPlayer,
@@ -323,8 +298,6 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     setPlayerName,
     playerColor,
     setPlayerColor,
-    customPhrases,
-    setCustomPhrases,
     rooms,
     currentRoom,
     createRoom,
@@ -335,16 +308,12 @@ export const GameContextProvider: React.FC<GameContextProviderProps> = ({
     refreshRooms,
     refreshCurrentRoom,
     resetGame,
-    setPlayerDetails,
   };
 
   return (
     <GameContext.Provider value={contextValue}>{children}</GameContext.Provider>
   );
 };
-
-// Export alias for compatibility
-export const GameProvider = GameContextProvider;
 
 export const useGame = () => {
   const context = useContext(GameContext);

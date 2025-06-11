@@ -6,8 +6,8 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter
 } from '@solana/wallet-adapter-wallets';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
-import { LazyWalletProvider } from '@/components/lazy/LazyWalletProvider';
 
 // Import default styles
 import '@solana/wallet-adapter-react-ui/styles.css';
@@ -21,29 +21,29 @@ export const WalletContextProvider: React.FC<WalletContextProviderProps> = ({ ch
   const network = WalletAdapterNetwork.Devnet;
   const endpoint = clusterApiUrl(network);
   
-  // Configure wallets - simplified for better compatibility
+  // Configure wallets - simplified for mobile compatibility
   const wallets = [
-    // Phantom - most popular wallet
-    new PhantomWalletAdapter(),
+    // Phantom - most popular mobile wallet
+    new PhantomWalletAdapter({
+      network,
+    }),
     
-    // Solflare - second most popular wallet  
-    new SolflareWalletAdapter()
+    // Solflare - second most popular mobile wallet
+    new SolflareWalletAdapter({
+      network,
+    })
   ];
 
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider 
         wallets={wallets} 
-        autoConnect={false}
+        autoConnect={true}
         localStorageKey="solana-wallet"
-        onError={(error) => {
-          console.log('Wallet error:', error);
-          // Don't throw errors, just log them
-        }}
       >
-        <LazyWalletProvider>
+        <WalletModalProvider>
           {children}
-        </LazyWalletProvider>
+        </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );

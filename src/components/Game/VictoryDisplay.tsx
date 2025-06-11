@@ -1,7 +1,7 @@
 
 import { Player } from "@/types/game";
 import { Target, Clock, Zap } from "lucide-react";
-import VictoryMessage from "@/features/game/components/VictoryMessage";
+import VictoryMessage from "./VictoryMessage";
 
 interface VictoryDisplayProps {
   winner: Player | null;

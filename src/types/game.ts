@@ -1,4 +1,3 @@
-
 export interface Player {
   id: string;
   walletAddress: string;
@@ -12,7 +11,6 @@ export interface Player {
   velocityX?: number;
   velocityY?: number;
   lastPositionUpdate?: string;
-  joinedAt?: string;
   nftImageUrl?: string;
 }
 
@@ -35,7 +33,6 @@ export interface GameRoom {
   players: Player[];
   status: 'waiting' | 'playing' | 'finished';
   createdAt: string;
-  updatedAt?: string;
   lastActivity: string;
   matchNumber: number;
   gameSeed?: string;

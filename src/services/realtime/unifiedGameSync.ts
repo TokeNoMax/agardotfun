@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { PlayerColor } from "@/types/game";
 
@@ -111,21 +112,17 @@ export class UnifiedGameSyncService {
 
       // Presence events
       this.channel.on('presence', { event: 'join' }, ({ newPresences }: any) => {
-        console.log('[UnifiedGameSync] Presence join event:', newPresences);
-        newPresences.forEach((playerData: any) => {
-          if (playerData && playerData.playerId !== this.playerId) {
-            this.handlePlayerJoin(playerData);
-          }
-        });
+        const playerData = newPresences[0];
+        if (playerData && playerData.playerId !== this.playerId) {
+          this.handlePlayerJoin(playerData);
+        }
       });
 
       this.channel.on('presence', { event: 'leave' }, ({ leftPresences }: any) => {
-        leftPresences.forEach((playerData: any) => {
-          if (playerData) {
-            console.log('[UnifiedGameSync] Player left:', playerData.playerId);
-            this.callbacks.onPlayerLeft?.(playerData.playerId);
-          }
-        });
+        const playerData = leftPresences[0];
+        if (playerData) {
+          this.callbacks.onPlayerLeft?.(playerData.playerId);
+        }
       });
 
       // Subscribe and start loops
@@ -217,51 +214,22 @@ export class UnifiedGameSyncService {
     }
   }
 
-  // ENHANCED: Better player join handling with complete data validation
   private async handlePlayerJoin(playerData: any) {
     try {
-      console.log('[UnifiedGameSync] Handling player join:', playerData);
+      const position = await this.loadPlayerPosition(playerData.playerId);
       
-      // Validate essential player data
-      if (!playerData.playerId || !playerData.name) {
-        console.warn('[UnifiedGameSync] ⚠️ Skipping player with incomplete data:', playerData);
-        return;
-      }
-
-      // Fetch complete player data from database
-      const { data: dbPlayerData, error: dbError } = await supabase
-        .from('game_room_players')
-        .select('player_id, player_name, player_color, x, y, size, is_alive')
-        .eq('room_id', this.roomId)
-        .eq('player_id', playerData.playerId)
-        .single();
-
-      if (dbError || !dbPlayerData) {
-        console.error('[UnifiedGameSync] ❌ Failed to fetch player data from DB:', dbError);
-        return;
-      }
-
-      // Validate DB data completeness
-      if (!dbPlayerData.player_name || !dbPlayerData.player_color) {
-        console.warn('[UnifiedGameSync] ⚠️ Skipping player with incomplete DB data:', dbPlayerData);
-        return;
-      }
-
-      // Create properly validated player object
       const joinedPlayer: GamePlayer = {
-        id: dbPlayerData.player_id,
-        name: dbPlayerData.player_name,
-        walletAddress: dbPlayerData.player_id, // Using player_id as wallet for now
-        color: dbPlayerData.player_color as PlayerColor,
-        x: dbPlayerData.x || 1500,
-        y: dbPlayerData.y || 1500,
-        size: dbPlayerData.size || 15,
-        isAlive: dbPlayerData.is_alive !== false
+        id: playerData.playerId,
+        name: playerData.name,
+        walletAddress: playerData.walletAddress || playerData.playerId,
+        color: 'blue' as PlayerColor,
+        x: position?.x || 1500,
+        y: position?.y || 1500,
+        size: position?.size || 15,
+        isAlive: true
       };
-
-      console.log('[UnifiedGameSync] ✅ Player validated and ready to join:', joinedPlayer);
-      this.callbacks.onPlayerJoined?.(joinedPlayer);
       
+      this.callbacks.onPlayerJoined?.(joinedPlayer);
     } catch (error) {
       console.error('[UnifiedGameSync] ❌ Error handling player join:', error);
     }
@@ -318,6 +286,7 @@ export class UnifiedGameSyncService {
     }
   }
 
+  // Updated to cache position for 50Hz broadcasting
   async broadcastPlayerPosition(x: number, y: number, size: number, velocityX = 0, velocityY = 0) {
     if (!this.isConnected) {
       return;

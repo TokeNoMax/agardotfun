@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useGame } from "@/context/GameContext";
 import { PlayerColor } from "@/types/game";
-import WalletButton from "@/features/wallet/components/WalletButton";
+import WalletButton from "@/components/Wallet/WalletButton";
 import { Wallet, Smartphone, Image, Zap, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -101,7 +101,8 @@ export default function PlayerCustomization() {
 
       await setPlayerDetails(
         name.trim(),
-        selectedColor
+        selectedColor,
+        nftImageUrl.trim() || undefined
       );
 
       console.log("Player configuration successful");
