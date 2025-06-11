@@ -12,6 +12,7 @@ export interface SIWSVerification {
   user?: any;
   session?: any;
   error?: string;
+  verified?: boolean;
 }
 
 export const siwsService = {
@@ -43,12 +44,13 @@ export const siwsService = {
     console.log("Verifying SIWS signature for:", walletAddress);
     console.log("Nonce:", nonce);
     console.log("Signature length:", signature.length);
+    console.log("Signature first 8 bytes:", Array.from(signature.slice(0, 8)));
     
     try {
       const { data, error } = await supabase.functions.invoke('siws-verify', {
         body: { 
           nonce, 
-          signature: Array.from(signature), 
+          signature: Array.from(signature), // Convertir Uint8Array en array normal
           walletAddress 
         }
       });
@@ -84,9 +86,6 @@ export const siwsService = {
             break;
           case 'user-creation-failed':
             errorMessage = 'Impossible de créer le compte utilisateur.';
-            break;
-          case 'session-creation-failed':
-            errorMessage = 'Impossible de créer la session. Veuillez réessayer.';
             break;
           case 'internal-server-error':
             errorMessage = 'Erreur serveur interne. Veuillez réessayer plus tard.';

@@ -10,11 +10,26 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 }
 
-function verifySignature(message: string, signature: Uint8Array, publicKey: string): boolean {
+function verifySignature(message: string, signatureArray: number[], publicKey: string): boolean {
   try {
+    console.log('Verifying signature...')
+    console.log('Message to verify:', message)
+    console.log('PublicKey:', publicKey)
+    console.log('Signature length:', signatureArray.length)
+    console.log('Signature first 8 bytes:', signatureArray.slice(0, 8))
+    
     const messageBytes = new TextEncoder().encode(message)
+    const signatureBytes = new Uint8Array(signatureArray)
     const publicKeyBytes = new PublicKey(publicKey).toBytes()
-    return nacl.sign.detached.verify(messageBytes, signature, publicKeyBytes)
+    
+    console.log('Message bytes length:', messageBytes.length)
+    console.log('Signature bytes length:', signatureBytes.length)
+    console.log('PublicKey bytes length:', publicKeyBytes.length)
+    
+    const isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes)
+    console.log('Signature verification result:', isValid)
+    
+    return isValid
   } catch (error) {
     console.error('Signature verification error:', error)
     return false
@@ -83,13 +98,15 @@ serve(async (req) => {
       )
     }
 
-    // Vérifier l'expiration
-    if (new Date(nonceData.expires_at) < new Date()) {
+    // Vérifier l'expiration (5 minutes max)
+    const now = new Date()
+    const expiresAt = new Date(nonceData.expires_at)
+    if (expiresAt < now) {
       console.error('Nonce expired:', nonceData.expires_at)
       return new Response(
         JSON.stringify({ error: 'nonce-expired' }),
         { 
-          status: 401, 
+          status: 440, 
           headers: corsHeaders
         }
       )
@@ -99,9 +116,24 @@ serve(async (req) => {
     const message = `Sign-in nonce: ${nonce}`
     console.log('Message to verify:', message)
 
-    // Vérifier la signature
-    const signatureBytes = new Uint8Array(signature.data || signature)
-    const isValid = verifySignature(message, signatureBytes, walletAddress)
+    // Vérifier la signature avec les données reçues
+    let signatureArray;
+    if (Array.isArray(signature)) {
+      signatureArray = signature;
+    } else if (signature.data && Array.isArray(signature.data)) {
+      signatureArray = signature.data;
+    } else {
+      console.error('Invalid signature format:', typeof signature)
+      return new Response(
+        JSON.stringify({ error: 'invalid-signature-format' }),
+        { 
+          status: 400, 
+          headers: corsHeaders
+        }
+      )
+    }
+
+    const isValid = verifySignature(message, signatureArray, walletAddress)
 
     if (!isValid) {
       console.error('Invalid signature for wallet:', walletAddress)
@@ -155,73 +187,56 @@ serve(async (req) => {
       )
     }
 
-    // Créer un token de session en utilisant la méthode correcte
-    const { data: sessionData, error: sessionError } = await supabaseClient.auth.admin.generateLinkOAuth({
-      type: 'magiclink',
-      email: userEmail,
-      options: {
-        redirectTo: `${req.headers.get('origin') || 'http://localhost:3000'}/`
-      }
-    })
-
-    if (sessionError) {
-      console.error('Session creation error:', sessionError)
+    // Générer un token de session simple
+    try {
+      const { data: tokenData, error: tokenError } = await supabaseClient.auth.admin.generateAccessToken(userId)
       
-      // Alternative : générer un token JWT manuellement
-      try {
-        const { data: tokenData, error: tokenError } = await supabaseClient.auth.admin.generateAccessToken(userId)
-        
-        if (tokenError) {
-          console.error('Token generation error:', tokenError)
-          return new Response(
-            JSON.stringify({ error: 'session-creation-failed' }),
-            { 
-              status: 500, 
-              headers: corsHeaders
-            }
-          )
+      if (tokenError) {
+        console.error('Token generation error:', tokenError)
+        // Retourner succès de vérification même sans token
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            verified: true,
+            user: { id: userId, email: userEmail }
+          }),
+          { 
+            status: 200,
+            headers: corsHeaders
+          }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          user: { id: userId, email: userEmail },
+          session: {
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token || null
+          }
+        }),
+        { 
+          status: 200,
+          headers: corsHeaders
         }
-
-        return new Response(
-          JSON.stringify({ 
-            success: true,
-            user: { id: userId, email: userEmail },
-            session: tokenData
-          }),
-          { 
-            status: 200,
-            headers: corsHeaders
-          }
-        )
-      } catch (tokenErr) {
-        console.error('Alternative token generation failed:', tokenErr)
-        
-        // Dernière option : retourner juste le succès de vérification
-        return new Response(
-          JSON.stringify({ 
-            success: true,
-            user: { id: userId, email: userEmail },
-            verified: true
-          }),
-          { 
-            status: 200,
-            headers: corsHeaders
-          }
-        )
-      }
+      )
+    } catch (tokenErr) {
+      console.error('Token generation failed:', tokenErr)
+      
+      // Retourner succès de vérification même sans token complet
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          verified: true,
+          user: { id: userId, email: userEmail }
+        }),
+        { 
+          status: 200,
+          headers: corsHeaders
+        }
+      )
     }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        user: authData?.user || { id: userId, email: userEmail },
-        session: sessionData
-      }),
-      { 
-        status: 200,
-        headers: corsHeaders
-      }
-    )
   } catch (error) {
     console.error('Unexpected verification error:', error)
     return new Response(

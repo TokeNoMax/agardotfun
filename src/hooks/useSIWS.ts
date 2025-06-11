@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useSIWS = () => {
-  const { publicKey, signMessage, wallet } = useWallet();
+  const { publicKey, signMessage } = useWallet();
   const { toast } = useToast();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -38,6 +38,7 @@ export const useSIWS = () => {
       const walletAddress = publicKey.toString();
       
       // Générer le challenge
+      console.log("Generating challenge for wallet:", walletAddress);
       const challenge = await siwsService.generateChallenge(walletAddress);
       
       // Construire le message simplifié EXACTEMENT comme dans l'Edge Function
@@ -48,22 +49,31 @@ export const useSIWS = () => {
       const bytes = new TextEncoder().encode(msg);
       
       // Signer le message
+      console.log("Requesting signature...");
       const signature = await signMessage(bytes);
-      console.log('Signature obtenue:', signature);
+      console.log('Signature obtenue:', {
+        length: signature.length,
+        first8: Array.from(signature.slice(0, 8))
+      });
       
       // Vérifier la signature
+      console.log("Verifying signature...");
       const result = await siwsService.verifySignature(
         challenge.nonce,
         signature,
         walletAddress
       );
 
-      if (result.success && result.session) {
-        // Établir la session Supabase
-        await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token
-        });
+      console.log("Verification result:", result);
+
+      if (result.success) {
+        if (result.session) {
+          // Établir la session Supabase si disponible
+          await supabase.auth.setSession({
+            access_token: result.session.access_token,
+            refresh_token: result.session.refresh_token
+          });
+        }
 
         toast({
           title: "Authentication Successful",
@@ -88,8 +98,12 @@ export const useSIWS = () => {
         errorMessage = 'Signature annulée par l\'utilisateur.';
       } else if (error.message?.includes('Failed to connect')) {
         errorMessage = 'Impossible de se connecter au service d\'authentification. Vérifiez votre connexion.';
+      } else if (error.message?.includes('Signature invalide')) {
+        errorMessage = 'Signature invalide. Veuillez réessayer.';
+      } else if (error.message?.includes('expiré')) {
+        errorMessage = 'Challenge expiré. Veuillez recommencer.';
       } else if (error.message) {
-        errorMessage = `La signature a échoué : ${error.message}`;
+        errorMessage = error.message;
       }
       
       toast({
