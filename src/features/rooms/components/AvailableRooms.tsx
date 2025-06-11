@@ -19,16 +19,18 @@ interface AvailableRoomsProps {
   playerExists: boolean;
   selectedRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
-  refreshRooms?: () => Promise<void>;
+  refreshRooms: () => Promise<void>;
+  isLoading?: boolean;
 }
 
-export default function AvailableRooms({ 
-  rooms, 
-  handleJoinRoom, 
-  playerExists, 
+export default function AvailableRooms({
+  rooms,
+  handleJoinRoom,
+  playerExists,
   selectedRoomId,
   onSelectRoom,
-  refreshRooms
+  refreshRooms,
+  isLoading = false
 }: AvailableRoomsProps) {
   const [hasSuccessfulConnection, setHasSuccessfulConnection] = useState(false);
   const { toast } = useToast();
@@ -49,6 +51,22 @@ export default function AvailableRooms({
       console.log("rooms is not an array:", rooms);
     }
   }, [rooms]);
+
+  if (isLoading) {
+    return (
+      <div className="bg-black/90 backdrop-blur-sm rounded-lg border-2 border-cyber-cyan/50 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-cyber-cyan font-mono">AVAILABLE_ROOMS</h2>
+          <div className="text-cyber-cyan animate-pulse">Loading...</div>
+        </div>
+        <div className="space-y-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-800/50 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // Fonction pour déterminer le statut d'affichage d'une salle
   const getRoomDisplayStatus = (room: GameRoom) => {
