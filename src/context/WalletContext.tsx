@@ -6,8 +6,8 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter
 } from '@solana/wallet-adapter-wallets';
-import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
+import { LazyWalletProvider } from '@/components/lazy/LazyWalletProvider';
 
 // Import default styles
 import '@solana/wallet-adapter-react-ui/styles.css';
@@ -41,9 +41,9 @@ export const WalletContextProvider: React.FC<WalletContextProviderProps> = ({ ch
         autoConnect={true}
         localStorageKey="solana-wallet"
       >
-        <WalletModalProvider>
+        <LazyWalletProvider>
           {children}
-        </WalletModalProvider>
+        </LazyWalletProvider>
       </WalletProvider>
     </ConnectionProvider>
   );

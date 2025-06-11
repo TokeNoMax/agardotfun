@@ -4,12 +4,16 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Suspense, lazy } from "react";
 import { GameProvider } from "@/context/GameContext";
 import { WalletContextProvider } from "@/context/WalletContext";
+import { PageSkeleton, GameSkeleton } from "@/components/ui/page-skeleton";
 import Index from "./pages/Index";
-import Lobby from "./pages/Lobby";
-import Game from "./pages/Game";
 import NotFound from "./pages/NotFound";
+
+// Lazy load heavy pages
+const LazyLobby = lazy(() => import("./pages/LazyLobby"));
+const LazyGame = lazy(() => import("./pages/LazyGame"));
 
 const queryClient = new QueryClient();
 
@@ -23,9 +27,30 @@ const App = () => (
           <GameProvider>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/lobby" element={<Lobby />} />
-              <Route path="/game/:roomId" element={<Game />} />
-              <Route path="/game" element={<Game />} />
+              <Route 
+                path="/lobby" 
+                element={
+                  <Suspense fallback={<PageSkeleton />}>
+                    <LazyLobby />
+                  </Suspense>
+                } 
+              />
+              <Route 
+                path="/game/:roomId" 
+                element={
+                  <Suspense fallback={<GameSkeleton />}>
+                    <LazyGame />
+                  </Suspense>
+                } 
+              />
+              <Route 
+                path="/game" 
+                element={
+                  <Suspense fallback={<GameSkeleton />}>
+                    <LazyGame />
+                  </Suspense>
+                } 
+              />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
