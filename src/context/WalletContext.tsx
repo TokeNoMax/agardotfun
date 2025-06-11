@@ -21,25 +21,25 @@ export const WalletContextProvider: React.FC<WalletContextProviderProps> = ({ ch
   const network = WalletAdapterNetwork.Devnet;
   const endpoint = clusterApiUrl(network);
   
-  // Configure wallets - simplified for mobile compatibility
+  // Configure wallets - simplified for better compatibility
   const wallets = [
-    // Phantom - most popular mobile wallet
-    new PhantomWalletAdapter({
-      network,
-    }),
+    // Phantom - most popular wallet
+    new PhantomWalletAdapter(),
     
-    // Solflare - second most popular mobile wallet
-    new SolflareWalletAdapter({
-      network,
-    })
+    // Solflare - second most popular wallet  
+    new SolflareWalletAdapter()
   ];
 
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider 
         wallets={wallets} 
-        autoConnect={true}
+        autoConnect={false}
         localStorageKey="solana-wallet"
+        onError={(error) => {
+          console.log('Wallet error:', error);
+          // Don't throw errors, just log them
+        }}
       >
         <LazyWalletProvider>
           {children}
