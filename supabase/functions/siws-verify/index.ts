@@ -12,22 +12,32 @@ const corsHeaders = {
 
 function verifySignature(message: string, signatureArray: number[], publicKey: string): boolean {
   try {
-    console.log('Verifying signature...')
-    console.log('Message to verify:', message)
+    console.log('=== SIGNATURE VERIFICATION START ===')
+    console.log('Message to verify:', JSON.stringify(message))
+    console.log('Message length:', message.length)
     console.log('PublicKey:', publicKey)
-    console.log('Signature length:', signatureArray.length)
+    console.log('Signature array length:', signatureArray.length)
     console.log('Signature first 8 bytes:', signatureArray.slice(0, 8))
+    console.log('Signature last 8 bytes:', signatureArray.slice(-8))
     
+    // Convert message to bytes - EXACTLY as done in frontend
     const messageBytes = new TextEncoder().encode(message)
-    const signatureBytes = new Uint8Array(signatureArray)
-    const publicKeyBytes = new PublicKey(publicKey).toBytes()
-    
     console.log('Message bytes length:', messageBytes.length)
-    console.log('Signature bytes length:', signatureBytes.length)
-    console.log('PublicKey bytes length:', publicKeyBytes.length)
+    console.log('Message bytes first 8:', Array.from(messageBytes.slice(0, 8)))
     
+    // Convert signature array to Uint8Array
+    const signatureBytes = new Uint8Array(signatureArray)
+    console.log('Signature bytes length after conversion:', signatureBytes.length)
+    
+    // Convert public key to bytes
+    const publicKeyBytes = new PublicKey(publicKey).toBytes()
+    console.log('PublicKey bytes length:', publicKeyBytes.length)
+    console.log('PublicKey bytes first 8:', Array.from(publicKeyBytes.slice(0, 8)))
+    
+    // Verify signature using nacl
     const isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes)
     console.log('Signature verification result:', isValid)
+    console.log('=== SIGNATURE VERIFICATION END ===')
     
     return isValid
   } catch (error) {
@@ -47,7 +57,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Validation stricte de l'input
+    // Parse request body with error handling
     let requestBody;
     try {
       requestBody = await req.json()
@@ -55,30 +65,32 @@ serve(async (req) => {
       console.error('Invalid JSON in request body:', e)
       return new Response(
         JSON.stringify({ error: 'invalid-json' }),
-        { 
-          status: 400, 
-          headers: corsHeaders
-        }
+        { status: 400, headers: corsHeaders }
       )
     }
 
     const { nonce, signature, walletAddress } = requestBody
 
+    console.log('=== REQUEST START ===')
+    console.log('Request body keys:', Object.keys(requestBody))
+    console.log('Nonce:', nonce)
+    console.log('WalletAddress:', walletAddress)
+    console.log('Signature type:', typeof signature)
+    console.log('Signature is array:', Array.isArray(signature))
+    
     if (!nonce || !signature || !walletAddress) {
-      console.error('Missing required parameters:', { nonce: !!nonce, signature: !!signature, walletAddress: !!walletAddress })
+      console.error('Missing required parameters:', { 
+        hasNonce: !!nonce, 
+        hasSignature: !!signature, 
+        hasWalletAddress: !!walletAddress 
+      })
       return new Response(
         JSON.stringify({ error: 'missing-parameters' }),
-        { 
-          status: 400, 
-          headers: corsHeaders
-        }
+        { status: 400, headers: corsHeaders }
       )
     }
 
-    console.log('Processing verification for wallet:', walletAddress)
-    console.log('Nonce:', nonce)
-
-    // Vérifier le nonce
+    // Verify nonce exists and is not expired
     const { data: nonceData, error: nonceError } = await supabaseClient
       .from('siws_nonces')
       .select('*')
@@ -91,73 +103,77 @@ serve(async (req) => {
       console.error('Invalid nonce:', nonceError)
       return new Response(
         JSON.stringify({ error: 'invalid-nonce' }),
-        { 
-          status: 401, 
-          headers: corsHeaders
-        }
+        { status: 401, headers: corsHeaders }
       )
     }
 
-    // Vérifier l'expiration (5 minutes max)
+    // Check expiration
     const now = new Date()
     const expiresAt = new Date(nonceData.expires_at)
     if (expiresAt < now) {
       console.error('Nonce expired:', nonceData.expires_at)
       return new Response(
         JSON.stringify({ error: 'nonce-expired' }),
-        { 
-          status: 440, 
-          headers: corsHeaders
-        }
+        { status: 440, headers: corsHeaders }
       )
     }
 
-    // Reconstituer le message original EXACTEMENT comme côté front
+    // Reconstruct the message EXACTLY as done in frontend
     const message = `Sign-in nonce: ${nonce}`
-    console.log('Message to verify:', message)
+    console.log('Reconstructed message:', JSON.stringify(message))
 
-    // Vérifier la signature avec les données reçues
+    // Handle signature format - convert to array if needed
     let signatureArray;
     if (Array.isArray(signature)) {
       signatureArray = signature;
     } else if (signature.data && Array.isArray(signature.data)) {
       signatureArray = signature.data;
+    } else if (typeof signature === 'object' && signature !== null) {
+      // Try to extract array from object structure
+      const keys = Object.keys(signature);
+      if (keys.length > 0 && typeof signature[keys[0]] === 'number') {
+        signatureArray = Object.values(signature);
+      } else {
+        console.error('Cannot extract signature array from object:', signature);
+        return new Response(
+          JSON.stringify({ error: 'invalid-signature-format' }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
     } else {
       console.error('Invalid signature format:', typeof signature)
       return new Response(
         JSON.stringify({ error: 'invalid-signature-format' }),
-        { 
-          status: 400, 
-          headers: corsHeaders
-        }
+        { status: 400, headers: corsHeaders }
       )
     }
 
+    console.log('Final signature array length:', signatureArray.length)
+    console.log('Final signature array type check:', signatureArray.every(x => typeof x === 'number'))
+
+    // Verify the signature
     const isValid = verifySignature(message, signatureArray, walletAddress)
 
     if (!isValid) {
-      console.error('Invalid signature for wallet:', walletAddress)
+      console.error('Signature verification failed for wallet:', walletAddress)
       return new Response(
         JSON.stringify({ error: 'invalid-signature' }),
-        { 
-          status: 401, 
-          headers: corsHeaders
-        }
+        { status: 401, headers: corsHeaders }
       )
     }
 
-    console.log('Signature verified successfully for wallet:', walletAddress)
+    console.log('✅ Signature verification SUCCESS for wallet:', walletAddress)
 
-    // Marquer le nonce comme utilisé
+    // Mark nonce as used
     await supabaseClient
       .from('siws_nonces')
       .update({ used: true })
       .eq('id', nonceData.id)
 
-    // Créer ou récupérer l'utilisateur avec email unique basé sur wallet
+    // Create or get user
     const userEmail = `${walletAddress}@wallet.local`
     
-    // Essayer de créer l'utilisateur
+    // Try to create user first
     const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
       email: userEmail,
       email_confirm: true,
@@ -169,82 +185,43 @@ serve(async (req) => {
 
     let userId = authData?.user?.id
 
-    // Si l'utilisateur existe déjà, récupérer son ID
+    // If user already exists, get the existing user
     if (authError && authError.message.includes('already been registered')) {
-      const { data: existingUser } = await supabaseClient.auth.admin.listUsers()
-      const user = existingUser.users.find(u => u.email === userEmail)
-      userId = user?.id
+      console.log('User already exists, finding existing user')
+      const { data: existingUsers } = await supabaseClient.auth.admin.listUsers()
+      const existingUser = existingUsers.users.find(u => u.email === userEmail)
+      userId = existingUser?.id
     }
 
     if (!userId) {
       console.error('Failed to create or find user:', authError)
       return new Response(
         JSON.stringify({ error: 'user-creation-failed' }),
-        { 
-          status: 500, 
-          headers: corsHeaders
-        }
+        { status: 500, headers: corsHeaders }
       )
     }
 
-    // Générer un token de session simple
-    try {
-      const { data: tokenData, error: tokenError } = await supabaseClient.auth.admin.generateAccessToken(userId)
-      
-      if (tokenError) {
-        console.error('Token generation error:', tokenError)
-        // Retourner succès de vérification même sans token
-        return new Response(
-          JSON.stringify({ 
-            success: true,
-            verified: true,
-            user: { id: userId, email: userEmail }
-          }),
-          { 
-            status: 200,
-            headers: corsHeaders
-          }
-        )
-      }
+    console.log('✅ User created/found successfully:', userId)
 
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          user: { id: userId, email: userEmail },
-          session: {
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token || null
-          }
-        }),
-        { 
-          status: 200,
-          headers: corsHeaders
+    // Instead of generating complex tokens, return success with basic user info
+    return new Response(
+      JSON.stringify({ 
+        success: true,
+        verified: true,
+        user: { 
+          id: userId, 
+          email: userEmail,
+          wallet_address: walletAddress
         }
-      )
-    } catch (tokenErr) {
-      console.error('Token generation failed:', tokenErr)
-      
-      // Retourner succès de vérification même sans token complet
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          verified: true,
-          user: { id: userId, email: userEmail }
-        }),
-        { 
-          status: 200,
-          headers: corsHeaders
-        }
-      )
-    }
+      }),
+      { status: 200, headers: corsHeaders }
+    )
+
   } catch (error) {
     console.error('Unexpected verification error:', error)
     return new Response(
       JSON.stringify({ error: 'internal-server-error' }),
-      { 
-        status: 500, 
-        headers: corsHeaders
-      }
+      { status: 500, headers: corsHeaders }
     )
   }
 })

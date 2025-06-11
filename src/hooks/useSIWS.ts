@@ -3,14 +3,13 @@ import { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { siwsService } from '@/services/siws/siwsService';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 export const useSIWS = () => {
   const { publicKey, signMessage } = useWallet();
   const { toast } = useToast();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Vérifier si le wallet supporte la signature de messages
+  // Check if wallet supports message signing
   const canSign = !!signMessage;
 
   const authenticate = async () => {
@@ -37,27 +36,35 @@ export const useSIWS = () => {
     try {
       const walletAddress = publicKey.toString();
       
-      // Générer le challenge
-      console.log("Generating challenge for wallet:", walletAddress);
+      console.log("=== AUTHENTICATION START ===");
+      console.log("Wallet address:", walletAddress);
+      
+      // Generate challenge
       const challenge = await siwsService.generateChallenge(walletAddress);
+      console.log("Challenge received:", challenge);
       
-      // Construire le message simplifié EXACTEMENT comme dans l'Edge Function
-      const msg = `Sign-in nonce: ${challenge.nonce}`;
-      console.log('Message à signer:', msg);
+      // Build message EXACTLY as expected by Edge Function
+      const message = `Sign-in nonce: ${challenge.nonce}`;
+      console.log("Message to sign:", JSON.stringify(message));
+      console.log("Message length:", message.length);
       
-      // Encoder le message en Uint8Array
-      const bytes = new TextEncoder().encode(msg);
+      // Encode message to bytes
+      const messageBytes = new TextEncoder().encode(message);
+      console.log("Message bytes length:", messageBytes.length);
+      console.log("Message bytes first 8:", Array.from(messageBytes.slice(0, 8)));
       
-      // Signer le message
-      console.log("Requesting signature...");
-      const signature = await signMessage(bytes);
-      console.log('Signature obtenue:', {
-        length: signature.length,
-        first8: Array.from(signature.slice(0, 8))
-      });
+      // Sign the message
+      console.log("Requesting signature from wallet...");
+      const signature = await signMessage(messageBytes);
       
-      // Vérifier la signature
-      console.log("Verifying signature...");
+      console.log("Signature received from wallet:");
+      console.log("- Type:", signature.constructor.name);
+      console.log("- Length:", signature.length);
+      console.log("- First 8 bytes:", Array.from(signature.slice(0, 8)));
+      console.log("- Last 8 bytes:", Array.from(signature.slice(-8)));
+      
+      // Verify signature
+      console.log("Sending to verification...");
       const result = await siwsService.verifySignature(
         challenge.nonce,
         signature,
@@ -67,14 +74,6 @@ export const useSIWS = () => {
       console.log("Verification result:", result);
 
       if (result.success) {
-        if (result.session) {
-          // Établir la session Supabase si disponible
-          await supabase.auth.setSession({
-            access_token: result.session.access_token,
-            refresh_token: result.session.refresh_token
-          });
-        }
-
         toast({
           title: "Authentication Successful",
           description: "You are now signed in with Solana!",
@@ -87,7 +86,7 @@ export const useSIWS = () => {
     } catch (error: any) {
       console.error('SIWS authentication error:', error);
       
-      // Gestion d'erreurs granularisée
+      // Enhanced error handling
       let errorMessage = 'Unknown error occurred';
       
       if (error.code === 4100) {

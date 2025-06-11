@@ -10,9 +10,8 @@ export interface SIWSChallenge {
 export interface SIWSVerification {
   success: boolean;
   user?: any;
-  session?: any;
-  error?: string;
   verified?: boolean;
+  error?: string;
 }
 
 export const siwsService = {
@@ -41,24 +40,42 @@ export const siwsService = {
     signature: Uint8Array, 
     walletAddress: string
   ): Promise<SIWSVerification> {
+    console.log("=== FRONTEND VERIFICATION START ===");
     console.log("Verifying SIWS signature for:", walletAddress);
     console.log("Nonce:", nonce);
+    console.log("Signature type:", signature.constructor.name);
     console.log("Signature length:", signature.length);
     console.log("Signature first 8 bytes:", Array.from(signature.slice(0, 8)));
+    console.log("Signature last 8 bytes:", Array.from(signature.slice(-8)));
     
     try {
+      // Convert Uint8Array to regular array for transmission
+      const signatureArray = Array.from(signature);
+      console.log("Converted signature array length:", signatureArray.length);
+      console.log("All elements are numbers:", signatureArray.every(x => typeof x === 'number'));
+      
+      const requestBody = { 
+        nonce, 
+        signature: signatureArray,
+        walletAddress 
+      };
+      
+      console.log("Request body structure:", {
+        hasNonce: !!requestBody.nonce,
+        hasSignature: !!requestBody.signature,
+        hasWalletAddress: !!requestBody.walletAddress,
+        signatureLength: requestBody.signature.length
+      });
+      
       const { data, error } = await supabase.functions.invoke('siws-verify', {
-        body: { 
-          nonce, 
-          signature: Array.from(signature), // Convertir Uint8Array en array normal
-          walletAddress 
-        }
+        body: requestBody
       });
 
+      console.log("Edge Function response:", { data, error });
+
       if (error) {
-        console.error("Signature verification error:", error);
+        console.error("Edge Function error:", error);
         
-        // Gestion d'erreurs granularisée basée sur les codes d'erreur de l'Edge Function
         let errorMessage = 'Verification failed';
         if (error.message?.includes('non-2xx status code')) {
           errorMessage = 'Erreur de vérification côté serveur. Veuillez réessayer.';
@@ -67,7 +84,7 @@ export const siwsService = {
         return { success: false, error: errorMessage };
       }
 
-      // Vérifier si la réponse contient une erreur de l'Edge Function
+      // Check for application-level errors in response
       if (data?.error) {
         let errorMessage = 'Verification failed';
         
@@ -90,6 +107,9 @@ export const siwsService = {
           case 'internal-server-error':
             errorMessage = 'Erreur serveur interne. Veuillez réessayer plus tard.';
             break;
+          case 'invalid-signature-format':
+            errorMessage = 'Format de signature invalide. Veuillez réessayer.';
+            break;
           default:
             errorMessage = `Erreur de vérification : ${data.error}`;
         }
@@ -97,6 +117,7 @@ export const siwsService = {
         return { success: false, error: errorMessage };
       }
 
+      console.log("✅ Verification successful:", data);
       return data;
     } catch (error: any) {
       console.error("Verification request failed:", error);
