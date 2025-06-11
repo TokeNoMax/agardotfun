@@ -1,9 +1,11 @@
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Player } from "@/types/game";
 import { computeSpeed } from "@/services/game/speedUtil";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TouchControlArea from "./TouchControlArea";
-import { generateRandomColor, generateRandomName } from "@/utils/randomGenerators";
+import { generateColor } from "@/utils/colorGenerator";
+import { generateName } from "@/utils/nameGenerator";
 
 interface CanvasProps {
   players: Record<string, Player>;
@@ -73,8 +75,8 @@ const Canvas: React.FC<CanvasProps> = ({
     
     for (let i = 0; i < botCount; i++) {
       const botId = `bot_${i}`;
-      const botName = generateRandomName();
-      const botColor = generateRandomColor();
+      const botName = generateName();
+      const botColor = generateColor();
       
       const bot: Player = {
         id: botId,
