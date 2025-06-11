@@ -370,6 +370,12 @@ const Game = () => {
   }
 
   if (gameState === "playing") {
+    // Convert game mode to the expected type
+    const uiGameMode: 'multiplayer' | 'zone' | 'local' = 
+      isLocalMode ? 'local' : 
+      isZoneMode ? 'zone' : 
+      'multiplayer';
+
     return (
       <GameUI
         players={effectivePlayers}
@@ -384,7 +390,7 @@ const Game = () => {
         safeZone={safeZone}
         isLocalMode={isLocalMode}
         isZoneMode={isZoneMode}
-        gameMode={gameMode}
+        gameMode={uiGameMode}
       />
     );
   }

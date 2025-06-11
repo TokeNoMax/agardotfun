@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import Canvas from './Canvas';
 import Leaderboard from './Leaderboard';
@@ -172,7 +171,6 @@ const GameUI: React.FC<GameUIProps> = ({
       <Leaderboard
         players={playersArray}
         currentPlayerId={currentPlayer?.id}
-        gameMode={gameMode || 'multiplayer'}
       />
       
       <GameOverModal
