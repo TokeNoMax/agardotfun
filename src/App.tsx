@@ -10,11 +10,11 @@ import { WalletContextProvider } from "@/context/WalletContext";
 import { PageSkeleton, GameSkeleton } from "@/components/ui/page-skeleton";
 import { gameRoomService } from "@/services/gameRoomService";
 import { checkForDangerousKeys } from "@/utils/securityCheck";
-import NewIndex from "./pages/NewIndex";
-import NewLobby from "./pages/NewLobby";
+import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 // Lazy load heavy pages
+const LazyLobby = lazy(() => import("./pages/LazyLobby"));
 const LazyGame = lazy(() => import("./pages/LazyGame"));
 
 const queryClient = new QueryClient();
@@ -53,8 +53,15 @@ const App = () => (
           <PrefetchHandler />
           <GameProvider>
             <Routes>
-              <Route path="/" element={<NewIndex />} />
-              <Route path="/lobby" element={<NewLobby />} />
+              <Route path="/" element={<Index />} />
+              <Route 
+                path="/lobby" 
+                element={
+                  <Suspense fallback={<PageSkeleton />}>
+                    <LazyLobby />
+                  </Suspense>
+                } 
+              />
               <Route 
                 path="/game/:roomId" 
                 element={
