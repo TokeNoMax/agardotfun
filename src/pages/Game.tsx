@@ -9,7 +9,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useGame } from "@/context/GameContext";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import GameUI from "@/components/Game/GameUI";
+import GameUI from "@/features/game/components/GameUI";
 import { Player, GameRoom, Food, Rug, SafeZone } from "@/types/game";
 import { generateName } from "@/utils/nameGenerator";
 import { generateColor } from "@/utils/colorGenerator";

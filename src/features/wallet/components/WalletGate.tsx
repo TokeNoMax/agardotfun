@@ -1,7 +1,7 @@
 
 import React from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import WalletButton from "@/components/Wallet/WalletButton";
+import WalletButton from "./WalletButton";
 
 interface WalletGateProps {
   children: React.ReactNode;

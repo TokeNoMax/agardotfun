@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import Canvas from './Canvas';
 import Leaderboard from './Leaderboard';
