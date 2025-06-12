@@ -52,6 +52,37 @@ export default function CurrentRoom({
   
   const modeInfo = getGameModeDisplay(currentRoom.gameMode);
   
+  // IMPROVED: More robust player detection
+  const isPlayerInRoom = () => {
+    if (!player || !currentRoom.players) {
+      console.log("CurrentRoom - No player or no room players");
+      return false;
+    }
+    
+    // Check both player ID and wallet address for better detection
+    const playerInRoom = currentRoom.players.some(p => {
+      const idMatch = p.id === player.id;
+      const walletMatch = p.id === player.walletAddress;
+      const nameMatch = p.name === player.name;
+      
+      console.log("CurrentRoom - Player comparison:", {
+        roomPlayer: { id: p.id, name: p.name },
+        currentPlayer: { id: player.id, walletAddress: player.walletAddress, name: player.name },
+        idMatch,
+        walletMatch,
+        nameMatch
+      });
+      
+      return idMatch || walletMatch || (nameMatch && p.name.trim() !== '');
+    });
+    
+    console.log("CurrentRoom - Player in room result:", playerInRoom);
+    return playerInRoom;
+  };
+  
+  // Use our improved detection function
+  const playerInRoom = isPlayerInRoom();
+  
   return (
     <>
       {/* Game Start Countdown Overlay */}
@@ -111,7 +142,7 @@ export default function CurrentRoom({
 
             {/* Action buttons */}
             <div className="flex flex-col gap-3">
-              {isCurrentPlayerInRoom() ? (
+              {playerInRoom ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {/* Ready button - always visible when in room */}
                   <Button 
