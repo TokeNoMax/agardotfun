@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Player, GameRoom, PlayerColor } from '@/types/game';
 import { generateName } from '@/utils/nameGenerator';
