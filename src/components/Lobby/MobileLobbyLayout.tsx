@@ -45,6 +45,36 @@ export default function MobileLobbyLayout({
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const { rooms, currentRoom, joinRoom, joinGame } = useGame();
+
+  const handleJoinRoom = async (roomId: string) => {
+    try {
+      await joinRoom(roomId);
+      toast({
+        title: "SALLE_REJOINTE",
+        description: "Vous avez rejoint la salle avec succès!"
+      });
+    } catch (error) {
+      console.error("Error joining room:", error);
+      toast({
+        title: "ERREUR",
+        description: "Impossible de rejoindre la salle",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleJoinGame = () => {
+    if (currentRoom?.status === 'playing') {
+      navigate('/game');
+    } else {
+      toast({
+        title: "PARTIE_NON_DISPONIBLE",
+        description: "La partie n'a pas encore commencé",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -218,7 +248,12 @@ export default function MobileLobbyLayout({
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
                 <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-4 border border-cyber-cyan/50">
-                  <RoomList />
+                  <RoomList 
+                    rooms={rooms}
+                    currentRoomId={currentRoom?.id}
+                    handleJoinRoom={handleJoinRoom}
+                    handleJoinGame={handleJoinGame}
+                  />
                 </div>
               </div>
             </TabsContent>

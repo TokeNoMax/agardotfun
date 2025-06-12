@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -23,7 +24,7 @@ import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function Lobby() {
-  const { player, refreshCurrentRoom, leaveRoom, currentRoom } = useGame();
+  const { player, refreshCurrentRoom, leaveRoom, currentRoom, rooms, joinRoom, joinGame } = useGame();
   const { connected, publicKey } = useWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -76,6 +77,35 @@ export default function Lobby() {
     
     initializeLobby();
   }, [hasInitialized, currentRoom, leaveRoom, refreshCurrentRoom]);
+
+  const handleJoinRoom = async (roomId: string) => {
+    try {
+      await joinRoom(roomId);
+      toast({
+        title: "SALLE_REJOINTE",
+        description: "Vous avez rejoint la salle avec succès!"
+      });
+    } catch (error) {
+      console.error("Error joining room:", error);
+      toast({
+        title: "ERREUR",
+        description: "Impossible de rejoindre la salle",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleJoinGame = () => {
+    if (currentRoom?.status === 'playing') {
+      navigate('/game');
+    } else {
+      toast({
+        title: "PARTIE_NON_DISPONIBLE",
+        description: "La partie n'a pas encore commencé",
+        variant: "destructive"
+      });
+    }
+  };
   
   const handleTestGame = async () => {
     if (!player) {
@@ -356,7 +386,12 @@ export default function Lobby() {
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
                 <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-6 border-2 border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
-                  <RoomList />
+                  <RoomList 
+                    rooms={rooms}
+                    currentRoomId={currentRoom?.id}
+                    handleJoinRoom={handleJoinRoom}
+                    handleJoinGame={handleJoinGame}
+                  />
                 </div>
               </div>
             ) : (
