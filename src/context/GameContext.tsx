@@ -120,7 +120,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
 
   const createRoom = async (name: string, maxPlayers: number) => {
     try {
-      const newRoom: GameRoom = await gameRoomService.createRoom(name, maxPlayers);
+      const newRoom = await gameRoomService.createRoom(name, maxPlayers);
       setCurrentRoom(newRoom);
       localStorage.setItem('agar3-fun-current-room', JSON.stringify(newRoom));
       toast({

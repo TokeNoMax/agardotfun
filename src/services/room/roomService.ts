@@ -73,6 +73,7 @@ export const roomService = {
       console.log("Created room gameMode:", roomData.game_mode);
 
       const createdRoom = convertDatabaseRoomToGameRoom(roomData, []);
+      console.log("Returning created room:", createdRoom);
       return createdRoom;
     } catch (error) {
       console.error("Failed to create room:", error);
