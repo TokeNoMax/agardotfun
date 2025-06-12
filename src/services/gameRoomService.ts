@@ -18,8 +18,7 @@ export const gameRoomService = {
 
   // Room management
   getAllRooms: roomService.getAllRooms,
-  createRoom: (name: string, maxPlayers: number, gameMode: GameMode = 'classic') => 
-    roomService.createRoom(name, maxPlayers, gameMode),
+  createRoom: roomService.createRoom,
   startGame: roomService.startGame,
   getRoom: roomService.getRoom,
   checkGhostRooms: roomService.checkGhostRooms,

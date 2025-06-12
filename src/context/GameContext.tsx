@@ -125,7 +125,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
       localStorage.setItem('agar3-fun-current-room', JSON.stringify(newRoom));
       toast({
         title: "Salle créée !",
-        description: `La salle ${name} a été créée avec succès.`,
+        description: `La salle ${newRoom.name} a été créée avec succès.`,
       });
     } catch (error) {
       console.error("Error creating room:", error);
