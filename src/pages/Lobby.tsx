@@ -77,35 +77,6 @@ export default function Lobby() {
     
     initializeLobby();
   }, [hasInitialized, currentRoom, leaveRoom, refreshCurrentRoom]);
-
-  const handleJoinRoom = async (roomId: string) => {
-    try {
-      await joinRoom(roomId);
-      toast({
-        title: "SALLE_REJOINTE",
-        description: "Vous avez rejoint la salle avec succès!"
-      });
-    } catch (error) {
-      console.error("Error joining room:", error);
-      toast({
-        title: "ERREUR",
-        description: "Impossible de rejoindre la salle",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleJoinGame = () => {
-    if (currentRoom?.status === 'playing') {
-      navigate('/game');
-    } else {
-      toast({
-        title: "PARTIE_NON_DISPONIBLE",
-        description: "La partie n'a pas encore commencé",
-        variant: "destructive"
-      });
-    }
-  };
   
   const handleTestGame = async () => {
     if (!player) {
@@ -389,8 +360,8 @@ export default function Lobby() {
                   <RoomList 
                     rooms={rooms}
                     currentRoomId={currentRoom?.id}
-                    handleJoinRoom={handleJoinRoom}
-                    handleJoinGame={handleJoinGame}
+                    handleJoinRoom={joinRoom}
+                    handleJoinGame={joinGame}
                   />
                 </div>
               </div>
@@ -506,19 +477,4 @@ export default function Lobby() {
       </footer>
     </div>
   );
-}
-
-// Helper function to get color hex
-function getColorHex(color: string): string {
-  const colorMap: Record<string, string> = {
-    blue: '3498db',
-    red: 'e74c3c',
-    green: '2ecc71',
-    yellow: 'f1c40f',
-    purple: '9b59b6',
-    orange: 'e67e22',
-    cyan: '1abc9c',
-    pink: 'fd79a8'
-  };
-  return colorMap[color] || '3498db';
 }

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Player, GameRoom, PlayerColor } from '@/types/game';
@@ -5,17 +6,21 @@ import { generateName } from '@/utils/nameGenerator';
 import { generateColor } from '@/utils/colorGenerator';
 import { gameRoomService } from '@/services/gameRoomService';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface GameContextType {
   player: Player | null;
   currentRoom: GameRoom | null;
+  rooms: GameRoom[];
   customPhrases: string[];
   setCustomPhrases: (phrases: string[]) => void;
   setPlayerDetails: (name: string, color: PlayerColor) => void;
   createRoom: (name: string, maxPlayers: number) => Promise<void>;
   joinRoom: (roomId: string) => Promise<void>;
+  joinGame: () => void;
   leaveRoom: () => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
+  refreshRooms: () => Promise<void>;
   setPlayerReady: (ready: boolean) => Promise<void>;
   startGame: () => Promise<void>;
 }
@@ -42,6 +47,7 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   const [player, setPlayer] = useState<Player | null>(null);
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+  const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [customPhrases, setCustomPhrases] = useState<string[]>([...defaultPhrases]);
   const { toast } = useToast();
   const { publicKey } = useWallet();
@@ -79,6 +85,9 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
         localStorage.removeItem('agar3-fun-current-room');
       }
     }
+
+    // Load available rooms on mount
+    refreshRooms();
   }, []);
 
   // Save player to localStorage whenever it changes
@@ -120,11 +129,22 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
     setPlayer(newPlayer);
   };
 
+  const refreshRooms = async () => {
+    try {
+      const availableRooms = await gameRoomService.getAvailableRooms();
+      setRooms(availableRooms);
+    } catch (error) {
+      console.error('Error fetching available rooms:', error);
+      setRooms([]);
+    }
+  };
+
   const createRoom = async (name: string, maxPlayers: number) => {
     try {
       const newRoom = await gameRoomService.createRoom(name, maxPlayers);
       setCurrentRoom(newRoom);
       localStorage.setItem('agar3-fun-current-room', JSON.stringify(newRoom));
+      await refreshRooms(); // Refresh rooms list
       toast({
         title: "Salle créée !",
         description: `La salle ${newRoom.name} a été créée avec succès.`,
@@ -170,6 +190,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
       const joinedRoom = await gameRoomService.joinRoom(roomId, playerWithWallet);
       setCurrentRoom(joinedRoom);
       localStorage.setItem('agar3-fun-current-room', JSON.stringify(joinedRoom));
+      await refreshRooms(); // Refresh rooms list
       toast({
         title: "Salle rejointe !",
         description: `Vous avez rejoint la salle ${joinedRoom.name}.`,
@@ -184,6 +205,19 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
     }
   };
 
+  const joinGame = () => {
+    if (currentRoom?.status === 'playing') {
+      // Use window.location instead of navigate since we don't have access to it here
+      window.location.href = '/game';
+    } else {
+      toast({
+        title: "PARTIE_NON_DISPONIBLE",
+        description: "La partie n'a pas encore commencé",
+        variant: "destructive"
+      });
+    }
+  };
+
   const leaveRoom = async () => {
     if (!player || !currentRoom) {
       return;
@@ -193,6 +227,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
       await gameRoomService.leaveRoom(currentRoom.id, player.id);
       setCurrentRoom(null);
       localStorage.removeItem('agar3-fun-current-room');
+      await refreshRooms(); // Refresh rooms list
       toast({
         title: "Salle quittée",
         description: "Vous avez quitté la salle.",
@@ -249,6 +284,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
       });
       // Refresh the room to get the updated player list
       await refreshCurrentRoom();
+      await refreshRooms(); // Also refresh rooms list
     } catch (error) {
       console.error("Error setting player ready:", error);
       toast({
@@ -271,6 +307,8 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
 
     try {
       await gameRoomService.startGame(currentRoom.id);
+      await refreshCurrentRoom(); // Refresh current room
+      await refreshRooms(); // Refresh rooms list
       toast({
         title: "Partie lancée !",
         description: "La partie a été lancée avec succès.",
@@ -288,13 +326,16 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   const value: GameContextType = {
     player,
     currentRoom,
+    rooms,
     customPhrases,
     setCustomPhrases,
     setPlayerDetails,
     createRoom,
     joinRoom,
+    joinGame,
     leaveRoom,
     refreshCurrentRoom,
+    refreshRooms,
     setPlayerReady,
     startGame
   };
