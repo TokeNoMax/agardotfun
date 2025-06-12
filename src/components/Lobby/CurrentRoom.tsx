@@ -52,12 +52,26 @@ export default function CurrentRoom({
   
   const modeInfo = getGameModeDisplay(currentRoom.gameMode);
   
-  // IMPROVED: More robust player detection
+  // IMPROVED: More robust player detection with detailed logging
   const isPlayerInRoom = () => {
     if (!player || !currentRoom.players) {
       console.log("CurrentRoom - No player or no room players");
+      console.log("CurrentRoom - Player object:", player);
+      console.log("CurrentRoom - Room players:", currentRoom.players);
       return false;
     }
+    
+    console.log("CurrentRoom - Checking if player is in room:");
+    console.log("CurrentRoom - Current player:", {
+      id: player.id,
+      walletAddress: player.walletAddress,
+      name: player.name
+    });
+    console.log("CurrentRoom - Room players:", currentRoom.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      walletAddress: p.walletAddress
+    })));
     
     // Check both player ID and wallet address for better detection
     const playerInRoom = currentRoom.players.some(p => {
@@ -76,12 +90,19 @@ export default function CurrentRoom({
       return idMatch || walletMatch || (nameMatch && p.name.trim() !== '');
     });
     
-    console.log("CurrentRoom - Player in room result:", playerInRoom);
+    console.log("CurrentRoom - Final player in room result:", playerInRoom);
     return playerInRoom;
   };
   
   // Use our improved detection function
   const playerInRoom = isPlayerInRoom();
+  
+  // Additional debugging
+  console.log("CurrentRoom - Button display logic:");
+  console.log("CurrentRoom - playerInRoom:", playerInRoom);
+  console.log("CurrentRoom - isCurrentPlayerReady():", isCurrentPlayerReady());
+  console.log("CurrentRoom - Room status:", currentRoom.status);
+  console.log("CurrentRoom - Game starting:", gameStarting);
   
   return (
     <>
@@ -140,9 +161,10 @@ export default function CurrentRoom({
               </div>
             </div>
 
-            {/* Action buttons */}
+            {/* Action buttons - IMPROVED LOGIC */}
             <div className="flex flex-col gap-3">
               {playerInRoom ? (
+                // Player is IN the room - show READY, START, LEAVE buttons
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {/* Ready button - always visible when in room */}
                   <Button 
@@ -181,14 +203,20 @@ export default function CurrentRoom({
                   </Button>
                 </div>
               ) : (
-                <Button 
-                  onClick={() => handleJoinRoom(currentRoom.id)}
-                  disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
-                  className="w-full bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold border border-cyber-cyan/50"
-                >
-                  <Users className="mr-2 h-4 w-4" />
-                  JOIN_ROOM
-                </Button>
+                // Player is NOT in the room - show JOIN button
+                <div className="text-center">
+                  <p className="text-cyber-cyan font-mono mb-4">
+                    Vous n'êtes pas encore dans cette salle
+                  </p>
+                  <Button 
+                    onClick={() => handleJoinRoom(currentRoom.id)}
+                    disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
+                    className="w-full bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold border border-cyber-cyan/50"
+                  >
+                    <Users className="mr-2 h-4 w-4" />
+                    JOIN_ROOM
+                  </Button>
+                </div>
               )}
             </div>
           </div>
