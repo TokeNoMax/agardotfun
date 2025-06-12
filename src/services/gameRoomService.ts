@@ -26,7 +26,9 @@ export const gameRoomService = {
   checkGhostRooms: roomService.checkGhostRooms,
 
   // Player management
-  joinRoom: playerService.joinRoom,
+  joinRoom: async (roomId: string, player: Player): Promise<GameRoom> => {
+    return await playerService.joinRoom(roomId, player);
+  },
   leaveRoom: playerService.leaveRoom,
   setPlayerReady: playerService.setPlayerReady
 };

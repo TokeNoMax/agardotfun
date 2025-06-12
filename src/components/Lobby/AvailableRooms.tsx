@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { GameRoom } from "@/types/game";
+import { useWallet } from '@solana/wallet-adapter-react';
 import {
   Table,
   TableBody,
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { RefreshCw, AlertCircle, CheckCircle, Users, Zap } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Users, Zap, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AvailableRoomsProps {
@@ -32,6 +33,7 @@ export default function AvailableRooms({
 }: AvailableRoomsProps) {
   const [hasSuccessfulConnection, setHasSuccessfulConnection] = useState(false);
   const { toast } = useToast();
+  const { publicKey, connected } = useWallet();
   
   useEffect(() => {
     console.log("AvailableRooms - Rooms updated:", rooms);
@@ -104,6 +106,30 @@ export default function AvailableRooms({
     }
   };
 
+  const canJoinRoom = connected && publicKey && playerExists;
+
+  const handleJoinWithValidation = async (roomId: string) => {
+    if (!connected || !publicKey) {
+      toast({
+        title: "Wallet non connecté",
+        description: "Connectez votre wallet Solana pour rejoindre une salle.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!playerExists) {
+      toast({
+        title: "Configuration requise",
+        description: "Configurez votre joueur avant de rejoindre une salle.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    await handleJoinRoom(roomId);
+  };
+
   const handleContextualRefresh = async () => {
     if (!refreshRooms) return;
     
@@ -132,6 +158,16 @@ export default function AvailableRooms({
     <div className="mb-4">
       <div className="mb-4">
         <h3 className="text-xl font-bold text-cyber-cyan font-mono">AVAILABLE_ROOMS ({roomsToDisplay.length})</h3>
+        {!canJoinRoom && (
+          <div className="mt-2 p-2 bg-cyber-yellow/10 border border-cyber-yellow/30 rounded-lg">
+            <div className="flex items-center gap-2 text-cyber-yellow text-sm font-mono">
+              <Wallet className="h-4 w-4" />
+              <span>
+                {!connected ? "Connectez votre wallet" : !playerExists ? "Configurez votre joueur" : "Wallet requis"} pour rejoindre une salle
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       
       {roomsToDisplay.length > 0 ? (
@@ -152,6 +188,8 @@ export default function AvailableRooms({
                 const statusInfo = getRoomDisplayStatus(room);
                 const modeInfo = getGameModeDisplay(room.gameMode);
                 const isEmpty = playerCount === 0;
+                const isRoomFull = room.players && room.players.length >= (room.maxPlayers || 4);
+                const isRoomAvailable = room.status === 'waiting' && !isRoomFull;
                 
                 console.log(`Rendering room ${room.name} with gameMode:`, room.gameMode, "| modeInfo:", modeInfo);
                 
@@ -198,16 +236,30 @@ export default function AvailableRooms({
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleJoinRoom(room.id);
+                          handleJoinWithValidation(room.id);
                         }}
-                        disabled={!playerExists || (room.players && room.players.length >= (room.maxPlayers || 4)) || room.status !== 'waiting'}
-                        className={`font-mono font-bold ${isEmpty 
-                          ? 'bg-gradient-to-r from-cyber-blue to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-blue text-black border border-cyber-blue/50' 
-                          : 'bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black border border-cyber-green/50'
+                        disabled={!canJoinRoom || !isRoomAvailable}
+                        className={`font-mono font-bold ${
+                          !canJoinRoom 
+                            ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                            : isEmpty 
+                              ? 'bg-gradient-to-r from-cyber-blue to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-blue text-black border border-cyber-blue/50' 
+                              : 'bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black border border-cyber-green/50'
                         }`}
                       >
-                        <Zap className="mr-1 h-3 w-3" />
-                        {isEmpty ? 'JOIN_EMPTY' : 'JOIN_ROOM'}
+                        {!canJoinRoom ? (
+                          <>
+                            <Wallet className="mr-1 h-3 w-3" />
+                            WALLET_REQUIRED
+                          </>
+                        ) : !isRoomAvailable ? (
+                          'UNAVAILABLE'
+                        ) : (
+                          <>
+                            <Zap className="mr-1 h-3 w-3" />
+                            {isEmpty ? 'JOIN_EMPTY' : 'JOIN_ROOM'}
+                          </>
+                        )}
                       </Button>
                     </TableCell>
                   </TableRow>

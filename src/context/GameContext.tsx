@@ -1,5 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { Player, GameRoom, PlayerColor } from '@/types/game';
 import { generateName } from '@/utils/nameGenerator';
 import { generateColor } from '@/utils/colorGenerator';
@@ -44,6 +44,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
   const [customPhrases, setCustomPhrases] = useState<string[]>([...defaultPhrases]);
   const { toast } = useToast();
+  const { publicKey } = useWallet();
 
   // Load saved player from localStorage on mount
   useEffect(() => {
@@ -104,9 +105,10 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   }, [currentRoom]);
 
   const setPlayerDetails = (name: string, color: PlayerColor) => {
+    const walletAddress = publicKey?.toBase58() || '';
     const newPlayer: Player = {
       id: crypto.randomUUID(),
-      walletAddress: '',
+      walletAddress,
       name,
       color,
       x: 50,
@@ -138,6 +140,17 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   };
 
   const joinRoom = async (roomId: string) => {
+    // Vérifier que le wallet est connecté
+    if (!publicKey) {
+      toast({
+        title: "Wallet non connecté",
+        description: "Veuillez connecter votre wallet Solana pour rejoindre une salle.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Vérifier que le joueur est configuré
     if (!player) {
       toast({
         title: "Erreur de joueur",
@@ -147,8 +160,14 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
       return;
     }
 
+    // Assurer que le joueur a l'adresse wallet correcte
+    const playerWithWallet = {
+      ...player,
+      walletAddress: publicKey.toBase58()
+    };
+
     try {
-      const joinedRoom = await gameRoomService.joinRoom(roomId, player);
+      const joinedRoom = await gameRoomService.joinRoom(roomId, playerWithWallet);
       setCurrentRoom(joinedRoom);
       localStorage.setItem('agar3-fun-current-room', JSON.stringify(joinedRoom));
       toast({

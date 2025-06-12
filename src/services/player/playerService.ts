@@ -1,11 +1,12 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { Player } from "@/types/game";
+import { Player, GameRoom } from "@/types/game";
 import { verificationService } from "../room/verificationService";
 import { activityService } from "../room/activityService";
+import { convertDatabaseRoomToGameRoom } from "../database/converters";
 
 export const playerService = {
-  async joinRoom(roomId: string, player: Player): Promise<void> {
+  async joinRoom(roomId: string, player: Player): Promise<GameRoom> {
     console.log(`Player joining room - Details:`, {
       playerName: player.name,
       walletAddress: player.walletAddress,
@@ -84,7 +85,7 @@ export const playerService = {
       }
 
       console.log("Adding/updating player in room...");
-      // CORRECTION 1: Ajouter logs d'erreur visibles et utiliser upsert avec onConflict
+      // Ajouter le joueur à la salle
       const { error: joinError } = await supabase
         .from('game_room_players')
         .upsert({
@@ -104,14 +105,37 @@ export const playerService = {
 
       if (joinError) {
         console.error("[JOIN game_room_players] failed:", joinError);
-        // Log d'erreur visible en production
-        alert(`join err: ${joinError.message}`);
         throw new Error(`Impossible de rejoindre la salle: ${joinError.message}`);
       }
 
       console.log("✅ [JOIN game_room_players] succeeded for player:", player.walletAddress);
       await activityService.updateRoomActivity(roomId);
-      console.log("✅ Player joined/rejoined room successfully");
+      
+      // Récupérer et retourner la salle mise à jour
+      const { data: updatedRoomData, error: fetchError } = await supabase
+        .from('game_rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+
+      if (fetchError) {
+        console.error("Error fetching updated room:", fetchError);
+        throw new Error("Impossible de récupérer les informations de la salle");
+      }
+
+      const { data: playersData, error: playersDataError } = await supabase
+        .from('game_room_players')
+        .select('*')
+        .eq('room_id', roomId);
+
+      if (playersDataError) {
+        console.error("Error fetching players data:", playersDataError);
+        throw new Error("Impossible de récupérer les joueurs de la salle");
+      }
+
+      const gameRoom = convertDatabaseRoomToGameRoom(updatedRoomData, playersData || []);
+      console.log("✅ Player joined room successfully, returning room:", gameRoom);
+      return gameRoom;
     } catch (error) {
       console.error("Error in joinRoom:", error);
       throw error;
