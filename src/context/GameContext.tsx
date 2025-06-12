@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Player, GameRoom, PlayerColor } from '@/types/game';
 import { generateName } from '@/utils/nameGenerator';
@@ -105,12 +106,13 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   const setPlayerDetails = (name: string, color: PlayerColor) => {
     const newPlayer: Player = {
       id: crypto.randomUUID(),
+      walletAddress: '',
       name,
       color,
       x: 50,
       y: 50,
       size: 20,
-      score: 0,
+      isAlive: true,
       isReady: false
     };
     setPlayer(newPlayer);

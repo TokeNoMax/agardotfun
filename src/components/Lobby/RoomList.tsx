@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle } from "lucide-react";
 import { useGame } from "@/context/GameContext";
+import { useGameRooms } from "@/hooks/useGameRooms";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import CreateRoomDialog from "./CreateRoomDialog";
@@ -13,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 
 export default function RoomList() {
-  const { rooms, createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom, refreshRooms } = useGame();
+  const { createRoom, joinRoom, player, currentRoom, startGame, leaveRoom, setPlayerReady, refreshCurrentRoom } = useGame();
+  const { rooms, refreshRooms } = useGameRooms(currentRoom?.id);
   const [roomName, setRoomName] = useState("");
   const [maxPlayers, setMaxPlayers] = useState("4");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -116,8 +118,8 @@ export default function RoomList() {
               
               console.log("Starting game from countdown...");
               
-              startGame().then((result) => {
-                if (result.success && !hasNavigated && currentRoom) {
+              startGame().then(() => {
+                if (!hasNavigated && currentRoom) {
                   console.log("Game started successfully, navigating to unique room");
                   setHasNavigated(true);
                   showToastWithThrottle("🎮 Partie lancée !", "Redirection vers le jeu...");
@@ -126,7 +128,7 @@ export default function RoomList() {
                   navigate(`/game/${currentRoom.id}`);
                 } else {
                   setGameStarting(false);
-                  showToastWithThrottle("Erreur", result.error || "Impossible de démarrer la partie", "destructive");
+                  showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
                 }
               }).catch(error => {
                 console.error("Error starting game:", error);
@@ -175,14 +177,9 @@ export default function RoomList() {
     if (roomName.trim()) {
       try {
         console.log(`Création de salle: "${roomName}" avec ${maxPlayers} joueurs max (mode: ${gameMode})`);
-        const roomResult = await createRoom({ 
-          name: roomName, 
-          maxPlayers: parseInt(maxPlayers),
-          gameMode: gameMode // Pass the gameMode explicitly
-        });
+        await createRoom(roomName, parseInt(maxPlayers));
         
-        // createRoom should return a string (room ID), not a GameRoom object
-        console.log("Salle créée avec ID:", roomResult);
+        console.log("Salle créée avec succès");
         setCreateDialogOpen(false);
         
         showToastWithThrottle("Salle créée", `Votre salle "${roomName}" a été créée avec succès.`);
@@ -210,14 +207,14 @@ export default function RoomList() {
     
     try {
       setGameStarting(true);
-      const result = await startGame();
-      if (result.success && !hasNavigated && currentRoom) {
+      await startGame();
+      if (!hasNavigated && currentRoom) {
         setHasNavigated(true);
         // FIXED: Navigate to unique room URL
         navigate(`/game/${currentRoom.id}`);
-      } else if (!result.success) {
+      } else {
         setGameStarting(false);
-        showToastWithThrottle("Erreur", result.error || "Impossible de démarrer la partie", "destructive");
+        showToastWithThrottle("Erreur", "Impossible de démarrer la partie", "destructive");
       }
     } catch (error) {
       console.error("Error starting game:", error);
