@@ -19,7 +19,7 @@ export const gameRoomService = {
   // Room management
   getAllRooms: roomService.getAllRooms,
   createRoom: async (name: string, maxPlayers: number, gameMode: GameMode = 'classic'): Promise<GameRoom> => {
-    return await roomService.createRoom(name, maxPlayers, gameMode);
+    return roomService.createRoom(name, maxPlayers, gameMode);
   },
   startGame: roomService.startGame,
   getRoom: roomService.getRoom,
