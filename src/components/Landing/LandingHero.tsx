@@ -42,7 +42,7 @@ export const LandingHero: React.FC = () => {
           </svg>
           <div className="absolute inset-0 bg-cyber-cyan/20 rounded-full blur-xl animate-pulse"></div>
           <h1 className="text-6xl md:text-7xl font-pixel text-cyber-cyan tracking-wider animate-neon-pulse">
-            agar<span className="text-cyber-yellow animate-glitch">.fun</span>
+            agar3<span className="text-cyber-yellow animate-glitch">.fun</span>
           </h1>
         </div>
       </div>

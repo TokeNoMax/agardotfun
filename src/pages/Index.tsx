@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Button } from "@/components/ui/button";
@@ -324,7 +325,7 @@ export default function Index() {
       
       <footer className="relative z-10 mt-20 text-center">
         <p className="text-gray-500 text-sm font-mono">
-          © 2025 agar.fun - <span className="text-cyber-cyan">HODLING</span> since genesis block 🚀
+          © 2025 agar3.fun - <span className="text-cyber-cyan">HODLING</span> since genesis block 🚀
         </p>
         <p className="text-gray-600 text-xs font-mono mt-1">
           Not financial advice | DYOR | Diamond hands only 💎🙌

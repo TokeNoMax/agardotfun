@@ -48,12 +48,12 @@ export default function Lobby() {
       
       try {
         // Check for any finished games in localStorage
-        const gameState = localStorage.getItem('blob-battle-game-state');
+        const gameState = localStorage.getItem('agar3-fun-game-state');
         if (gameState) {
           const parsedState = JSON.parse(gameState);
           if (parsedState.status === 'finished') {
             console.log("Found finished game, cleaning up...");
-            localStorage.removeItem('blob-battle-game-state');
+            localStorage.removeItem('agar3-fun-game-state');
             
             // Only leave room if we're actually in one
             if (currentRoom && currentRoom.status === 'finished') {
@@ -69,8 +69,8 @@ export default function Lobby() {
       } catch (error) {
         console.error("Error during lobby initialization:", error);
         // If there's an error, clear potentially corrupted state
-        localStorage.removeItem('blob-battle-current-room');
-        localStorage.removeItem('blob-battle-game-state');
+        localStorage.removeItem('agar3-fun-current-room');
+        localStorage.removeItem('agar3-fun-game-state');
       }
     };
     
@@ -235,7 +235,7 @@ export default function Lobby() {
               <div className="absolute inset-0 bg-cyber-cyan/20 rounded-full blur-lg animate-pulse"></div>
             </div>
             <h1 className="text-4xl font-pixel text-cyber-cyan tracking-wider animate-neon-pulse">
-              agar<span className="text-cyber-yellow">.fun</span>
+              agar3<span className="text-cyber-yellow">.fun</span>
             </h1>
           </div>
           
@@ -463,7 +463,7 @@ export default function Lobby() {
       
       <footer className="relative z-10 mt-20 text-center">
         <p className="text-gray-500 text-sm font-mono">
-          © 2025 agar.fun - <span className="text-cyber-cyan">HODLING</span> since genesis block 🚀
+          © 2025 agar3.fun - <span className="text-cyber-cyan">HODLING</span> since genesis block 🚀
         </p>
         <p className="text-gray-600 text-xs font-mono mt-1">
           Not financial advice | DYOR | Diamond hands only 💎🙌

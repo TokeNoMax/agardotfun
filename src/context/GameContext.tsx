@@ -1,355 +1,296 @@
-import React, {
-  createContext,
-  useState,
-  useEffect,
-  useContext,
-  useCallback,
-} from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  GameRoom,
-  Player,
-  GameMode,
-  PlayerColor,
-} from "@/types/game";
-import { gameRoomService } from "@/services/gameRoomService";
-import { playerService } from "@/services/player/playerService";
-import { useToast } from "@/hooks/use-toast";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { generateName } from "@/utils/nameGenerator";
-import { generateColor } from "@/utils/colorGenerator";
-import { usePlayerHeartbeat } from "@/hooks/usePlayerHeartbeat";
-
-// Default phrases for the game
-export const defaultPhrases = [
-  "{playerName} s'est fait absorber ! 💀",
-  "{playerName} a rejoint les légendes ! ⚰️",
-  "RIP {playerName}, tu nous manqueras ! 😢",
-  "{playerName} a été recyclé ! ♻️",
-  "Au revoir {playerName} ! 👋",
-  "{playerName} est maintenant de la nourriture ! 🍽️",
-  "{playerName} a découvert la vraie DeFi ! 📉",
-  "Liquidé : {playerName} ! 💸",
-  "{playerName} a été rug pulled ! 🪜",
-  "Diamond hands? Plus comme paper hands {playerName} ! 💎➡️📄"
-];
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Player, GameRoom, PlayerColor } from '@/types/game';
+import { generateName } from '@/utils/nameGenerator';
+import { generateColor } from '@/utils/colorGenerator';
+import { gameRoomService } from '@/services/gameRoomService';
+import { useToast } from '@/hooks/use-toast';
 
 interface GameContextType {
   player: Player | null;
-  setPlayer: (player: Player | null) => void;
-  playerName: string;
-  setPlayerName: (name: string) => void;
-  playerColor: PlayerColor;
-  setPlayerColor: (color: PlayerColor) => void;
+  currentRoom: GameRoom | null;
   customPhrases: string[];
   setCustomPhrases: (phrases: string[]) => void;
-  rooms: GameRoom[];
-  currentRoom: GameRoom | null;
-  createRoom: (params: { name: string; maxPlayers: number; gameMode?: GameMode }) => Promise<string>;
+  setPlayerDetails: (name: string, color: PlayerColor) => void;
+  createRoom: (name: string, maxPlayers: number) => Promise<void>;
   joinRoom: (roomId: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
-  startGame: () => Promise<{ success: boolean; error?: string }>;
-  setPlayerReady: (isReady: boolean) => Promise<void>;
-  refreshRooms: () => Promise<void>;
   refreshCurrentRoom: () => Promise<void>;
-  resetGame: () => void;
-  setPlayerDetails: (name: string, color: PlayerColor) => Promise<void>;
+  setPlayerReady: (ready: boolean) => Promise<void>;
+  startGame: () => Promise<void>;
 }
+
+interface GameContextProps {
+  children: ReactNode;
+}
+
+const defaultPhrases = [
+  "{playerName} s'est fait PLS !",
+  "{playerName} a goûté au REKT !",
+  "{playerName} est retourné au menu...",
+  "RIP {playerName} 💀",
+  "{playerName} est parti en PLS !",
+  "{playerName} à mangé le RUG PULL !",
+  "{playerName} à fait un ALL IN perdant !",
+  "{playerName} s'est fait LIQUIDATED !",
+  "{playerName} à raté le TAKE PROFIT !",
+  "{playerName} est devenu un BAG HOLDER !"
+];
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
-interface GameContextProviderProps {
-  children: React.ReactNode;
-}
-
-export const GameContextProvider: React.FC<GameContextProviderProps> = ({
-  children,
-}) => {
-  const [player, setPlayer] = useLocalStorage<Player | null>(
-    "blob-battle-player",
-    null
-  );
-  const [playerName, setPlayerName] = useLocalStorage<string>(
-    "blob-battle-player-name",
-    ""
-  );
-  const [playerColor, setPlayerColor] = useLocalStorage<PlayerColor>(
-    "blob-battle-player-color",
-    "blue"
-  );
-  const [customPhrases, setCustomPhrases] = useLocalStorage<string[]>(
-    "blob-battle-custom-phrases",
-    defaultPhrases
-  );
-  const [rooms, setRooms] = useState<GameRoom[]>([]);
-  const [currentRoom, setCurrentRoom] = useLocalStorage<GameRoom | null>(
-    "blob-battle-current-room",
-    null
-  );
-  const navigate = useNavigate();
+export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
+  const [player, setPlayer] = useState<Player | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+  const [customPhrases, setCustomPhrases] = useState<string[]>([...defaultPhrases]);
   const { toast } = useToast();
 
-  // Heartbeat effect
-  const { sendManualHeartbeat } = usePlayerHeartbeat({
-    roomId: currentRoom?.id,
-    playerId: player?.id,
-    intervalSeconds: 20,
-    enableLogging: false,
-  });
-
+  // Load saved player from localStorage on mount
   useEffect(() => {
-    if (player?.id && currentRoom?.id) {
-      sendManualHeartbeat();
+    const savedPlayer = localStorage.getItem('agar3-fun-player');
+    if (savedPlayer) {
+      try {
+        const parsedPlayer = JSON.parse(savedPlayer);
+        setPlayer(parsedPlayer);
+      } catch (error) {
+        console.error('Error parsing saved player:', error);
+        localStorage.removeItem('agar3-fun-player');
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player?.id, currentRoom?.id]);
 
-  const resetGame = () => {
-    setPlayer(null);
-    setRooms([]);
-    setCurrentRoom(null);
-    localStorage.removeItem("blob-battle-player");
-    localStorage.removeItem("blob-battle-current-room");
-  };
+    const savedPhrases = localStorage.getItem('agar3-fun-custom-phrases');
+    if (savedPhrases) {
+      try {
+        const parsedPhrases = JSON.parse(savedPhrases);
+        setCustomPhrases(parsedPhrases);
+      } catch (error) {
+        console.error('Error parsing saved phrases:', error);
+      }
+    }
 
-  const setPlayerDetails = async (name: string, color: PlayerColor): Promise<void> => {
-    setPlayerName(name);
-    setPlayerColor(color);
-    
-    // Create or update player with wallet address and other details
+    const savedRoom = localStorage.getItem('agar3-fun-current-room');
+    if (savedRoom) {
+      try {
+        const parsedRoom = JSON.parse(savedRoom);
+        setCurrentRoom(parsedRoom);
+      } catch (error) {
+        console.error('Error parsing saved room:', error);
+        localStorage.removeItem('agar3-fun-current-room');
+      }
+    }
+  }, []);
+
+  // Save player to localStorage whenever it changes
+  useEffect(() => {
+    if (player) {
+      localStorage.setItem('agar3-fun-player', JSON.stringify(player));
+    } else {
+      localStorage.removeItem('agar3-fun-player');
+    }
+  }, [player]);
+
+  // Save custom phrases to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('agar3-fun-custom-phrases', JSON.stringify(customPhrases));
+  }, [customPhrases]);
+
+  // Save current room to localStorage whenever it changes
+  useEffect(() => {
+    if (currentRoom) {
+      localStorage.setItem('agar3-fun-current-room', JSON.stringify(currentRoom));
+    } else {
+      localStorage.removeItem('agar3-fun-current-room');
+    }
+  }, [currentRoom]);
+
+  const setPlayerDetails = (name: string, color: PlayerColor) => {
     const newPlayer: Player = {
       id: crypto.randomUUID(),
-      walletAddress: crypto.randomUUID(), // This should be replaced with actual wallet address
       name,
       color,
-      size: 30,
-      x: 0,
-      y: 0,
-      isAlive: true,
-      isReady: false,
-      joinedAt: new Date().toISOString()
+      x: 50,
+      y: 50,
+      size: 20,
+      score: 0,
+      isReady: false
     };
-    
     setPlayer(newPlayer);
   };
 
-  const refreshRooms = useCallback(async () => {
+  const createRoom = async (name: string, maxPlayers: number) => {
     try {
-      const fetchedRooms = await gameRoomService.getAllRooms();
-      setRooms(fetchedRooms);
-    } catch (error) {
-      console.error("Error fetching rooms:", error);
+      const newRoom = await gameRoomService.createRoom(name, maxPlayers);
+      setCurrentRoom(newRoom);
+      localStorage.setItem('agar3-fun-current-room', JSON.stringify(newRoom));
       toast({
-        title: "Error",
-        description: "Failed to fetch rooms. Please try again.",
-        variant: "destructive",
+        title: "Salle créée !",
+        description: `La salle ${name} a été créée avec succès.`,
       });
-    }
-  }, [setRooms, toast]);
-
-  const refreshCurrentRoom = useCallback(async () => {
-    if (currentRoom && currentRoom.id) {
-      try {
-        const room = await gameRoomService.getRoom(currentRoom.id);
-        if (room) {
-          setCurrentRoom(room);
-        } else {
-          setCurrentRoom(null);
-        }
-      } catch (error) {
-        console.error("Error fetching current room:", error);
-        setCurrentRoom(null);
-        toast({
-          title: "Error",
-          description: "Failed to refresh current room. You may have been disconnected.",
-          variant: "destructive",
-        });
-      }
-    }
-  }, [currentRoom, setCurrentRoom, toast]);
-
-  useEffect(() => {
-    // Initial fetch of rooms on component mount
-    refreshRooms();
-  }, [refreshRooms]);
-
-  useEffect(() => {
-    // Refresh current room on component mount
-    refreshCurrentRoom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!playerName) {
-      const newName = generateName();
-      setPlayerName(newName);
-    }
-  }, [setPlayerName, playerName]);
-
-  const createRoom = async (params: { name: string; maxPlayers: number; gameMode?: GameMode }): Promise<string> => {
-    if (!player) {
-      throw new Error("Player must be set before creating a room");
-    }
-
-    try {
-      console.log("Creating room with params:", params);
-      const newRoom = await gameRoomService.createRoom(params.name, params.maxPlayers, params.gameMode || 'classic');
-      
-      // Return the room ID, not the entire room object
-      const roomId = newRoom.id;
-      
-      // Join the room after creating it
-      await joinRoom(roomId);
-      
-      return roomId;
     } catch (error) {
       console.error("Error creating room:", error);
-      throw error;
-    }
-  };
-
-  const joinRoom = async (roomId: string): Promise<void> => {
-    if (!player) {
-      throw new Error("Player must be set before joining a room");
-    }
-
-    try {
-      await gameRoomService.joinRoom(roomId, player.id);
-      const room = await gameRoomService.getRoom(roomId);
-
-      if (room) {
-        setCurrentRoom(room);
-        toast({
-          title: "Joined Room",
-          description: `Successfully joined room: ${room.name}`,
-        });
-        // Manually trigger navigation after joining the room
-        navigate(`/lobby`);
-      } else {
-        throw new Error("Room not found after joining");
-      }
-    } catch (error) {
-      console.error("Error joining room:", error);
       toast({
-        title: "Error",
-        description: "Failed to join room. Please try again.",
+        title: "Erreur de création",
+        description: "Impossible de créer la salle. Veuillez réessayer.",
         variant: "destructive",
       });
     }
   };
 
-  const leaveRoom = async (): Promise<void> => {
+  const joinRoom = async (roomId: string) => {
+    if (!player) {
+      toast({
+        title: "Erreur de joueur",
+        description: "Veuillez configurer votre joueur avant de rejoindre une salle.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const joinedRoom = await gameRoomService.joinRoom(roomId, player);
+      setCurrentRoom(joinedRoom);
+      localStorage.setItem('agar3-fun-current-room', JSON.stringify(joinedRoom));
+      toast({
+        title: "Salle rejointe !",
+        description: `Vous avez rejoint la salle ${joinedRoom.name}.`,
+      });
+    } catch (error: any) {
+      console.error("Error joining room:", error);
+      toast({
+        title: "Erreur de connexion",
+        description: error?.message || "Impossible de rejoindre la salle. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const leaveRoom = async () => {
     if (!player || !currentRoom) {
-      console.log("No room to leave or player not set");
       return;
     }
 
     try {
       await gameRoomService.leaveRoom(currentRoom.id, player.id);
       setCurrentRoom(null);
+      localStorage.removeItem('agar3-fun-current-room');
       toast({
-        title: "Left Room",
-        description: `Successfully left room: ${currentRoom.name}`,
+        title: "Salle quittée",
+        description: "Vous avez quitté la salle.",
       });
-      navigate("/lobby"); // Redirect to lobby after leaving
     } catch (error) {
       console.error("Error leaving room:", error);
       toast({
-        title: "Error",
-        description: "Failed to leave room. Please try again.",
+        title: "Erreur",
+        description: "Impossible de quitter la salle. Veuillez réessayer.",
         variant: "destructive",
       });
     }
   };
 
-  const startGame = async (): Promise<{ success: boolean; error?: string }> => {
+  const refreshCurrentRoom = async () => {
     if (!currentRoom) {
-      return { success: false, error: "No current room" };
-    }
-
-    try {
-      await gameRoomService.startGame(currentRoom.id);
-      // Optimistically update the local state
-      setCurrentRoom((prevRoom) => {
-        if (prevRoom) {
-          return { ...prevRoom, status: "playing" };
-        }
-        return prevRoom;
-      });
-      return { success: true };
-    } catch (error) {
-      console.error("Error starting game:", error);
-      toast({
-        title: "Error",
-        description: "Failed to start game. Please try again.",
-        variant: "destructive",
-      });
-      return { success: false, error: "Failed to start game" };
-    }
-  };
-
-  const setPlayerReady = async (isReady: boolean): Promise<void> => {
-    if (!player || !currentRoom) {
-      console.warn("No player or current room to set ready status");
       return;
     }
 
     try {
-      await gameRoomService.setPlayerReady(currentRoom.id, player.id, isReady);
-      // Optimistically update the local state
-      setCurrentRoom((prevRoom) => {
-        if (prevRoom && prevRoom.players) {
-          const updatedPlayers = prevRoom.players.map((p) =>
-            p.id === player.id ? { ...p, isReady } : p
-          );
-          return { ...prevRoom, players: updatedPlayers };
-        }
-        return prevRoom;
-      });
+      const refreshedRoom = await gameRoomService.getRoom(currentRoom.id);
+      setCurrentRoom(refreshedRoom);
+      localStorage.setItem('agar3-fun-current-room', JSON.stringify(refreshedRoom));
     } catch (error) {
-      console.error("Error setting player ready:", error);
+      console.error("Error refreshing room:", error);
+      localStorage.removeItem('agar3-fun-current-room');
+      setCurrentRoom(null);
       toast({
-        title: "Error",
-        description: "Failed to set player ready status. Please try again.",
+        title: "Erreur de synchronisation",
+        description: "Impossible de synchroniser la salle. Vous avez peut-être été déconnecté.",
         variant: "destructive",
       });
     }
   };
 
-  const contextValue: GameContextType = {
+  const setPlayerReady = async (ready: boolean) => {
+    if (!player || !currentRoom) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de changer l'état de préparation. Veuillez rejoindre une salle et configurer votre joueur.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await gameRoomService.setPlayerReady(currentRoom.id, player.id, ready);
+      // Optimistically update the player's ready state
+      setPlayer(prevPlayer => {
+        if (prevPlayer) {
+          return { ...prevPlayer, isReady: ready };
+        }
+        return prevPlayer;
+      });
+      // Refresh the room to get the updated player list
+      await refreshCurrentRoom();
+    } catch (error) {
+      console.error("Error setting player ready:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de changer l'état de préparation. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startGame = async () => {
+    if (!currentRoom) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de démarrer la partie. Veuillez rejoindre une salle.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await gameRoomService.startGame(currentRoom.id);
+      toast({
+        title: "Partie lancée !",
+        description: "La partie a été lancée avec succès.",
+      });
+    } catch (error) {
+      console.error("Error starting game:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de démarrer la partie. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const value: GameContextType = {
     player,
-    setPlayer,
-    playerName,
-    setPlayerName,
-    playerColor,
-    setPlayerColor,
+    currentRoom,
     customPhrases,
     setCustomPhrases,
-    rooms,
-    currentRoom,
+    setPlayerDetails,
     createRoom,
     joinRoom,
     leaveRoom,
-    startGame,
-    setPlayerReady,
-    refreshRooms,
     refreshCurrentRoom,
-    resetGame,
-    setPlayerDetails,
+    setPlayerReady,
+    startGame
   };
 
   return (
-    <GameContext.Provider value={contextValue}>{children}</GameContext.Provider>
+    <GameContext.Provider value={value}>
+      {children}
+    </GameContext.Provider>
   );
 };
-
-// Export alias for compatibility
-export const GameProvider = GameContextProvider;
 
 export const useGame = () => {
   const context = useContext(GameContext);
   if (!context) {
-    throw new Error("useGame must be used within a GameContextProvider");
+    throw new Error('useGame must be used within a GameProvider');
   }
   return context;
 };
+
+export { defaultPhrases };
