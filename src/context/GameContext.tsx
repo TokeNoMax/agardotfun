@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Player, GameRoom, PlayerColor } from '@/types/game';
 import { generateName } from '@/utils/nameGenerator';
@@ -119,7 +120,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
 
   const createRoom = async (name: string, maxPlayers: number) => {
     try {
-      const newRoom = await gameRoomService.createRoom(name, maxPlayers);
+      const newRoom: GameRoom = await gameRoomService.createRoom(name, maxPlayers);
       setCurrentRoom(newRoom);
       localStorage.setItem('agar3-fun-current-room', JSON.stringify(newRoom));
       toast({
