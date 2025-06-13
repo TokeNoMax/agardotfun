@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { Player, GameRoom, PlayerColor } from '@/types/game';
+import { Player, GameRoom, PlayerColor, GameMode } from '@/types/game';
 import { generateName } from '@/utils/nameGenerator';
 import { generateColor } from '@/utils/colorGenerator';
 import { gameRoomService } from '@/services/gameRoomService';
@@ -15,7 +14,7 @@ interface GameContextType {
   customPhrases: string[];
   setCustomPhrases: (phrases: string[]) => void;
   setPlayerDetails: (name: string, color: PlayerColor) => void;
-  createRoom: (name: string, maxPlayers: number) => Promise<void>;
+  createRoom: (name: string, maxPlayers: number, gameMode?: GameMode) => Promise<void>;
   joinRoom: (roomId: string) => Promise<void>;
   joinGame: () => void;
   leaveRoom: () => Promise<void>;
@@ -139,9 +138,9 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
     }
   };
 
-  const createRoom = async (name: string, maxPlayers: number) => {
+  const createRoom = async (name: string, maxPlayers: number, gameMode: GameMode = 'classic') => {
     try {
-      const newRoom = await gameRoomService.createRoom(name, maxPlayers);
+      const newRoom = await gameRoomService.createRoom(name, maxPlayers, gameMode);
       setCurrentRoom(newRoom);
       localStorage.setItem('agar3-fun-current-room', JSON.stringify(newRoom));
       await refreshRooms(); // Refresh rooms list
