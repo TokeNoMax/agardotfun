@@ -41,12 +41,62 @@ export default function Lobby() {
   const [isCreatingTestGame, setIsCreatingTestGame] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [activeMode, setActiveMode] = useState<"multiplayer" | "solo">("multiplayer");
+  
+  // Add countdown states
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [gameStarting, setGameStarting] = useState(false);
+  const [previousRoomStatus, setPreviousRoomStatus] = useState<string | null>(null);
+  
   const isMobile = useIsMobile();
   
   useAutoCleanup({
     intervalMinutes: 10,
     enableLogging: true
   });
+  
+  // Watch for room status changes to trigger countdown
+  useEffect(() => {
+    if (!currentRoom) {
+      setCountdown(null);
+      setGameStarting(false);
+      setPreviousRoomStatus(null);
+      return;
+    }
+    
+    // Check if the room status just changed to 'playing'
+    if (currentRoom.status === 'playing' && previousRoomStatus !== 'playing') {
+      console.log("Game starting detected, initiating countdown...");
+      setGameStarting(true);
+      setCountdown(5);
+      
+      // Start countdown timer
+      let countdownValue = 5;
+      const countdownInterval = setInterval(() => {
+        countdownValue -= 1;
+        setCountdown(countdownValue);
+        
+        if (countdownValue <= 0) {
+          clearInterval(countdownInterval);
+          console.log("Countdown finished, navigating to game...");
+          
+          // Navigate to game
+          setTimeout(() => {
+            navigate('/game');
+            setGameStarting(false);
+            setCountdown(null);
+          }, 500);
+        }
+      }, 1000);
+      
+      // Cleanup function
+      return () => {
+        clearInterval(countdownInterval);
+      };
+    }
+    
+    // Update previous status
+    setPreviousRoomStatus(currentRoom.status);
+  }, [currentRoom?.status, previousRoomStatus, navigate]);
   
   useEffect(() => {
     const initializeLobby = async () => {
@@ -135,7 +185,14 @@ export default function Lobby() {
     }
 
     try {
+      console.log("Starting game and triggering countdown...");
       await startGame();
+      
+      // The countdown will be triggered by the useEffect watching room status
+      toast({
+        title: "PARTIE_LANCÉE",
+        description: "La partie démarre dans 5 secondes !",
+      });
     } catch (error) {
       console.error("Error starting game:", error);
       toast({
@@ -385,7 +442,7 @@ export default function Lobby() {
                 </linearGradient>
                 <path d="M64.6,237.9c2.4-2.4,5.7-3.8,9.2-3.8h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,237.9z" fill="url(#lobbyGradient)"/>
                 <path d="M64.6,3.8C67.1,1.4,70.4,0,73.8,0h317.4c5.8,0,8.7,7,4.6,11.1l-62.7,62.7c-2.4,2.4-5.7,3.8-9.2,3.8H6.5c-5.8,0-8.7-7-4.6-11.1L64.6,3.8z" fill="url(#lobbyGradient)"/>
-                <path d="M333.1,120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8,0-8.7,7-4.6,11.1l62.7,62.7c2.4,2.4,5.7,3.8,9.2,3.8h317.4c5.8,0,8.7-7,4.6-11.1L333.1,120.1z" fill="url(#lobbyGradient)"/>
+                <path d="M333.1,120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8,0-8.7,7-4.6-11.1l62.7,62.7c2.4,2.4,5.7,3.8,9.2,3.8h317.4c5.8,0,8.7-7,4.6-11.1L333.1,120.1z" fill="url(#lobbyGradient)"/>
               </svg>
               <div className="absolute inset-0 bg-cyber-cyan/20 rounded-full blur-lg animate-pulse"></div>
             </div>
@@ -512,8 +569,8 @@ export default function Lobby() {
                 {currentRoom && (
                   <CurrentRoom
                     currentRoom={currentRoom}
-                    countdown={null}
-                    gameStarting={false}
+                    countdown={countdown}
+                    gameStarting={gameStarting}
                     handleToggleReady={handleToggleReady}
                     handleStartGame={handleStartGame}
                     handleLeaveRoom={handleLeaveRoom}
