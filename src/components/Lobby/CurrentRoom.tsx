@@ -52,6 +52,25 @@ export default function CurrentRoom({
   
   const modeInfo = getGameModeDisplay(currentRoom.gameMode);
   
+  // Check if all players are ready
+  const areAllPlayersReady = (): boolean => {
+    if (!currentRoom.players || currentRoom.players.length === 0) {
+      return false;
+    }
+    
+    // All players must be ready
+    const allReady = currentRoom.players.every(player => player.isReady);
+    console.log("CurrentRoom - areAllPlayersReady:", allReady);
+    console.log("CurrentRoom - Players ready status:", currentRoom.players.map(p => ({ name: p.name, isReady: p.isReady })));
+    
+    return allReady;
+  };
+  
+  // Check minimum players requirement
+  const hasMinimumPlayers = (): boolean => {
+    return currentRoom.players && currentRoom.players.length >= 2;
+  };
+  
   // SIMPLIFIED: Use the prop function directly instead of creating our own
   const playerInRoom = isCurrentPlayerInRoom();
   const playerReady = isCurrentPlayerReady();
@@ -64,6 +83,8 @@ export default function CurrentRoom({
   console.log("CurrentRoom - playerReady:", playerReady);
   console.log("CurrentRoom - Room status:", currentRoom.status);
   console.log("CurrentRoom - Game starting:", gameStarting);
+  console.log("CurrentRoom - All players ready:", areAllPlayersReady());
+  console.log("CurrentRoom - Has minimum players:", hasMinimumPlayers());
   
   return (
     <>
@@ -119,6 +140,21 @@ export default function CurrentRoom({
                   </span>
                 ))}
               </div>
+              
+              {/* Ready status indicator */}
+              {currentRoom.players && currentRoom.players.length > 0 && (
+                <div className="mt-3 p-3 rounded-lg border border-cyber-cyan/30">
+                  {areAllPlayersReady() ? (
+                    <p className="text-cyber-green font-mono text-sm">
+                      ✓ Tous les joueurs sont prêts ! La partie peut commencer.
+                    </p>
+                  ) : (
+                    <p className="text-cyber-yellow font-mono text-sm">
+                      ⏳ En attente que tous les joueurs soient prêts ({currentRoom.players.filter(p => p.isReady).length}/{currentRoom.players.length})
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Action buttons - SIMPLIFIED LOGIC */}
@@ -141,13 +177,13 @@ export default function CurrentRoom({
                     {playerReady ? "CANCEL_READY" : "SET_READY"}
                   </Button>
                   
-                  {/* Start game button */}
+                  {/* Start game button - IMPROVED LOGIC */}
                   <Button 
                     onClick={handleStartGame}
                     disabled={
                       currentRoom.status !== 'waiting' || 
-                      !currentRoom.players || 
-                      currentRoom.players.length < 2 || 
+                      !hasMinimumPlayers() || 
+                      !areAllPlayersReady() || 
                       !playerReady || 
                       gameStarting
                     }
