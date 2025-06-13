@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Player, GameRoom } from "@/types/game";
 import { verificationService } from "../room/verificationService";
@@ -184,19 +183,21 @@ export const playerService = {
   },
 
   async setPlayerReady(roomId: string, playerId: string, ready: boolean): Promise<void> {
-    console.log(`Setting player ${playerId} ready status to ${ready} in room ${roomId}`);
+    console.log(`PLAYER_SERVICE - Setting player ${playerId} ready status to ${ready} in room ${roomId}`);
     
     if (!playerId || playerId.trim() === '') {
-      console.error("Player ID is missing or empty");
+      console.error("PLAYER_SERVICE - Player ID is missing or empty");
       throw new Error("L'ID du joueur est requis pour changer le statut");
     }
 
     if (!roomId || roomId.trim() === '') {
-      console.error("Room ID is missing or empty");
+      console.error("PLAYER_SERVICE - Room ID is missing or empty");
       throw new Error("L'ID de la salle est requis");
     }
     
     try {
+      console.log("PLAYER_SERVICE - Attempting to update ready status in database...");
+      
       const { error } = await supabase
         .from('game_room_players')
         .update({ is_ready: ready })
@@ -204,19 +205,35 @@ export const playerService = {
         .eq('player_id', playerId);
 
       if (error) {
-        console.error("Error updating player ready status:", error);
+        console.error("PLAYER_SERVICE - Error updating player ready status:", error);
         throw new Error(`Impossible de changer le statut: ${error.message}`);
       }
 
+      console.log("PLAYER_SERVICE - Database update successful");
+      
       await activityService.updateRoomActivity(roomId);
-      console.log("Player ready status updated successfully");
+      console.log("PLAYER_SERVICE - Player ready status updated successfully");
+      
+      // Vérifier que la mise à jour a bien fonctionné
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('game_room_players')
+        .select('is_ready, player_name')
+        .eq('room_id', roomId)
+        .eq('player_id', playerId)
+        .single();
+
+      if (verifyError) {
+        console.error("PLAYER_SERVICE - Error verifying ready status update:", verifyError);
+      } else {
+        console.log("PLAYER_SERVICE - Verification successful - Player ready status:", verifyData);
+      }
+      
     } catch (error) {
-      console.error("Error in setPlayerReady:", error);
+      console.error("PLAYER_SERVICE - Error in setPlayerReady:", error);
       throw error;
     }
   },
 
-  // NOUVEAU: Fonction pour marquer un joueur comme déconnecté (soft-dead)
   async markPlayerDisconnected(roomId: string, playerId: string): Promise<void> {
     console.log(`Marking player ${playerId} as disconnected in room ${roomId}`);
     

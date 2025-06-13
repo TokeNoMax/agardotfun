@@ -94,7 +94,21 @@ export default function Lobby() {
     
     try {
       const newReadyState = !isCurrentPlayerReady();
+      console.log("LOBBY - Toggling ready state from", isCurrentPlayerReady(), "to", newReadyState);
+      console.log("LOBBY - Player details:", {
+        name: player.name,
+        id: player.id,
+        walletAddress: player.walletAddress
+      });
+      
+      // Utiliser l'adresse wallet comme ID principal pour setPlayerReady
+      const playerIdForReady = player.walletAddress || player.id;
+      console.log("LOBBY - Using player ID for ready toggle:", playerIdForReady);
+      
       await setPlayerReady(newReadyState);
+      
+      // Rafraîchir la salle pour obtenir le statut mis à jour
+      await refreshCurrentRoom();
       
       toast({
         title: newReadyState ? "READY_ACTIVATED" : "READY_CANCELLED",
@@ -150,37 +164,73 @@ export default function Lobby() {
   };
 
   const isCurrentPlayerReady = (): boolean => {
-    if (!player || !currentRoom?.players) return false;
+    if (!player || !currentRoom?.players) {
+      console.log("LOBBY - isCurrentPlayerReady: No player or no room players");
+      return false;
+    }
     
-    const currentPlayer = currentRoom.players.find(p => 
-      p.id === player.id || 
-      p.id === player.walletAddress ||
-      (p.name === player.name && p.name.trim() !== '')
-    );
+    console.log("LOBBY - Checking if current player is ready:");
+    console.log("LOBBY - Current player:", {
+      name: player.name,
+      id: player.id,
+      walletAddress: player.walletAddress
+    });
+    console.log("LOBBY - Room players:", currentRoom.players.map(p => ({
+      id: p.id,
+      name: p.name,
+      isReady: p.isReady
+    })));
     
-    return currentPlayer?.isReady || false;
+    // Améliorer la recherche du joueur - utiliser wallet address en priorité
+    const currentPlayer = currentRoom.players.find(p => {
+      const matchByWallet = player.walletAddress && p.id === player.walletAddress;
+      const matchById = p.id === player.id;
+      const matchByName = p.name === player.name && player.name.trim() !== '';
+      
+      console.log(`LOBBY - Checking player ${p.name} (${p.id}):`, {
+        matchByWallet,
+        matchById,
+        matchByName
+      });
+      
+      return matchByWallet || matchById || matchByName;
+    });
+    
+    const isReady = currentPlayer?.isReady || false;
+    console.log("LOBBY - Player found:", currentPlayer?.name, "isReady:", isReady);
+    
+    return isReady;
   };
 
   const isCurrentPlayerInRoom = (): boolean => {
     if (!player || !currentRoom?.players) {
-      console.log("Lobby - No player or no room players");
+      console.log("LOBBY - isCurrentPlayerInRoom: No player or no room players");
       return false;
     }
     
-    const playerInRoom = currentRoom.players.some(p => 
-      p.id === player.id || 
-      p.id === player.walletAddress ||
-      (p.name === player.name && p.name.trim() !== '')
-    );
-    
-    console.log("Lobby - Player in room check:", {
-      playerName: player.name,
-      playerId: player.id,
-      playerWallet: player.walletAddress,
-      roomPlayers: currentRoom.players.map(p => ({ id: p.id, name: p.name })),
-      result: playerInRoom
+    console.log("LOBBY - Checking if current player is in room:");
+    console.log("LOBBY - Current player:", {
+      name: player.name,
+      id: player.id,
+      walletAddress: player.walletAddress
     });
     
+    // Améliorer la recherche du joueur - utiliser wallet address en priorité
+    const playerInRoom = currentRoom.players.some(p => {
+      const matchByWallet = player.walletAddress && p.id === player.walletAddress;
+      const matchById = p.id === player.id;
+      const matchByName = p.name === player.name && player.name.trim() !== '';
+      
+      console.log(`LOBBY - Checking player ${p.name} (${p.id}):`, {
+        matchByWallet,
+        matchById,
+        matchByName
+      });
+      
+      return matchByWallet || matchById || matchByName;
+    });
+    
+    console.log("LOBBY - Player in room result:", playerInRoom);
     return playerInRoom;
   };
   

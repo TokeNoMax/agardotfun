@@ -272,20 +272,40 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
       return;
     }
 
+    console.log("CONTEXT - setPlayerReady called with ready:", ready);
+    console.log("CONTEXT - Player details:", {
+      name: player.name,
+      id: player.id,
+      walletAddress: player.walletAddress
+    });
+    console.log("CONTEXT - Current room:", currentRoom.id);
+
     try {
-      await gameRoomService.setPlayerReady(currentRoom.id, player.id, ready);
+      // Utiliser l'adresse wallet comme ID principal pour setPlayerReady
+      const playerIdForReady = player.walletAddress || player.id;
+      console.log("CONTEXT - Using player ID for ready:", playerIdForReady);
+      
+      await gameRoomService.setPlayerReady(currentRoom.id, playerIdForReady, ready);
+      
+      console.log("CONTEXT - setPlayerReady API call successful");
+      
       // Optimistically update the player's ready state
       setPlayer(prevPlayer => {
         if (prevPlayer) {
-          return { ...prevPlayer, isReady: ready };
+          const updatedPlayer = { ...prevPlayer, isReady: ready };
+          console.log("CONTEXT - Updated local player ready state:", updatedPlayer);
+          return updatedPlayer;
         }
         return prevPlayer;
       });
+      
       // Refresh the room to get the updated player list
       await refreshCurrentRoom();
       await refreshRooms(); // Also refresh rooms list
+      
+      console.log("CONTEXT - Room refresh completed");
     } catch (error) {
-      console.error("Error setting player ready:", error);
+      console.error("CONTEXT - Error setting player ready:", error);
       toast({
         title: "Erreur",
         description: "Impossible de changer l'état de préparation. Veuillez réessayer.",
