@@ -1,8 +1,11 @@
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Users, Play, Lock, Zap } from "lucide-react";
-import { GameRoom } from "@/types/game";
 import { useGame } from "@/context/GameContext";
+import { useToast } from "@/hooks/use-toast";
+import { Player, GameRoom, GameMode } from "@/types/game";
+import { Users, Crown, Play, Clock, Plus } from "lucide-react";
+import CreateRoomDialog from "./CreateRoomDialog";
 
 interface RoomListProps {
   rooms: GameRoom[];
@@ -14,198 +17,221 @@ interface RoomListProps {
 export default function RoomList({ 
   rooms, 
   currentRoomId, 
-  handleJoinRoom,
+  handleJoinRoom, 
   handleJoinGame 
 }: RoomListProps) {
-  const { player } = useGame();
+  const { player, currentRoom, refreshRooms, createRoom } = useGame();
+  const { toast } = useToast();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [createRoomOpen, setCreateRoomOpen] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [maxPlayers, setMaxPlayers] = useState("");
 
-  console.log("AvailableRooms - Rooms updated:", rooms);
-  console.log("Number of rooms:", rooms.length);
-  console.log("First room:", rooms[0]);
+  // Auto-refresh rooms every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshRooms();
+    }, 5000);
 
-  const getGameModeDisplay = (gameMode?: string) => {
-    console.log("getGameModeDisplay called with:", gameMode);
-    
-    const normalizedMode = gameMode?.toLowerCase().trim();
-    
-    switch (normalizedMode) {
-      case 'battle_royale':
-        return { 
-          text: 'BATTLE_ROYALE', 
-          className: 'bg-cyber-purple/20 text-cyber-purple border-cyber-purple/50' 
-        };
-      case 'classic':
-        return { 
-          text: 'CLASSIC', 
-          className: 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' 
-        };
-      default:
-        console.warn("getGameModeDisplay - Unknown game mode:", gameMode);
-        return { 
-          text: 'CLASSIC', 
-          className: 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' 
-        };
+    return () => clearInterval(interval);
+  }, [refreshRooms]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshRooms();
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
-  // IMPROVED: More robust player detection (same logic as CurrentRoom.tsx)
-  const isCurrentPlayerInRoom = (room: GameRoom) => {
-    if (!player || !room.players) {
-      console.log("RoomList - No player or no room players for room:", room.name);
-      return false;
-    }
-    
-    // Check both player ID and wallet address for better detection
-    const playerInRoom = room.players.some(p => {
-      const idMatch = p.id === player.id;
-      const walletMatch = p.id === player.walletAddress;
-      const nameMatch = p.name === player.name;
-      
-      console.log("RoomList - Player comparison for room", room.name, ":", {
-        roomPlayer: { id: p.id, name: p.name },
-        currentPlayer: { id: player.id, walletAddress: player.walletAddress, name: player.name },
-        idMatch,
-        walletMatch,
-        nameMatch
+  const handleCreateRoom = async (gameMode: GameMode = 'classic') => {
+    if (!player) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez configurer votre joueur avant de créer une salle.",
+        variant: "destructive"
       });
-      
-      return idMatch || walletMatch || (nameMatch && p.name.trim() !== '');
-    });
-    
-    console.log("RoomList - Player in room result for", room.name, ":", playerInRoom);
-    return playerInRoom;
+      return;
+    }
+
+    if (!roomName.trim() || !maxPlayers) {
+      toast({
+        title: "Champs requis",
+        description: "Veuillez remplir tous les champs.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await createRoom(roomName.trim(), parseInt(maxPlayers), gameMode);
+      setCreateRoomOpen(false);
+      setRoomName("");
+      setMaxPlayers("");
+      toast({
+        title: "Salle créée !",
+        description: `La salle "${roomName}" a été créée avec succès.`,
+      });
+    } catch (error) {
+      console.error("Error creating room:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer la salle. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    }
   };
 
-  if (!rooms || rooms.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-400 font-mono">Aucune salle disponible</p>
-      </div>
-    );
-  }
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'waiting': return 'text-cyber-green';
+      case 'playing': return 'text-cyber-yellow';
+      case 'finished': return 'text-gray-500';
+      default: return 'text-cyber-cyan';
+    }
+  };
 
-  console.log("Rendering AvailableRooms with", rooms.length, "rooms");
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'waiting': return 'EN_ATTENTE';
+      case 'playing': return 'EN_COURS';
+      case 'finished': return 'TERMINÉ';
+      default: return status.toUpperCase();
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-cyber-cyan font-mono mb-4">SALLES_DISPONIBLES</h2>
-      {rooms.map((room) => {
-        const modeInfo = getGameModeDisplay(room.gameMode);
-        const isCurrentRoom = room.id === currentRoomId;
-        const playerInThisRoom = isCurrentPlayerInRoom(room);
-        
-        console.log(`Room ${room.name} - gameMode: ${room.gameMode}`);
-        console.log(`Rendering room ${room.name} with gameMode: ${room.gameMode} | modeInfo:`, modeInfo);
-
-        return (
-          <div 
-            key={room.id} 
-            className={`relative group ${isCurrentRoom ? 'ring-2 ring-cyber-magenta' : ''}`}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-cyber-cyan font-mono">GAME_ROOMS</h2>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            variant="outline"
+            size="sm"
+            className="font-mono border-cyber-cyan/50 text-cyber-cyan hover:bg-cyber-cyan/10"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/10 to-cyber-green/10 rounded-lg blur group-hover:blur-none transition-all duration-300"></div>
-            <div className="relative bg-black/60 backdrop-blur-sm border border-cyber-cyan/30 rounded-lg p-4 hover:border-cyber-cyan/60 transition-all duration-300 hover:shadow-[0_0_15px_rgba(0,255,255,0.3)]">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-bold text-cyber-cyan font-mono">{room.name}</h3>
-                    {isCurrentRoom && (
-                      <span className="px-2 py-1 text-xs bg-cyber-magenta/20 text-cyber-magenta border border-cyber-magenta/50 rounded font-mono">
-                        CURRENT
+            {isRefreshing ? "SYNCING..." : "REFRESH"}
+          </Button>
+          
+          <CreateRoomDialog
+            open={createRoomOpen}
+            onOpenChange={setCreateRoomOpen}
+            roomName={roomName}
+            setRoomName={setRoomName}
+            maxPlayers={maxPlayers}
+            setMaxPlayers={setMaxPlayers}
+            handleCreateRoom={handleCreateRoom}
+            playerExists={!!player}
+          />
+        </div>
+      </div>
+
+      {currentRoom && (
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyber-green/20 to-cyber-cyan/20 rounded-lg blur-xl"></div>
+          <div className="relative bg-black/80 backdrop-blur-sm p-4 rounded-lg border-2 border-cyber-green/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center">
+                <Crown className="h-5 w-5 text-cyber-yellow mr-2" />
+                <h3 className="font-bold text-cyber-green font-mono">CURRENT_ROOM</h3>
+              </div>
+              <span className={`text-sm font-mono ${getStatusColor(currentRoom.status)}`}>
+                {getStatusText(currentRoom.status)}
+              </span>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-cyber-cyan font-mono">
+                <span className="text-gray-400">ROOM:</span> {currentRoom.name}
+              </p>
+              <p className="text-cyber-cyan font-mono">
+                <span className="text-gray-400">PLAYERS:</span> {currentRoom.players.length}/{currentRoom.maxPlayers}
+              </p>
+              <p className="text-cyber-cyan font-mono">
+                <span className="text-gray-400">MODE:</span> {currentRoom.gameMode || 'classic'}
+              </p>
+              
+              {currentRoom.status === 'playing' && (
+                <Button
+                  onClick={handleJoinGame}
+                  className="w-full bg-gradient-to-r from-cyber-green to-cyber-cyan text-black font-mono font-bold"
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  JOIN_GAME
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {rooms.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="bg-black/50 backdrop-blur-sm p-6 rounded-lg border border-cyber-cyan/30">
+              <Clock className="h-12 w-12 text-cyber-cyan mx-auto mb-3 opacity-50" />
+              <p className="text-gray-400 font-mono">Aucune salle disponible</p>
+              <p className="text-gray-500 text-sm font-mono mt-1">
+                Créez une nouvelle salle pour commencer à jouer
+              </p>
+            </div>
+          </div>
+        ) : (
+          rooms.map((room) => (
+            <div key={room.id} className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/10 to-cyber-magenta/10 rounded-lg blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative bg-black/60 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/30 group-hover:border-cyber-cyan/60 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-bold text-cyber-cyan font-mono">{room.name}</h3>
+                      <span className={`text-xs px-2 py-1 rounded font-mono ${getStatusColor(room.status)} bg-black/50`}>
+                        {getStatusText(room.status)}
                       </span>
-                    )}
-                    <span className={`px-2 py-1 text-xs rounded font-mono border ${modeInfo.className}`}>
-                      {modeInfo.text}
-                    </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-sm text-gray-400 font-mono">
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-1" />
+                        {room.players.length}/{room.maxPlayers}
+                      </div>
+                      <div>MODE: {room.gameMode || 'classic'}</div>
+                    </div>
                   </div>
                   
-                  <div className="flex items-center gap-4 text-sm text-gray-300 font-mono">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      {room.players ? room.players.length : 0}/{room.maxPlayers}
-                    </span>
-                    <span className={`${
-                      room.status === 'waiting' ? 'text-cyber-yellow' : 
-                      room.status === 'playing' ? 'text-cyber-green' : 'text-gray-400'
-                    }`}>
-                      {room.status === 'waiting' ? 'EN_ATTENTE' : 
-                       room.status === 'playing' ? 'EN_JEU' : 'TERMINÉ'}
-                    </span>
-                  </div>
-
-                  {room.players && room.players.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {room.players.map(roomPlayer => (
-                        <span 
-                          key={roomPlayer.id} 
-                          className={`px-2 py-1 rounded text-xs font-mono border ${
-                            roomPlayer.isReady 
-                              ? 'bg-cyber-green/20 text-cyber-green border-cyber-green/50' 
-                              : 'bg-black/50 border-cyber-cyan/30 text-gray-300'
-                          }`}
-                        >
-                          {roomPlayer.name} {roomPlayer.isReady ? '✓' : '○'}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  {isCurrentRoom ? (
-                    playerInThisRoom ? (
-                      <Button 
-                        onClick={handleJoinGame}
-                        disabled={room.status !== 'playing'}
-                        className="bg-gradient-to-r from-cyber-magenta to-cyber-purple hover:from-cyber-purple hover:to-cyber-magenta text-white font-mono font-bold border border-cyber-magenta/50"
+                  <div className="flex gap-2">
+                    {room.status === 'waiting' && room.id !== currentRoomId && (
+                      <Button
+                        onClick={() => handleJoinRoom(room.id)}
+                        variant="outline"
+                        size="sm"
+                        className="font-mono border-cyber-green/50 text-cyber-green hover:bg-cyber-green/10"
                       >
-                        <Play className="mr-2 h-4 w-4" />
-                        REJOINDRE_PARTIE
+                        JOIN
                       </Button>
-                    ) : (
-                      <div className="text-cyber-yellow font-mono text-sm">
-                        SALLE_ACTUELLE
-                      </div>
-                    )
-                  ) : (
-                    <Button 
-                      onClick={() => handleJoinRoom(room.id)}
-                      disabled={
-                        !room.players || 
-                        room.players.length >= room.maxPlayers || 
-                        room.status !== 'waiting'
-                      }
-                      className={`font-mono font-bold ${
-                        !room.players || 
-                        room.players.length >= room.maxPlayers || 
-                        room.status !== 'waiting'
-                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                          : 'bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black border border-cyber-cyan/50'
-                      }`}
-                    >
-                      {room.status !== 'waiting' ? (
-                        <>
-                          <Lock className="mr-2 h-4 w-4" />
-                          FERMÉE
-                        </>
-                      ) : !room.players || room.players.length >= room.maxPlayers ? (
-                        <>
-                          <Users className="mr-2 h-4 w-4" />
-                          COMPLÈTE
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="mr-2 h-4 w-4" />
-                          REJOINDRE
-                        </>
-                      )}
-                    </Button>
-                  )}
+                    )}
+                    
+                    {room.status === 'playing' && (
+                      <Button
+                        onClick={handleJoinGame}
+                        variant="outline"
+                        size="sm"
+                        className="font-mono border-cyber-yellow/50 text-cyber-yellow hover:bg-cyber-yellow/10"
+                      >
+                        <Play className="h-4 w-4 mr-1" />
+                        WATCH
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          ))
+        )}
+      </div>
     </div>
   );
 }
