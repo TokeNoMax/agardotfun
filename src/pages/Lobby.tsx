@@ -53,6 +53,49 @@ export default function Lobby() {
     intervalMinutes: 10,
     enableLogging: true
   });
+
+  // Check if room is full and all players are ready for auto-start
+  const checkAutoStart = async () => {
+    if (!currentRoom || currentRoom.status !== 'waiting' || gameStarting) {
+      return;
+    }
+
+    const isRoomFull = currentRoom.players && currentRoom.players.length >= currentRoom.maxPlayers;
+    const areAllReady = currentRoom.players && currentRoom.players.every(p => p.isReady);
+
+    console.log("Auto-start check:", {
+      isRoomFull,
+      areAllReady,
+      playerCount: currentRoom.players?.length,
+      maxPlayers: currentRoom.maxPlayers,
+      playersReady: currentRoom.players?.filter(p => p.isReady).length
+    });
+
+    if (isRoomFull && areAllReady) {
+      console.log("Auto-starting game - room is full and all players are ready!");
+      try {
+        await startGame();
+        toast({
+          title: "DÉMARRAGE_AUTOMATIQUE",
+          description: "Tous les joueurs sont prêts ! La partie démarre dans 5 secondes !",
+        });
+      } catch (error) {
+        console.error("Error auto-starting game:", error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de démarrer automatiquement la partie.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  // Watch for room changes to trigger auto-start
+  useEffect(() => {
+    if (currentRoom) {
+      checkAutoStart();
+    }
+  }, [currentRoom?.players?.length, currentRoom?.players?.map(p => p.isReady).join(',')]);
   
   // Watch for room status changes to trigger countdown
   useEffect(() => {

@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { GameRoom } from "@/types/game";
-import { Zap, Users, Play, LogOut } from "lucide-react";
+import { Zap, Users, LogOut } from "lucide-react";
 import GhostRoomDetector from "./GhostRoomDetector";
 import GameStartCountdown from "./GameStartCountdown";
 
@@ -11,7 +11,6 @@ interface CurrentRoomProps {
   countdown: number | null;
   gameStarting: boolean;
   handleToggleReady: () => Promise<void>;
-  handleStartGame: () => Promise<void>;
   handleLeaveRoom: () => Promise<void>;
   handleJoinGame: () => void;
   handleJoinRoom: (roomId: string) => Promise<void>;
@@ -24,7 +23,6 @@ export default function CurrentRoom({
   countdown,
   gameStarting,
   handleToggleReady,
-  handleStartGame,
   handleLeaveRoom,
   handleJoinGame,
   handleJoinRoom,
@@ -66,9 +64,9 @@ export default function CurrentRoom({
     return allReady;
   };
   
-  // Check minimum players requirement
-  const hasMinimumPlayers = (): boolean => {
-    return currentRoom.players && currentRoom.players.length >= 2;
+  // Check if room is full (all slots occupied)
+  const isRoomFull = (): boolean => {
+    return currentRoom.players && currentRoom.players.length >= currentRoom.maxPlayers;
   };
   
   // SIMPLIFIED: Use the prop function directly instead of creating our own
@@ -84,7 +82,7 @@ export default function CurrentRoom({
   console.log("CurrentRoom - Room status:", currentRoom.status);
   console.log("CurrentRoom - Game starting:", gameStarting);
   console.log("CurrentRoom - All players ready:", areAllPlayersReady());
-  console.log("CurrentRoom - Has minimum players:", hasMinimumPlayers());
+  console.log("CurrentRoom - Room is full:", isRoomFull());
   
   return (
     <>
@@ -141,31 +139,31 @@ export default function CurrentRoom({
                 ))}
               </div>
               
-              {/* Ready status indicator - IMPROVED LOGIC */}
+              {/* Ready status indicator - UPDATED LOGIC */}
               {currentRoom.players && currentRoom.players.length > 0 && (
                 <div className="mt-3 p-3 rounded-lg border border-cyber-cyan/30">
-                  {!hasMinimumPlayers() ? (
+                  {!isRoomFull() ? (
                     <p className="text-cyber-orange font-mono text-sm">
-                      ⚠️ Il faut au moins 2 joueurs pour commencer une partie ({currentRoom.players.length}/2 minimum)
+                      ⚠️ Il faut {currentRoom.maxPlayers} joueurs pour commencer cette partie ({currentRoom.players.length}/{currentRoom.maxPlayers})
                     </p>
                   ) : areAllPlayersReady() ? (
                     <p className="text-cyber-green font-mono text-sm">
-                      ✓ Tous les joueurs sont prêts ! La partie peut commencer.
+                      ✓ Salle complète et tous les joueurs sont prêts ! Démarrage automatique...
                     </p>
                   ) : (
                     <p className="text-cyber-yellow font-mono text-sm">
-                      ⏳ En attente que tous les joueurs soient prêts ({currentRoom.players.filter(p => p.isReady).length}/{currentRoom.players.length})
+                      ⏳ Salle complète ! En attente que tous les joueurs soient prêts ({currentRoom.players.filter(p => p.isReady).length}/{currentRoom.players.length})
                     </p>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Action buttons - SIMPLIFIED LOGIC */}
+            {/* Action buttons - SIMPLIFIED WITHOUT START BUTTON */}
             <div className="flex flex-col gap-3">
               {playerInRoom ? (
-                // Player IS in the room - show READY, START, LEAVE buttons
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                // Player IS in the room - show READY and LEAVE buttons only
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {/* Ready button */}
                   <Button 
                     onClick={handleToggleReady}
@@ -179,22 +177,6 @@ export default function CurrentRoom({
                   >
                     <Zap className="mr-2 h-4 w-4" />
                     {playerReady ? "CANCEL_READY" : "SET_READY"}
-                  </Button>
-                  
-                  {/* Start game button - IMPROVED LOGIC */}
-                  <Button 
-                    onClick={handleStartGame}
-                    disabled={
-                      currentRoom.status !== 'waiting' || 
-                      !hasMinimumPlayers() || 
-                      !areAllPlayersReady() || 
-                      !playerReady || 
-                      gameStarting
-                    }
-                    className="bg-gradient-to-r from-cyber-magenta to-cyber-purple hover:from-cyber-purple hover:to-cyber-magenta text-white font-mono font-bold border border-cyber-magenta/50"
-                  >
-                    <Play className="mr-2 h-4 w-4" />
-                    {gameStarting ? "LAUNCHING..." : "START_GAME"}
                   </Button>
                   
                   {/* Leave room button */}
@@ -224,7 +206,7 @@ export default function CurrentRoom({
                     className="w-full bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold border border-cyber-cyan/50"
                   >
                     <Users className="mr-2 h-4 w-4" />
-                    JOIN_ROOM
+                    {currentRoom.players && currentRoom.players.length >= currentRoom.maxPlayers ? "ROOM_FULL" : "JOIN_ROOM"}
                   </Button>
                 </div>
               )}
@@ -235,7 +217,7 @@ export default function CurrentRoom({
                   onClick={handleJoinGame}
                   className="w-full bg-gradient-to-r from-cyber-green to-cyber-cyan text-black font-mono font-bold"
                 >
-                  <Play className="mr-2 h-4 w-4" />
+                  <Users className="mr-2 h-4 w-4" />
                   JOIN_GAME
                 </Button>
               )}
