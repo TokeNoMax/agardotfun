@@ -141,10 +141,14 @@ export default function CurrentRoom({
                 ))}
               </div>
               
-              {/* Ready status indicator */}
+              {/* Ready status indicator - IMPROVED LOGIC */}
               {currentRoom.players && currentRoom.players.length > 0 && (
                 <div className="mt-3 p-3 rounded-lg border border-cyber-cyan/30">
-                  {areAllPlayersReady() ? (
+                  {!hasMinimumPlayers() ? (
+                    <p className="text-cyber-orange font-mono text-sm">
+                      ⚠️ Il faut au moins 2 joueurs pour commencer une partie ({currentRoom.players.length}/2 minimum)
+                    </p>
+                  ) : areAllPlayersReady() ? (
                     <p className="text-cyber-green font-mono text-sm">
                       ✓ Tous les joueurs sont prêts ! La partie peut commencer.
                     </p>
