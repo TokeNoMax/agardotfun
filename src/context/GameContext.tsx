@@ -131,7 +131,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
 
   const refreshRooms = async () => {
     try {
-      const availableRooms = await gameRoomService.getAvailableRooms();
+      const availableRooms = await gameRoomService.getAllRooms();
       setRooms(availableRooms);
     } catch (error) {
       console.error('Error fetching available rooms:', error);
