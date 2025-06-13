@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useGame } from "@/context/GameContext";
 import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
+import CurrentRoom from "@/components/Lobby/CurrentRoom";
 import WalletButton from "@/components/Wallet/WalletButton";
 import MobileLobbyLayout from "@/components/Lobby/MobileLobbyLayout";
 import AdminSheet from "@/components/Admin/AdminSheet";
@@ -24,7 +24,17 @@ import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function Lobby() {
-  const { player, refreshCurrentRoom, leaveRoom, currentRoom, rooms, joinRoom, joinGame } = useGame();
+  const { 
+    player, 
+    refreshCurrentRoom, 
+    leaveRoom, 
+    currentRoom, 
+    rooms, 
+    joinRoom, 
+    joinGame,
+    setPlayerReady,
+    startGame
+  } = useGame();
   const { connected, publicKey } = useWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -33,13 +43,11 @@ export default function Lobby() {
   const [activeMode, setActiveMode] = useState<"multiplayer" | "solo">("multiplayer");
   const isMobile = useIsMobile();
   
-  // Utiliser le nettoyage automatique amélioré
   useAutoCleanup({
-    intervalMinutes: 10, // Nettoyage plus fréquent
+    intervalMinutes: 10,
     enableLogging: true
   });
   
-  // Improved initialization with better session cleanup
   useEffect(() => {
     const initializeLobby = async () => {
       if (hasInitialized) return;
@@ -48,7 +56,6 @@ export default function Lobby() {
       setHasInitialized(true);
       
       try {
-        // Check for any finished games in localStorage
         const gameState = localStorage.getItem('agar3-fun-game-state');
         if (gameState) {
           const parsedState = JSON.parse(gameState);
@@ -56,20 +63,17 @@ export default function Lobby() {
             console.log("Found finished game, cleaning up...");
             localStorage.removeItem('agar3-fun-game-state');
             
-            // Only leave room if we're actually in one
             if (currentRoom && currentRoom.status === 'finished') {
               await leaveRoom();
             }
           }
         }
         
-        // Force refresh current room to sync with server
         await refreshCurrentRoom();
         console.log("Lobby initialization complete");
         
       } catch (error) {
         console.error("Error during lobby initialization:", error);
-        // If there's an error, clear potentially corrupted state
         localStorage.removeItem('agar3-fun-current-room');
         localStorage.removeItem('agar3-fun-game-state');
       }
@@ -77,6 +81,108 @@ export default function Lobby() {
     
     initializeLobby();
   }, [hasInitialized, currentRoom, leaveRoom, refreshCurrentRoom]);
+  
+  const handleToggleReady = async () => {
+    if (!player || !currentRoom) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de changer l'état de préparation.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const newReadyState = !isCurrentPlayerReady();
+      await setPlayerReady(newReadyState);
+      
+      toast({
+        title: newReadyState ? "READY_ACTIVATED" : "READY_CANCELLED",
+        description: newReadyState ? "Vous êtes prêt à jouer !" : "Vous n'êtes plus prêt.",
+      });
+    } catch (error) {
+      console.error("Error toggling ready state:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de changer l'état de préparation.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStartGame = async () => {
+    if (!currentRoom) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de démarrer la partie.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await startGame();
+    } catch (error) {
+      console.error("Error starting game:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de démarrer la partie.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    try {
+      await leaveRoom();
+      toast({
+        title: "ROOM_LEFT",
+        description: "Vous avez quitté la salle.",
+      });
+    } catch (error) {
+      console.error("Error leaving room:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de quitter la salle.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const isCurrentPlayerReady = (): boolean => {
+    if (!player || !currentRoom?.players) return false;
+    
+    const currentPlayer = currentRoom.players.find(p => 
+      p.id === player.id || 
+      p.id === player.walletAddress ||
+      (p.name === player.name && p.name.trim() !== '')
+    );
+    
+    return currentPlayer?.isReady || false;
+  };
+
+  const isCurrentPlayerInRoom = (): boolean => {
+    if (!player || !currentRoom?.players) {
+      console.log("Lobby - No player or no room players");
+      return false;
+    }
+    
+    const playerInRoom = currentRoom.players.some(p => 
+      p.id === player.id || 
+      p.id === player.walletAddress ||
+      (p.name === player.name && p.name.trim() !== '')
+    );
+    
+    console.log("Lobby - Player in room check:", {
+      playerName: player.name,
+      playerId: player.id,
+      playerWallet: player.walletAddress,
+      roomPlayers: currentRoom.players.map(p => ({ id: p.id, name: p.name })),
+      result: playerInRoom
+    });
+    
+    return playerInRoom;
+  };
   
   const handleTestGame = async () => {
     if (!player) {
@@ -163,7 +269,6 @@ export default function Lobby() {
     return colorMap[color] || '3498db';
   };
 
-  // Use mobile layout for mobile devices
   if (isMobile) {
     return (
       <MobileLobbyLayout
@@ -180,19 +285,18 @@ export default function Lobby() {
     );
   }
   
-  // Desktop layout with new mode bar
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Tron Grid Background */}
+      
       <div className="absolute inset-0">
         <div className="absolute inset-0 opacity-20">
           <div className="grid-background"></div>
         </div>
-        {/* Animated scan lines */}
+        
         <div className="absolute inset-0 pointer-events-none">
           <div className="scan-line"></div>
         </div>
-        {/* Floating particles */}
+        
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           {[...Array(15)].map((_, i) => (
             <div
@@ -210,7 +314,7 @@ export default function Lobby() {
       </div>
 
       <div className="relative z-10 container mx-auto py-10">
-        {/* Cyber Header */}
+        
         <div className="flex justify-between items-center mb-8">
           <Button 
             variant="ghost" 
@@ -223,7 +327,7 @@ export default function Lobby() {
           
           <div className="flex items-center">
             <div className="relative mr-3">
-              {/* Solana Logo */}
+              
               <svg width="32" height="32" viewBox="0 0 397.7 311.7" className="text-cyber-cyan animate-neon-pulse" fill="currentColor">
                 <linearGradient id="lobbyGradient" x1="360.8791" y1="351.4553" x2="141.213" y2="-69.2936" gradientUnits="userSpaceOnUse">
                   <stop offset="0" stopColor="#00FFF0"/>
@@ -281,7 +385,6 @@ export default function Lobby() {
           </div>
         </div>
         
-        {/* Main Title */}
         <div className="flex flex-col items-center mb-10">
           <div className="mb-4">
             <p className="text-cyber-green font-mono text-lg animate-terminal-blink">
@@ -345,7 +448,7 @@ export default function Lobby() {
           </div>
         ) : (
           <div className="w-full max-w-5xl mx-auto">
-            {/* New Mode Bar - Fixed width overflow issue */}
+            
             <div className="mb-6 max-w-2xl mx-auto">
               <LobbyModeBar 
                 active={activeMode} 
@@ -354,15 +457,33 @@ export default function Lobby() {
             </div>
             
             {activeMode === "multiplayer" ? (
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
-                <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-6 border-2 border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
-                  <RoomList 
-                    rooms={rooms}
-                    currentRoomId={currentRoom?.id}
-                    handleJoinRoom={joinRoom}
+              <div className="space-y-6">
+                
+                {currentRoom && (
+                  <CurrentRoom
+                    currentRoom={currentRoom}
+                    countdown={null}
+                    gameStarting={false}
+                    handleToggleReady={handleToggleReady}
+                    handleStartGame={handleStartGame}
+                    handleLeaveRoom={handleLeaveRoom}
                     handleJoinGame={joinGame}
+                    handleJoinRoom={joinRoom}
+                    isCurrentPlayerReady={isCurrentPlayerReady}
+                    isCurrentPlayerInRoom={isCurrentPlayerInRoom}
                   />
+                )}
+                
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
+                  <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-6 border-2 border-cyber-cyan/50 shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+                    <RoomList 
+                      rooms={rooms}
+                      currentRoomId={currentRoom?.id}
+                      handleJoinRoom={joinRoom}
+                      handleJoinGame={joinGame}
+                    />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -434,7 +555,6 @@ export default function Lobby() {
           </div>
         )}
         
-        {/* How to play section - Terminal style */}
         <div className="mt-12 relative">
           <div className="absolute inset-0 bg-gradient-to-r from-cyber-green/20 to-cyber-cyan/20 rounded-lg blur-xl"></div>
           <div className="relative bg-black/90 backdrop-blur-sm rounded-lg p-8 border-2 border-cyber-green/30 shadow-[0_0_20px_rgba(0,255,0,0.2)]">

@@ -33,7 +33,7 @@ export default function CurrentRoom({
 }: CurrentRoomProps) {
   const { player } = useGame();
   
-  // FIXED: Improved game mode display
+  // Game mode display
   const getGameModeDisplay = (gameMode?: string) => {
     console.log("CurrentRoom - Game mode:", gameMode);
     
@@ -52,55 +52,16 @@ export default function CurrentRoom({
   
   const modeInfo = getGameModeDisplay(currentRoom.gameMode);
   
-  // IMPROVED: More robust player detection with detailed logging
-  const isPlayerInRoom = () => {
-    if (!player || !currentRoom.players) {
-      console.log("CurrentRoom - No player or no room players");
-      console.log("CurrentRoom - Player object:", player);
-      console.log("CurrentRoom - Room players:", currentRoom.players);
-      return false;
-    }
-    
-    console.log("CurrentRoom - Checking if player is in room:");
-    console.log("CurrentRoom - Current player:", {
-      id: player.id,
-      walletAddress: player.walletAddress,
-      name: player.name
-    });
-    console.log("CurrentRoom - Room players:", currentRoom.players.map(p => ({
-      id: p.id,
-      name: p.name,
-      walletAddress: p.walletAddress
-    })));
-    
-    // Check both player ID and wallet address for better detection
-    const playerInRoom = currentRoom.players.some(p => {
-      const idMatch = p.id === player.id;
-      const walletMatch = p.id === player.walletAddress;
-      const nameMatch = p.name === player.name;
-      
-      console.log("CurrentRoom - Player comparison:", {
-        roomPlayer: { id: p.id, name: p.name },
-        currentPlayer: { id: player.id, walletAddress: player.walletAddress, name: player.name },
-        idMatch,
-        walletMatch,
-        nameMatch
-      });
-      
-      return idMatch || walletMatch || (nameMatch && p.name.trim() !== '');
-    });
-    
-    console.log("CurrentRoom - Final player in room result:", playerInRoom);
-    return playerInRoom;
-  };
+  // SIMPLIFIED: Use the prop function directly instead of creating our own
+  const playerInRoom = isCurrentPlayerInRoom();
+  const playerReady = isCurrentPlayerReady();
   
-  // Use our improved detection function
-  const playerInRoom = isPlayerInRoom();
-  
-  // Additional debugging
-  console.log("CurrentRoom - Button display logic:");
+  // Debug logging
+  console.log("CurrentRoom - Debug info:");
+  console.log("CurrentRoom - Player:", player?.name, player?.id);
+  console.log("CurrentRoom - Room players:", currentRoom.players?.map(p => ({ id: p.id, name: p.name })));
   console.log("CurrentRoom - playerInRoom:", playerInRoom);
-  console.log("CurrentRoom - isCurrentPlayerReady():", isCurrentPlayerReady());
+  console.log("CurrentRoom - playerReady:", playerReady);
   console.log("CurrentRoom - Room status:", currentRoom.status);
   console.log("CurrentRoom - Game starting:", gameStarting);
   
@@ -134,7 +95,6 @@ export default function CurrentRoom({
                   }`}>
                     {currentRoom.status === 'waiting' ? 'WAITING' : currentRoom.status === 'playing' ? 'PLAYING' : 'FINISHED'}
                   </span>
-                  {/* FIXED: Single game mode display */}
                   <span className={`ml-2 ${modeInfo.color} font-bold`}>
                     • {modeInfo.text}
                   </span>
@@ -161,30 +121,36 @@ export default function CurrentRoom({
               </div>
             </div>
 
-            {/* Action buttons - IMPROVED LOGIC */}
+            {/* Action buttons - SIMPLIFIED LOGIC */}
             <div className="flex flex-col gap-3">
               {playerInRoom ? (
-                // Player is IN the room - show READY, START, LEAVE buttons
+                // Player IS in the room - show READY, START, LEAVE buttons
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {/* Ready button - always visible when in room */}
+                  {/* Ready button */}
                   <Button 
                     onClick={handleToggleReady}
                     className={`font-mono font-bold ${
-                      isCurrentPlayerReady() 
+                      playerReady 
                         ? "bg-cyber-yellow/20 text-cyber-yellow border border-cyber-yellow/50 hover:bg-cyber-yellow/30" 
                         : "bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black border border-cyber-green/50"
                     }`}
-                    variant={isCurrentPlayerReady() ? "outline" : "default"}
-                    disabled={gameStarting}
+                    variant={playerReady ? "outline" : "default"}
+                    disabled={gameStarting || currentRoom.status !== 'waiting'}
                   >
                     <Zap className="mr-2 h-4 w-4" />
-                    {isCurrentPlayerReady() ? "CANCEL_READY" : "SET_READY"}
+                    {playerReady ? "CANCEL_READY" : "SET_READY"}
                   </Button>
                   
                   {/* Start game button */}
                   <Button 
                     onClick={handleStartGame}
-                    disabled={currentRoom.status !== 'waiting' || !currentRoom.players || currentRoom.players.length < 2 || !isCurrentPlayerReady() || gameStarting}
+                    disabled={
+                      currentRoom.status !== 'waiting' || 
+                      !currentRoom.players || 
+                      currentRoom.players.length < 2 || 
+                      !playerReady || 
+                      gameStarting
+                    }
                     className="bg-gradient-to-r from-cyber-magenta to-cyber-purple hover:from-cyber-purple hover:to-cyber-magenta text-white font-mono font-bold border border-cyber-magenta/50"
                   >
                     <Play className="mr-2 h-4 w-4" />
@@ -210,13 +176,28 @@ export default function CurrentRoom({
                   </p>
                   <Button 
                     onClick={() => handleJoinRoom(currentRoom.id)}
-                    disabled={!currentRoom.players || currentRoom.players.length >= currentRoom.maxPlayers || currentRoom.status !== 'waiting'}
+                    disabled={
+                      !currentRoom.players || 
+                      currentRoom.players.length >= currentRoom.maxPlayers || 
+                      currentRoom.status !== 'waiting'
+                    }
                     className="w-full bg-gradient-to-r from-cyber-cyan to-cyber-magenta hover:from-cyber-magenta hover:to-cyber-cyan text-black font-mono font-bold border border-cyber-cyan/50"
                   >
                     <Users className="mr-2 h-4 w-4" />
                     JOIN_ROOM
                   </Button>
                 </div>
+              )}
+
+              {/* Join game button for playing status */}
+              {currentRoom.status === 'playing' && (
+                <Button
+                  onClick={handleJoinGame}
+                  className="w-full bg-gradient-to-r from-cyber-green to-cyber-cyan text-black font-mono font-bold"
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  JOIN_GAME
+                </Button>
               )}
             </div>
           </div>
