@@ -56,16 +56,33 @@ export class BotService {
     players: Player[], 
     gameWidth: number, 
     gameHeight: number,
-    delta: number
+    delta: number,
+    safeZone?: { x: number; y: number; radius: number; currentRadius: number; isActive: boolean; damagePerSecond: number } | null
   ): Bot[] {
     const currentTime = Date.now();
 
     return bots.map(bot => {
       if (!bot.isAlive) return bot;
 
+      // Apply safe zone damage if applicable
+      if (safeZone?.isActive) {
+        const botInSafeZone = this.isInSafeZone(bot, safeZone);
+        if (!botInSafeZone) {
+          // Apply damage (1 damage per second, scaled by delta)
+          const damage = safeZone.damagePerSecond * delta;
+          bot.size = Math.max(0, bot.size - damage);
+          
+          // Kill bot if size reaches 0
+          if (bot.size <= 0) {
+            bot.isAlive = false;
+            return bot;
+          }
+        }
+      }
+
       // Update bot AI every reaction time interval
       if (currentTime - bot.lastDirectionChange > bot.reactionTime) {
-        this.updateBotTarget(bot, foods, players, gameWidth, gameHeight);
+        this.updateBotTarget(bot, foods, players, gameWidth, gameHeight, safeZone);
         bot.lastDirectionChange = currentTime;
       }
 
@@ -81,36 +98,55 @@ export class BotService {
     foods: Food[], 
     players: Player[], 
     gameWidth: number, 
-    gameHeight: number
+    gameHeight: number,
+    safeZone?: { x: number; y: number; radius: number; currentRadius: number; isActive: boolean } | null
   ) {
     const nearbyFood = this.findNearestFood(bot, foods);
     const threats = this.findThreats(bot, players);
     const prey = this.findPrey(bot, players);
 
-    // Priority 1: Avoid threats
-    if (threats.length > 0) {
-      this.setAvoidanceTarget(bot, threats, gameWidth, gameHeight);
+    // Priority 1: Move to safe zone if outside and zone is active
+    if (safeZone?.isActive && !this.isInSafeZone(bot, safeZone)) {
+      bot.targetX = safeZone.x;
+      bot.targetY = safeZone.y;
       return;
     }
 
-    // Priority 2: Chase prey if aggressive enough
+    // Priority 2: Avoid threats
+    if (threats.length > 0) {
+      this.setAvoidanceTarget(bot, threats, gameWidth, gameHeight, safeZone);
+      return;
+    }
+
+    // Priority 3: Chase prey if aggressive enough (but stay in safe zone)
     if (prey.length > 0 && bot.aggressionLevel > 0.6) {
       const closestPrey = prey[0];
-      bot.targetX = closestPrey.x;
-      bot.targetY = closestPrey.y;
-      return;
+      if (!safeZone?.isActive || this.isInSafeZone(closestPrey, safeZone)) {
+        bot.targetX = closestPrey.x;
+        bot.targetY = closestPrey.y;
+        return;
+      }
     }
 
-    // Priority 3: Go for food
+    // Priority 4: Go for food (but prioritize food in safe zone)
     if (nearbyFood) {
-      bot.targetX = nearbyFood.x;
-      bot.targetY = nearbyFood.y;
-      return;
+      if (!safeZone?.isActive || this.isInSafeZone(nearbyFood, safeZone)) {
+        bot.targetX = nearbyFood.x;
+        bot.targetY = nearbyFood.y;
+        return;
+      }
     }
 
-    // Default: Random movement
-    bot.targetX = Math.random() * gameWidth;
-    bot.targetY = Math.random() * gameHeight;
+    // Default: Random movement within safe zone or anywhere if no safe zone
+    if (safeZone?.isActive) {
+      const angle = Math.random() * 2 * Math.PI;
+      const distance = Math.random() * (safeZone.currentRadius * 0.8); // Stay well within the zone
+      bot.targetX = safeZone.x + Math.cos(angle) * distance;
+      bot.targetY = safeZone.y + Math.sin(angle) * distance;
+    } else {
+      bot.targetX = Math.random() * gameWidth;
+      bot.targetY = Math.random() * gameHeight;
+    }
   }
 
   private static findNearestFood(bot: Bot, foods: Food[]): Food | null {
@@ -154,7 +190,8 @@ export class BotService {
     bot: Bot, 
     threats: Player[], 
     gameWidth: number, 
-    gameHeight: number
+    gameHeight: number,
+    safeZone?: { x: number; y: number; radius: number; currentRadius: number; isActive: boolean } | null
   ) {
     const threat = threats[0];
     
@@ -165,12 +202,27 @@ export class BotService {
     
     if (distance > 0) {
       const avoidDistance = 200;
-      bot.targetX = bot.x + (dx / distance) * avoidDistance;
-      bot.targetY = bot.y + (dy / distance) * avoidDistance;
+      let targetX = bot.x + (dx / distance) * avoidDistance;
+      let targetY = bot.y + (dy / distance) * avoidDistance;
       
-      // Keep within bounds
-      bot.targetX = Math.max(50, Math.min(gameWidth - 50, bot.targetX));
-      bot.targetY = Math.max(50, Math.min(gameHeight - 50, bot.targetY));
+      // If safe zone is active, try to stay within it while avoiding threats
+      if (safeZone?.isActive) {
+        const distanceFromCenter = Math.sqrt(
+          (targetX - safeZone.x) * (targetX - safeZone.x) + 
+          (targetY - safeZone.y) * (targetY - safeZone.y)
+        );
+        
+        if (distanceFromCenter > safeZone.currentRadius * 0.9) {
+          // Adjust target to stay within safe zone
+          const angleToCenter = Math.atan2(safeZone.y - bot.y, safeZone.x - bot.x);
+          const safeDistance = safeZone.currentRadius * 0.8;
+          targetX = safeZone.x + Math.cos(angleToCenter) * safeDistance;
+          targetY = safeZone.y + Math.sin(angleToCenter) * safeDistance;
+        }
+      }
+      
+      bot.targetX = Math.max(50, Math.min(gameWidth - 50, targetX));
+      bot.targetY = Math.max(50, Math.min(gameHeight - 50, targetY));
     }
   }
 
@@ -196,6 +248,14 @@ export class BotService {
     const dx = obj1.x - obj2.x;
     const dy = obj1.y - obj2.y;
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  private static isInSafeZone(
+    entity: { x: number; y: number }, 
+    safeZone: { x: number; y: number; currentRadius: number }
+  ): boolean {
+    const distance = this.getDistance(entity, safeZone);
+    return distance <= safeZone.currentRadius;
   }
 
   static checkBotCollisions(

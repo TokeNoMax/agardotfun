@@ -257,7 +257,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         alivePlayers,
         GAME_WIDTH, 
         GAME_HEIGHT,
-        deltaInSeconds
+        deltaInSeconds,
+        safeZone
       );
 
       // Handle bot collisions with food and rugs

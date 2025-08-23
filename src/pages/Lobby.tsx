@@ -615,7 +615,6 @@ export default function Lobby() {
                     countdown={countdown}
                     gameStarting={gameStarting}
                     handleToggleReady={handleToggleReady}
-                    handleStartGame={handleStartGame}
                     handleLeaveRoom={handleLeaveRoom}
                     handleJoinGame={joinGame}
                     handleJoinRoom={joinRoom}
