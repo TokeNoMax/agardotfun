@@ -30,7 +30,7 @@ const toastVariants = cva(
         default: "border bg-background text-foreground",
         destructive: "destructive group border-destructive bg-destructive text-destructive-foreground",
         elimination: "border-cyber-cyan bg-background/90 text-foreground shadow-[0_0_20px_theme(colors.cyber.cyan/0.3)] backdrop-blur-sm",
-        victory: "border-cyber-green bg-background/90 text-foreground shadow-[0_0_20px_theme(colors.cyber.green/0.3)] backdrop-blur-sm animate-pulse",
+        victory: "border-cyber-green bg-background/90 text-foreground shadow-[0_0_20px_theme(colors.cyber.green/0.3)] backdrop-blur-sm",
         death: "border-cyber-magenta bg-background/90 text-foreground shadow-[0_0_20px_theme(colors.cyber.magenta/0.3)] backdrop-blur-sm",
         zone: "border-cyber-orange bg-background/90 text-foreground shadow-[0_0_20px_theme(colors.cyber.orange/0.3)] backdrop-blur-sm",
       },
