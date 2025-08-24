@@ -19,11 +19,11 @@ interface GameUIProps {
 }
 
 // Create a default local player for solo mode
-const createDefaultLocalPlayer = (): Player => ({
+const createDefaultLocalPlayer = (playerName?: string, playerColor?: string): Player => ({
   id: 'local-player',
   walletAddress: 'local',
-  name: 'Joueur Solo',
-  color: 'blue',
+  name: playerName || 'Joueur Solo',
+  color: (playerColor as any) || 'blue',
   size: 20,
   x: 400,
   y: 300,
@@ -81,8 +81,8 @@ export default function GameUI({ roomId }: GameUIProps) {
   })();
   
   // Create effective player and players for UI display
-  const effectivePlayer = isLocalMode ? createDefaultLocalPlayer() : currentPlayer;
-  const effectivePlayers = isLocalMode ? [createDefaultLocalPlayer()] : players;
+  const effectivePlayer = isLocalMode ? createDefaultLocalPlayer(currentPlayer?.name, currentPlayer?.color) : currentPlayer;
+  const effectivePlayers = isLocalMode ? [createDefaultLocalPlayer(currentPlayer?.name, currentPlayer?.color)] : players;
 
   console.log("GameUI: Rendering with", { 
     isLocalMode, 
@@ -227,11 +227,11 @@ export default function GameUI({ roomId }: GameUIProps) {
   // Initialize players from current room or set default for local mode
   useEffect(() => {
     if (isLocalMode) {
-      setPlayers([createDefaultLocalPlayer()]);
+      setPlayers([createDefaultLocalPlayer(currentPlayer?.name, currentPlayer?.color)]);
     } else if (currentRoom?.players) {
       setPlayers(currentRoom.players);
     }
-  }, [currentRoom?.players, isLocalMode]);
+  }, [currentRoom?.players, isLocalMode, currentPlayer?.name, currentPlayer?.color]);
 
   // Update zone timer
   useEffect(() => {
