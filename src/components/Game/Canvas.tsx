@@ -710,10 +710,10 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
               setLastSizeReduction(currentTime);
               console.log("Canvas: Boost size reduction, size now:", me.size);
               
-              // Auto-deactivate boost if size becomes too small OR minimum duration passed
-              if (me.size <= 10 || currentTime >= boostMinEndTime) {
+              // Auto-deactivate boost if size becomes too small
+              if (me.size <= 10) {
                 setIsBoostActive(false);
-                console.log("Canvas: Boost auto-deactivated");
+                console.log("Canvas: Boost auto-deactivated - size too small");
               }
             }
           }
