@@ -48,8 +48,7 @@ export const EliminationToast: React.FC<EliminationToastProps> = ({
   
   return (
     <div className={cn(
-      "flex items-center space-x-3 font-mono text-sm",
-      isPlayerEliminated && "animate-pulse"
+      "flex items-center space-x-3 font-mono text-sm"
     )}>
       <div className={cn(
         "flex-shrink-0 p-2 rounded-full border",
@@ -64,7 +63,7 @@ export const EliminationToast: React.FC<EliminationToastProps> = ({
           <div className="space-y-1">
             <div className={cn(
               "font-bold uppercase tracking-wider",
-              isPlayerEliminated ? "text-cyber-magenta animate-neon-pulse" : 
+              isPlayerEliminated ? "text-cyber-magenta" : 
               isPlayerInvolved ? "text-cyber-green" : "text-foreground"
             )}>
               {isPlayerEliminated ? "ÉLIMINÉ" : isPlayerInvolved ? "KILL" : "ÉLIMINATION"}
@@ -87,8 +86,7 @@ export const EliminationToast: React.FC<EliminationToastProps> = ({
           <div className="space-y-1">
             <div className={cn(
               "font-bold uppercase tracking-wider",
-              type === 'zone' ? "text-cyber-orange" : "text-cyber-magenta",
-              isPlayerEliminated && "animate-neon-pulse"
+              type === 'zone' ? "text-cyber-orange" : "text-cyber-magenta"
             )}>
               {type === 'zone' ? "ZONE MORTELLE" : "ÉLIMINÉ"}
             </div>
