@@ -82,6 +82,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const isMobile = useIsMobile();
   const [mobileDirection, setMobileDirection] = useState<{ x: number; y: number } | null>(null);
   
+  // Boost power state (solo mode only)
+  const [isBoostActive, setIsBoostActive] = useState<boolean>(false);
+  const [boostStartTime, setBoostStartTime] = useState<number>(0);
+  const [lastSizeReduction, setLastSizeReduction] = useState<number>(0);
+  
   // Zone Battle state
   const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
   const [lastDamageTime, setLastDamageTime] = useState<number>(0);
@@ -549,20 +554,44 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     };
   }, [isLocalMode, localPlayer, currentRoom?.status, currentPlayer, isZoneMode, gameInitialized, roomId, isSoloMode, initSoloBots]);
 
-  // Mouse movement handler
+  // Mouse movement and boost click handlers
   useEffect(() => {
     if (isMobile) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       updateMousePosition(e.clientX, e.clientY);
     };
+
+    // Boost power handlers for solo mode only
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!isSoloMode || e.button !== 0) return; // Only left click in solo mode
+      
+      // Only activate boost if player has enough size (minimum 15)
+      if (playerRef.current && playerRef.current.size >= 15) {
+        setIsBoostActive(true);
+        setBoostStartTime(Date.now());
+        setLastSizeReduction(Date.now());
+        console.log("Canvas: Boost activated!");
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isSoloMode || e.button !== 0) return;
+      
+      setIsBoostActive(false);
+      console.log("Canvas: Boost deactivated!");
+    };
     
     window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
     
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isMobile, updateMousePosition]);
+  }, [isMobile, updateMousePosition, isSoloMode]);
 
   // Enhanced game loop with 50Hz synchronization support
   useEffect(() => {
@@ -660,10 +689,28 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           return updatedPlayers;
         }
         
-        // Movement logic with corrected speed system
+        // Movement logic with corrected speed system and boost power
         const canvas = canvasRef.current;
         if (canvas) {
-          const speedPixelsPerSecond = computeSpeed(me.size); // Using the correct Agar.io speed formula
+          let speedPixelsPerSecond = computeSpeed(me.size); // Using the correct Agar.io speed formula
+          
+          // Apply boost multiplier in solo mode
+          if (isSoloMode && isBoostActive) {
+            speedPixelsPerSecond *= 1.5;
+            
+            // Size reduction logic during boost (5 points per second)
+            if (currentTime - lastSizeReduction >= 1000) {
+              me.size = Math.max(10, me.size - 5); // Minimum size of 10
+              setLastSizeReduction(currentTime);
+              console.log("Canvas: Boost size reduction, size now:", me.size);
+              
+              // Auto-deactivate boost if size becomes too small
+              if (me.size <= 10) {
+                setIsBoostActive(false);
+                console.log("Canvas: Boost auto-deactivated due to small size");
+              }
+            }
+          }
           
           if (isMobile && mobileDirection) {
             // Convert speed from px/s to px/frame using real delta
@@ -1012,6 +1059,18 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           context.fillStyle = player.isAlive ? `#${getColorHex(player.color)}` : '#666666';
           context.arc(player.x, player.y, player.size, 0, Math.PI * 2);
           context.fill();
+          
+          // Add boost glow effect if this is our player and boost is active
+          if (isSoloMode && player.id === playerRef.current?.id && isBoostActive) {
+            context.beginPath();
+            context.strokeStyle = '#ffff00';
+            context.shadowColor = '#ffff00';
+            context.shadowBlur = 20 / cameraZoom;
+            context.lineWidth = 3 / cameraZoom;
+            context.arc(player.x, player.y, player.size + 5, 0, Math.PI * 2);
+            context.stroke();
+            context.shadowBlur = 0;
+          }
         }
         
         context.font = `${14 / cameraZoom}px Arial`;

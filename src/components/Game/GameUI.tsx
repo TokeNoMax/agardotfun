@@ -378,6 +378,16 @@ export default function GameUI({ roomId }: GameUIProps) {
         </div>
       )}
 
+      {/* Boost Indicator for Solo Mode */}
+      {isLocalMode && !roomId && (
+        <div className="absolute top-20 left-4 z-10 bg-black/70 backdrop-blur-sm border border-white/20 rounded-lg p-3 text-white">
+          <div className="text-sm font-medium mb-1">🚀 Pouvoir Boost</div>
+          <div className="text-xs opacity-75">• Clic gauche maintenu: +50% vitesse</div>
+          <div className="text-xs opacity-75">• Coût: -5 taille/seconde</div>
+          <div className="text-xs opacity-75">• Minimum: 10 de taille</div>
+        </div>
+      )}
+
       {/* Enhanced Mode Indicator */}
       {isLocalMode ? (
         <div className="absolute bottom-4 left-4 z-10">
