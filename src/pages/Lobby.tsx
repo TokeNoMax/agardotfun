@@ -124,7 +124,11 @@ export default function Lobby() {
           
           // Navigate to game
           setTimeout(() => {
-            navigate('/game');
+            if (currentRoom?.id) {
+              navigate(`/game/${currentRoom.id}`);
+            } else {
+              navigate('/game');
+            }
             setGameStarting(false);
             setCountdown(null);
           }, 500);

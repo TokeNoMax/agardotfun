@@ -65,7 +65,11 @@ export default function MobileLobbyLayout({
 
   const handleJoinGame = () => {
     if (currentRoom?.status === 'playing') {
-      navigate('/game');
+      if (currentRoom?.id) {
+        navigate(`/game/${currentRoom.id}`);
+      } else {
+        navigate('/game');
+      }
     } else {
       toast({
         title: "PARTIE_NON_DISPONIBLE",

@@ -207,7 +207,11 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   const joinGame = () => {
     if (currentRoom?.status === 'playing') {
       // Use window.location instead of navigate since we don't have access to it here
-      window.location.href = '/game';
+      if (currentRoom?.id) {
+        window.location.href = `/game/${currentRoom.id}`;
+      } else {
+        window.location.href = '/game';
+      }
     } else {
       toast({
         title: "PARTIE_NON_DISPONIBLE",
