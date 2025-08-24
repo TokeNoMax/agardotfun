@@ -1,4 +1,5 @@
 import { toast } from "@/hooks/use-toast";
+import { EliminationToast } from "@/components/Game/EliminationToast";
 
 export interface EliminationEvent {
   eliminatedId: string;
@@ -13,70 +14,44 @@ export class EliminationNotificationService {
   private static readonly NOTIFICATION_DURATION = 5000; // 5 seconds as requested
 
   /**
-   * Shows an elimination notification with personalized message
+   * Shows an elimination notification with cyberpunk styling
    */
   static showEliminationNotification(event: EliminationEvent): void {
     const { eliminatedId, eliminatedName, eliminatorId, eliminatorName, type, currentPlayerId } = event;
     
-    let title = "";
-    let description = "";
-    let variant: "default" | "destructive" = "default";
-
-    // If current player was eliminated, show destructive variant
-    if (eliminatedId === currentPlayerId) {
-      variant = "destructive";
+    const isPlayerEliminated = eliminatedId === currentPlayerId;
+    const isPlayerInvolved = eliminatedId === currentPlayerId || eliminatorId === currentPlayerId;
+    
+    // Determine variant based on type and player involvement
+    let variant: "elimination" | "death" | "zone" | "victory" = "elimination";
+    
+    if (isPlayerEliminated) {
+      variant = type === 'zone' ? "zone" : "death";
+    } else if (isPlayerInvolved && type === 'absorption') {
+      variant = "victory";
+    } else if (type === 'zone') {
+      variant = "zone";
     }
 
-    switch (type) {
-      case 'absorption':
-        if (eliminatorId && eliminatorName) {
-          if (eliminatedId === currentPlayerId) {
-            title = "Vous avez été éliminé !";
-            description = `Vous avez été avalé par ${eliminatorName}`;
-          } else if (eliminatorId === currentPlayerId) {
-            title = "Élimination !";
-            description = `Vous avez avalé ${eliminatedName}`;
-          } else {
-            title = "Élimination";
-            description = `${eliminatedName} a été avalé par ${eliminatorName}`;
-          }
-        }
-        break;
-
-      case 'zone':
-        if (eliminatedId === currentPlayerId) {
-          title = "Vous avez été éliminé !";
-          description = "Vous êtes mort dans la zone dangereuse";
-        } else {
-          title = "Mort dans la zone";
-          description = `${eliminatedName} est mort dans la zone`;
-        }
-        break;
-
-      case 'bot':
-        if (eliminatedId === currentPlayerId) {
-          title = "Vous avez été éliminé !";
-          description = "Vous avez été éliminé par un bot";
-        } else {
-          title = "Élimination par bot";
-          description = `${eliminatedName} a été éliminé par un bot`;
-        }
-        break;
-    }
-
-    // Show the toast notification for exactly 5 seconds
-    this.showEliminationToast(title, description, variant);
+    // Show the cyberpunk toast notification
+    this.showCyberpunkToast(event, variant, isPlayerInvolved, isPlayerEliminated);
   }
 
   /**
-   * Shows elimination toast with custom duration (5 seconds)
+   * Shows cyberpunk-styled elimination toast
    */
-  private static showEliminationToast(title: string, description: string, variant: "default" | "destructive"): void {
+  private static showCyberpunkToast(
+    event: EliminationEvent, 
+    variant: "elimination" | "death" | "zone" | "victory",
+    isPlayerInvolved: boolean,
+    isPlayerEliminated: boolean
+  ): void {
+    const { eliminatedName, eliminatorName, type } = event;
+    
     toast({
-      title,
-      description,
-      variant,
-      duration: this.NOTIFICATION_DURATION
+      variant: variant as any,
+      duration: this.NOTIFICATION_DURATION,
+      description: `${eliminatedName} ${type === 'zone' ? 'est mort dans la zone' : eliminatorName ? `a été éliminé par ${eliminatorName}` : 'a été éliminé'}`
     });
   }
 
