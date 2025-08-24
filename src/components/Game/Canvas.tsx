@@ -566,7 +566,11 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
     // Boost power handlers for solo mode only
     const handleMouseDown = (e: MouseEvent) => {
-      if (!isSoloMode || e.button !== 0 || isInForcedCycle) return; // Only left click in solo mode, prevent during forced cycle
+      // Block if not solo mode, not left click, already in forced cycle, or boost is active
+      if (!isSoloMode || e.button !== 0 || isInForcedCycle || isBoostActive) {
+        console.log("Canvas: Mouse click blocked - isInForcedCycle:", isInForcedCycle, "isBoostActive:", isBoostActive);
+        return;
+      }
       
       // Only activate boost if player has enough size (minimum 15)
       if (playerRef.current && playerRef.current.size >= 15) {
@@ -574,13 +578,15 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         
         // Start new 1-second cycle and immediately consume 5 size points
         playerRef.current.size = Math.max(10, playerRef.current.size - 5);
-        console.log("Canvas: Boost cycle started, immediate size consumption:", playerRef.current.size);
+        console.log("Canvas: NEW BOOST CYCLE STARTED - size after consumption:", playerRef.current.size);
         
         setIsBoostActive(true);
         setBoostStartTime(now);
         setBoostCycleEndTime(now + 1000); // 1 second cycle
         setIsInForcedCycle(true);
         setMousePressed(true);
+      } else {
+        console.log("Canvas: Insufficient size for boost:", playerRef.current?.size);
       }
     };
 
@@ -708,25 +714,27 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           
           // Handle boost cycling logic
           if (isSoloMode && isBoostActive && currentTime >= boostCycleEndTime) {
-            setIsInForcedCycle(false); // End forced cycle period
+            console.log("Canvas: CYCLE END - Checking auto-cycling conditions");
             
             // Auto-deactivate boost if size becomes too small
             if (me.size <= 10) {
               setIsBoostActive(false);
-              console.log("Canvas: Boost auto-deactivated - size too small");
+              setIsInForcedCycle(false);
+              console.log("Canvas: BOOST COMPLETELY DEACTIVATED - size too small");
             }
             // If mouse is still pressed and size is sufficient, start new cycle
             else if (mousePressed && me.size >= 15) {
               // Start new cycle and immediately consume 5 size points
               me.size = Math.max(10, me.size - 5);
               setBoostCycleEndTime(currentTime + 1000); // New 1-second cycle
-              setIsInForcedCycle(true);
-              console.log("Canvas: Auto-cycling boost, size after consumption:", me.size);
+              // Keep isInForcedCycle = true to prevent clicks during auto-cycle
+              console.log("Canvas: AUTO-CYCLING - new cycle started, size after consumption:", me.size);
             }
-            // Otherwise, deactivate boost
+            // Otherwise, deactivate boost completely
             else {
               setIsBoostActive(false);
-              console.log("Canvas: Boost deactivated - mouse released or insufficient size");
+              setIsInForcedCycle(false);
+              console.log("Canvas: BOOST COMPLETELY DEACTIVATED - mouse released or insufficient size");
             }
           }
           
