@@ -38,3 +38,27 @@ export const handleZoneDeath = (player: Player) => {
     currentPlayerId: player.id
   });
 };
+
+export const handleBotVsBotElimination = (
+  eliminatedBot: Bot,
+  eliminatorBot: Bot,
+  currentPlayerId: string
+) => {
+  EliminationNotificationService.showEliminationNotification({
+    eliminatedId: eliminatedBot.id,
+    eliminatedName: eliminatedBot.name,
+    eliminatorId: eliminatorBot.id,
+    eliminatorName: eliminatorBot.name,
+    type: 'absorption',
+    currentPlayerId
+  });
+};
+
+export const handleBotZoneDeath = (bot: Bot, currentPlayerId: string) => {
+  EliminationNotificationService.showEliminationNotification({
+    eliminatedId: bot.id,
+    eliminatedName: bot.name,
+    type: 'zone',
+    currentPlayerId
+  });
+};

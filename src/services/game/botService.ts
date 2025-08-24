@@ -58,10 +58,11 @@ export class BotService {
     gameHeight: number,
     delta: number,
     safeZone?: { x: number; y: number; radius: number; currentRadius: number; isActive: boolean; damagePerSecond: number } | null
-  ): Bot[] {
+  ): { updatedBots: Bot[], eliminationEvents: Array<{ eliminatedBot: Bot, eliminatorBot?: Bot, type: 'zone' | 'bot' }> } {
     const currentTime = Date.now();
+    const eliminationEvents: Array<{ eliminatedBot: Bot, eliminatorBot?: Bot, type: 'zone' | 'bot' }> = [];
 
-    return bots.map(bot => {
+    const updatedBots = bots.map(bot => {
       if (!bot.isAlive) return bot;
 
       // Apply safe zone damage if applicable
@@ -75,6 +76,7 @@ export class BotService {
           // Kill bot if size reaches 0
           if (bot.size <= 0) {
             bot.isAlive = false;
+            eliminationEvents.push({ eliminatedBot: bot, type: 'zone' });
             return bot;
           }
         }
@@ -91,6 +93,8 @@ export class BotService {
 
       return bot;
     });
+
+    return { updatedBots, eliminationEvents };
   }
 
   private static updateBotTarget(
@@ -262,9 +266,10 @@ export class BotService {
     bots: Bot[], 
     foods: Food[], 
     rugs: Rug[]
-  ): { updatedBots: Bot[], updatedFoods: Food[] } {
+  ): { updatedBots: Bot[], updatedFoods: Food[], eliminationEvents: Array<{ eliminatedBot: Bot, eliminatorBot?: Bot, type: 'zone' | 'bot' }> } {
     const updatedBots = [...bots];
     let updatedFoods = [...foods];
+    const eliminationEvents: Array<{ eliminatedBot: Bot, eliminatorBot?: Bot, type: 'zone' | 'bot' }> = [];
 
     updatedBots.forEach(bot => {
       if (!bot.isAlive) return;
@@ -317,9 +322,11 @@ export class BotService {
           if (botA.size > botB.size * 1.2) {
             botB.isAlive = false;
             botA.size += botB.size / 2;
+            eliminationEvents.push({ eliminatedBot: botB, eliminatorBot: botA, type: 'bot' });
           } else if (botB.size > botA.size * 1.2) {
             botA.isAlive = false;
             botB.size += botA.size / 2;
+            eliminationEvents.push({ eliminatedBot: botA, eliminatorBot: botB, type: 'bot' });
           } else {
             // Push apart
             const angle = Math.atan2(dy, dx);
@@ -333,6 +340,6 @@ export class BotService {
       }
     }
 
-    return { updatedBots, updatedFoods };
+    return { updatedBots, updatedFoods, eliminationEvents };
   }
 }

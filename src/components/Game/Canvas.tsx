@@ -8,7 +8,7 @@ import { GameStateService, GameState } from "@/services/game/gameStateService";
 import { BotService, Bot } from "@/services/game/botService";
 import { computeSpeed } from "@/services/game/speedUtil";
 import { EliminationNotificationService } from "@/services/eliminationNotificationService";
-import { handleBotElimination, handleZoneDeath } from "./EliminationHandler";
+import { handleBotElimination, handleZoneDeath, handleBotVsBotElimination, handleBotZoneDeath } from "./EliminationHandler";
 
 // Constants
 const GAME_WIDTH = 3000;
@@ -253,7 +253,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
     setBots(prevBots => {
       const alivePlayers = players.filter(p => p.isAlive);
-      const updatedBots = BotService.updateSoloBots(
+      const updatedResult = BotService.updateSoloBots(
         prevBots, 
         foods, 
         alivePlayers,
@@ -264,11 +264,21 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       );
 
       // Handle bot collisions with food and rugs
-      const { updatedBots: botsAfterCollisions, updatedFoods } = BotService.checkBotCollisions(
-        updatedBots, 
+      const { updatedBots: botsAfterCollisions, updatedFoods, eliminationEvents: collisionEvents } = BotService.checkBotCollisions(
+        updatedResult.updatedBots, 
         foods, 
         rugs
       );
+
+      // Process all elimination events
+      const allEliminationEvents = [...updatedResult.eliminationEvents, ...collisionEvents];
+      allEliminationEvents.forEach(event => {
+        if (event.type === 'zone') {
+          handleBotZoneDeath(event.eliminatedBot, playerRef.current?.id || '');
+        } else if (event.type === 'bot' && event.eliminatorBot) {
+          handleBotVsBotElimination(event.eliminatedBot, event.eliminatorBot, playerRef.current?.id || '');
+        }
+      });
 
       // Update foods state if any were consumed by bots
       if (updatedFoods.length !== foods.length) {
@@ -806,10 +816,10 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
                   if (me.size > bot.size * 1.2) {
                     bot.isAlive = false;
                     me.size += bot.size / 2;
-                    console.log(`Player eliminated bot ${bot.name}`);
+                    handleBotElimination(me, bot, true);
                   } else if (bot.size > me.size * 1.2) {
                     me.isAlive = false;
-                    console.log(`Bot ${bot.name} eliminated player`);
+                    handleBotElimination(me, bot, false);
                     if (!gameOverCalled) {
                       setGameOverCalled(true);
                       onGameOver(bot);
