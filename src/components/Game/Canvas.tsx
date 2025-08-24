@@ -566,9 +566,8 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
     // Boost power handlers for solo mode only
     const handleMouseDown = (e: MouseEvent) => {
-      // Block if not solo mode, not left click, already in forced cycle, or boost is active
-      if (!isSoloMode || e.button !== 0 || isInForcedCycle || isBoostActive) {
-        console.log("Canvas: Mouse click blocked - isInForcedCycle:", isInForcedCycle, "isBoostActive:", isBoostActive);
+      // Block if not solo mode, not left click, or already in forced cycle
+      if (!isSoloMode || e.button !== 0 || isInForcedCycle) {
         return;
       }
       
@@ -578,31 +577,20 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         
         // Start new 1-second cycle and immediately consume 5 size points
         playerRef.current.size = Math.max(10, playerRef.current.size - 5);
-        console.log("Canvas: NEW BOOST CYCLE STARTED - size after consumption:", playerRef.current.size);
         
         setIsBoostActive(true);
         setBoostStartTime(now);
         setBoostCycleEndTime(now + 1000); // 1 second cycle
         setIsInForcedCycle(true);
-        setMousePressed(true);
-      } else {
-        console.log("Canvas: Insufficient size for boost:", playerRef.current?.size);
       }
-    };
-
-    const handleMouseUp = () => {
-      setMousePressed(false);
-      console.log("Canvas: Mouse released");
     };
     
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mouseup', handleMouseUp);
     
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isMobile, updateMousePosition, isSoloMode]);
 
@@ -712,30 +700,10 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
             speedPixelsPerSecond *= 1.5;
           }
           
-          // Handle boost cycling logic
+          // Handle boost cycling logic - Simple: One click = One cycle
           if (isSoloMode && isBoostActive && currentTime >= boostCycleEndTime) {
-            console.log("Canvas: CYCLE END - Checking auto-cycling conditions");
-            
-            // Auto-deactivate boost if size becomes too small
-            if (me.size <= 10) {
-              setIsBoostActive(false);
-              setIsInForcedCycle(false);
-              console.log("Canvas: BOOST COMPLETELY DEACTIVATED - size too small");
-            }
-            // If mouse is still pressed and size is sufficient, start new cycle
-            else if (mousePressed && me.size >= 15) {
-              // Start new cycle and immediately consume 5 size points
-              me.size = Math.max(10, me.size - 5);
-              setBoostCycleEndTime(currentTime + 1000); // New 1-second cycle
-              // Keep isInForcedCycle = true to prevent clicks during auto-cycle
-              console.log("Canvas: AUTO-CYCLING - new cycle started, size after consumption:", me.size);
-            }
-            // Otherwise, deactivate boost completely
-            else {
-              setIsBoostActive(false);
-              setIsInForcedCycle(false);
-              console.log("Canvas: BOOST COMPLETELY DEACTIVATED - mouse released or insufficient size");
-            }
+            setIsBoostActive(false);
+            setIsInForcedCycle(false);
           }
           
           if (isMobile && mobileDirection) {
