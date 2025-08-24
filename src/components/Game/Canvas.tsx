@@ -87,6 +87,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [boostStartTime, setBoostStartTime] = useState<number>(0);
   const [lastSizeReduction, setLastSizeReduction] = useState<number>(0);
   const [boostMinEndTime, setBoostMinEndTime] = useState<number>(0);
+  const [mouseReleased, setMouseReleased] = useState<boolean>(false);
   
   // Zone Battle state
   const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
@@ -574,6 +575,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         setBoostStartTime(now);
         setLastSizeReduction(now);
         setBoostMinEndTime(now + 1000); // Minimum 1 second duration
+        setMouseReleased(false); // Reset mouse release flag
         console.log("Canvas: Boost activated for minimum 1 second!");
       }
     };
@@ -581,14 +583,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
     const handleMouseUp = (e: MouseEvent) => {
       if (!isSoloMode || e.button !== 0) return;
       
-      const now = Date.now();
-      // Only deactivate if minimum duration has passed
-      if (now >= boostMinEndTime) {
-        setIsBoostActive(false);
-        console.log("Canvas: Boost deactivated!");
-      } else {
-        console.log("Canvas: Boost locked for minimum duration");
-      }
+      // Mark that mouse has been released
+      setMouseReleased(true);
+      console.log("Canvas: Mouse released, will deactivate boost when minimum duration passes");
     };
     
     window.addEventListener('mousemove', handleMouseMove);
@@ -719,11 +716,12 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
                 console.log("Canvas: Boost auto-deactivated");
               }
             }
-            
-            // Check if minimum duration has passed and user released mouse
-            if (currentTime >= boostMinEndTime && !isBoostActive) {
-              setIsBoostActive(false);
-            }
+          }
+          
+          // Check if minimum duration has passed and user released mouse
+          if (currentTime >= boostMinEndTime && mouseReleased && isBoostActive) {
+            setIsBoostActive(false);
+            console.log("Canvas: Boost deactivated after minimum duration");
           }
           
           if (isMobile && mobileDirection) {
