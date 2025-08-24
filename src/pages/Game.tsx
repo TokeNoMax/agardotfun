@@ -85,9 +85,22 @@ export default function Game() {
         return false;
       }
       
-      // Check if player is in the room
-      const isPlayerInRoom = currentRoom.players.some(p => p.id === player.id);
+      // Check if player is in the room - use same logic as in Lobby
+      const isPlayerInRoom = currentRoom.players.some(p => {
+        const matchByWallet = player.walletAddress && p.id === player.walletAddress;
+        const matchById = p.id === player.id;
+        const matchByName = p.name === player.name && player.name.trim() !== '';
+        
+        return matchByWallet || matchById || matchByName;
+      });
+      
       if (!isPlayerInRoom) {
+        console.log("Player not found in room. Player details:", {
+          name: player.name,
+          id: player.id,
+          walletAddress: player.walletAddress
+        });
+        console.log("Room players:", currentRoom.players.map(p => ({ id: p.id, name: p.name })));
         showThrottledToast("Session expirée", "Vous n'êtes plus dans cette partie.", "destructive");
         navigate('/lobby');
         return false;
