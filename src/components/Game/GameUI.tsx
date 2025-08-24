@@ -12,6 +12,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useUnifiedGameSync } from "@/hooks/useUnifiedGameSync";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "react-router-dom";
+import { EliminationNotificationService } from "@/services/eliminationNotificationService";
 
 interface GameUIProps {
   roomId?: string;
@@ -140,22 +141,16 @@ export default function GameUI({ roomId }: GameUIProps) {
       return p;
     }));
     
-    // Show toast notification
-    if (eliminatedId === currentPlayer?.id) {
-      toast({
-        title: "Vous avez été éliminé !",
-        description: `Éliminé par ${eliminatorId}`,
-        variant: "destructive",
-        duration: 3000
-      });
-    } else if (eliminatorId === currentPlayer?.id) {
-      toast({
-        title: "Élimination !",
-        description: `Vous avez éliminé ${eliminatedId}`,
-        duration: 2000
-      });
-    }
-  }, [currentPlayer?.id, toast]);
+    // Show elimination notification with personalized message
+    EliminationNotificationService.showEliminationNotification({
+      eliminatedId,
+      eliminatedName: EliminationNotificationService.getPlayerName(eliminatedId, effectivePlayers),
+      eliminatorId,
+      eliminatorName: EliminationNotificationService.getPlayerName(eliminatorId, effectivePlayers),
+      type: 'absorption',
+      currentPlayerId: currentPlayer?.id
+    });
+  }, [currentPlayer?.id, effectivePlayers]);
 
   const handlePlayerEliminated = useCallback((eliminatedId: string, eliminatorId: string) => {
     console.log("GameUI: Received elimination event:", { eliminatedId, eliminatorId });

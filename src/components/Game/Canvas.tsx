@@ -7,6 +7,8 @@ import { MapGenerator, GeneratedMap } from "@/services/game/mapGenerator";
 import { GameStateService, GameState } from "@/services/game/gameStateService";
 import { BotService, Bot } from "@/services/game/botService";
 import { computeSpeed } from "@/services/game/speedUtil";
+import { EliminationNotificationService } from "@/services/eliminationNotificationService";
+import { handleBotElimination, handleZoneDeath } from "./EliminationHandler";
 
 // Constants
 const GAME_WIDTH = 3000;
@@ -319,6 +321,16 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const handlePlayerElimination = useCallback(async (eliminatedPlayer: Player, killerPlayer: Player) => {
     console.log(`Canvas: Player ${eliminatedPlayer.name} was eliminated by ${killerPlayer.name}`);
     
+    // Show elimination notification
+    EliminationNotificationService.showEliminationNotification({
+      eliminatedId: eliminatedPlayer.id,
+      eliminatedName: eliminatedPlayer.name,
+      eliminatorId: killerPlayer.id,
+      eliminatorName: killerPlayer.name,
+      type: 'absorption',
+      currentPlayerId: playerRef.current?.id
+    });
+    
     // Update local state immediately
     setPlayers(prevPlayers => {
       return prevPlayers.map(player => {
@@ -617,6 +629,9 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
               me.isAlive = false;
               me.size = 0; // Ensure size doesn't go negative
               console.log("Canvas: Player died from zone damage");
+              
+              // Show zone death notification
+              handleZoneDeath(me);
               
               if (!gameOverCalled) {
                 setGameOverCalled(true);
