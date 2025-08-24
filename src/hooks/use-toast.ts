@@ -8,7 +8,7 @@ import type {
 
 // Réduit pour éviter trop de notifications en même temps
 const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 1000 * 8 // Réduit à 8 secondes
+const TOAST_REMOVE_DELAY = 1000 * 5 // 5 secondes
 
 type ToasterToast = ToastProps & {
   id: string
