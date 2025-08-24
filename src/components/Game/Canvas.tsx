@@ -86,6 +86,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   const [isBoostActive, setIsBoostActive] = useState<boolean>(false);
   const [boostStartTime, setBoostStartTime] = useState<number>(0);
   const [lastSizeReduction, setLastSizeReduction] = useState<number>(0);
+  const [boostMinEndTime, setBoostMinEndTime] = useState<number>(0);
   
   // Zone Battle state
   const [safeZone, setSafeZone] = useState<SafeZone | null>(null);
@@ -564,22 +565,30 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
     // Boost power handlers for solo mode only
     const handleMouseDown = (e: MouseEvent) => {
-      if (!isSoloMode || e.button !== 0) return; // Only left click in solo mode
+      if (!isSoloMode || e.button !== 0 || isBoostActive) return; // Only left click in solo mode, prevent reactivation
       
       // Only activate boost if player has enough size (minimum 15)
       if (playerRef.current && playerRef.current.size >= 15) {
+        const now = Date.now();
         setIsBoostActive(true);
-        setBoostStartTime(Date.now());
-        setLastSizeReduction(Date.now());
-        console.log("Canvas: Boost activated!");
+        setBoostStartTime(now);
+        setLastSizeReduction(now);
+        setBoostMinEndTime(now + 1000); // Minimum 1 second duration
+        console.log("Canvas: Boost activated for minimum 1 second!");
       }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       if (!isSoloMode || e.button !== 0) return;
       
-      setIsBoostActive(false);
-      console.log("Canvas: Boost deactivated!");
+      const now = Date.now();
+      // Only deactivate if minimum duration has passed
+      if (now >= boostMinEndTime) {
+        setIsBoostActive(false);
+        console.log("Canvas: Boost deactivated!");
+      } else {
+        console.log("Canvas: Boost locked for minimum duration");
+      }
     };
     
     window.addEventListener('mousemove', handleMouseMove);
@@ -704,11 +713,16 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
               setLastSizeReduction(currentTime);
               console.log("Canvas: Boost size reduction, size now:", me.size);
               
-              // Auto-deactivate boost if size becomes too small
-              if (me.size <= 10) {
+              // Auto-deactivate boost if size becomes too small OR minimum duration passed
+              if (me.size <= 10 || currentTime >= boostMinEndTime) {
                 setIsBoostActive(false);
-                console.log("Canvas: Boost auto-deactivated due to small size");
+                console.log("Canvas: Boost auto-deactivated");
               }
+            }
+            
+            // Check if minimum duration has passed and user released mouse
+            if (currentTime >= boostMinEndTime && !isBoostActive) {
+              setIsBoostActive(false);
             }
           }
           
