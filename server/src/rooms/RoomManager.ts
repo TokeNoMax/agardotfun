@@ -1,22 +1,22 @@
 
 import { RoomState, Player } from '../types/game';
-import { GameEngine } from '../game/GameEngine';
-import { SnapshotManager } from '../game/SnapshotManager';
+import { OptimizedGameEngine } from '../game/OptimizedGameEngine';
+import { OptimizedSnapshotManager } from '../game/OptimizedSnapshotManager';
 
 export class RoomManager {
   private rooms: Map<string, RoomState> = new Map();
-  private roomEngines: Map<string, GameEngine> = new Map();
-  private roomSnapshots: Map<string, SnapshotManager> = new Map();
+  private roomEngines: Map<string, OptimizedGameEngine> = new Map();
+  private roomSnapshots: Map<string, OptimizedSnapshotManager> = new Map();
   private roomIntervals: Map<string, NodeJS.Timeout> = new Map();
 
-  private readonly TICK_RATE = 15; // 66ms
+  private readonly TICK_RATE = 20; // 50ms - Optimized to 20Hz
   private readonly TICK_INTERVAL = 1000 / this.TICK_RATE;
 
   createRoom(roomId: string): RoomState {
     console.log(`Creating room: ${roomId}`);
     
-    const engine = new GameEngine();
-    const snapshotManager = new SnapshotManager();
+    const engine = new OptimizedGameEngine();
+    const snapshotManager = new OptimizedSnapshotManager();
     const roomState = engine.initializeRoom(roomId);
 
     this.rooms.set(roomId, roomState);

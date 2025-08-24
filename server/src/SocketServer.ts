@@ -83,13 +83,20 @@ export class SocketServer {
         this.handleLeaveRoom(socket);
       });
 
+      // Handle ping for RTT measurement
+      socket.on('ping', (data) => {
+        socket.emit('pong', { ...data, serverTimestamp: Date.now() });
+      });
+
       // Send initial connection confirmation
       socket.emit('connected', { 
         socketId: socket.id, 
         timestamp: Date.now(),
         serverInfo: {
-          tickRate: 15,
-          version: '1.0.0'
+          tickRate: 20, // Updated to 20Hz
+          snapshotRate: 15,
+          version: '2.0.0-optimized',
+          features: ['aoi', 'compactSnapshots', 'clientPrediction']
         }
       });
     });
@@ -169,6 +176,19 @@ export class SocketServer {
 
   public emitToRoom(roomId: string, event: string, data: any): void {
     this.io.to(roomId).emit(event, data);
+  }
+
+  public emitToPlayer(roomId: string, playerId: string, event: string, data: any): void {
+    // Find socket by player ID and emit directly
+    for (const [socketId, mappedRoomId] of this.playerRooms.entries()) {
+      if (mappedRoomId === roomId && socketId === playerId) {
+        const socket = this.io.sockets.sockets.get(socketId);
+        if (socket) {
+          socket.emit(event, data);
+        }
+        break;
+      }
+    }
   }
 
   public getConnectedClients(): number {
