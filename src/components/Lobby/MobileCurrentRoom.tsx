@@ -34,12 +34,28 @@ export default function MobileCurrentRoom({
   const handleReadyToggleWithFeedback = async () => {
     if (isTogglingReady) return; // Éviter les clics multiples
     
+    console.log("MOBILE - Ready button clicked, current state:", isCurrentPlayerReady());
+    console.log("MOBILE - Player in room:", isCurrentPlayerInRoom());
+    console.log("MOBILE - Current player:", player?.name, player?.walletAddress);
+    
     setIsTogglingReady(true);
     try {
       await handleToggleReady();
     } finally {
       // Délai pour éviter les clics trop rapides
       setTimeout(() => setIsTogglingReady(false), 1000);
+    }
+  };
+  
+  const handleLeaveRoomWithDebug = async () => {
+    console.log("MOBILE - Leave room button clicked");
+    console.log("MOBILE - Player in room:", isCurrentPlayerInRoom());
+    console.log("MOBILE - Current player:", player?.name, player?.walletAddress);
+    
+    try {
+      await handleLeaveRoom();
+    } catch (error) {
+      console.error("MOBILE - Error leaving room:", error);
     }
   };
   
@@ -171,7 +187,7 @@ export default function MobileCurrentRoom({
             
             <Button 
               variant="outline" 
-              onClick={handleLeaveRoom}
+              onClick={handleLeaveRoomWithDebug}
               className="w-full h-12 font-mono font-bold text-cyber-magenta border-cyber-magenta/50 hover:bg-cyber-magenta/10 hover:border-cyber-magenta"
               disabled={gameStarting}
             >

@@ -295,36 +295,31 @@ export default function Lobby() {
     console.log("LOBBY - Room players:", currentRoom.players.map(p => ({
       id: p.id,
       name: p.name,
+      walletAddress: p.walletAddress,
       isReady: p.isReady
     })));
     
-    // Utiliser la wallet address comme clé primaire de correspondance
-    const playerIdToMatch = player.walletAddress || player.id;
-    
-    const currentPlayer = currentRoom.players.find(p => {
-      // Priorité 1: Correspondance exacte avec wallet address
-      if (player.walletAddress && p.id === player.walletAddress) {
-        console.log(`LOBBY - ✅ Matched player by wallet: ${p.name} (${p.id})`);
-        return true;
+    // Simplifier: utiliser uniquement walletAddress comme critère principal
+    const matchingPlayer = currentRoom.players.find(p => {
+      // Si le joueur a une wallet address, l'utiliser comme référence unique
+      if (player.walletAddress) {
+        const matches = p.id === player.walletAddress || p.walletAddress === player.walletAddress;
+        if (matches) {
+          console.log(`LOBBY - ✅ Player matched by wallet: ${p.name} (ID: ${p.id})`);
+        }
+        return matches;
       }
       
-      // Priorité 2: Correspondance par ID direct
-      if (p.id === player.id) {
-        console.log(`LOBBY - ✅ Matched player by ID: ${p.name} (${p.id})`);
-        return true;
+      // Fallback: correspondance par ID si pas de wallet
+      const matches = p.id === player.id;
+      if (matches) {
+        console.log(`LOBBY - ✅ Player matched by ID: ${p.name} (ID: ${p.id})`);
       }
-      
-      // Priorité 3: Correspondance par nom (si non vide)
-      if (player.name && p.name === player.name && player.name.trim() !== '') {
-        console.log(`LOBBY - ✅ Matched player by name: ${p.name}`);
-        return true;
-      }
-      
-      return false;
+      return matches;
     });
     
-    const isReady = currentPlayer?.isReady || false;
-    console.log("LOBBY - Final result - Player found:", currentPlayer?.name, "isReady:", isReady);
+    const isReady = matchingPlayer?.isReady || false;
+    console.log("LOBBY - Final ready state:", isReady, "for player:", matchingPlayer?.name);
     
     return isReady;
   };
@@ -342,22 +337,26 @@ export default function Lobby() {
       walletAddress: player.walletAddress
     });
     
-    // Améliorer la recherche du joueur - utiliser wallet address en priorité
+    // Simplifier: utiliser uniquement walletAddress comme critère principal
     const playerInRoom = currentRoom.players.some(p => {
-      const matchByWallet = player.walletAddress && p.id === player.walletAddress;
-      const matchById = p.id === player.id;
-      const matchByName = p.name === player.name && player.name.trim() !== '';
+      // Si le joueur a une wallet address, l'utiliser comme référence unique
+      if (player.walletAddress) {
+        const matches = p.id === player.walletAddress || p.walletAddress === player.walletAddress;
+        if (matches) {
+          console.log(`LOBBY - ✅ Player found in room by wallet: ${p.name} (ID: ${p.id})`);
+        }
+        return matches;
+      }
       
-      console.log(`LOBBY - Checking player ${p.name} (${p.id}):`, {
-        matchByWallet,
-        matchById,
-        matchByName
-      });
-      
-      return matchByWallet || matchById || matchByName;
+      // Fallback: correspondance par ID si pas de wallet
+      const matches = p.id === player.id;
+      if (matches) {
+        console.log(`LOBBY - ✅ Player found in room by ID: ${p.name} (ID: ${p.id})`);
+      }
+      return matches;
     });
     
-    console.log("LOBBY - Player in room result:", playerInRoom);
+    console.log("LOBBY - Player in room final result:", playerInRoom);
     return playerInRoom;
   };
   

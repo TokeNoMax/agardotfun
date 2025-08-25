@@ -227,7 +227,16 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
     }
 
     try {
-      await gameRoomService.leaveRoom(currentRoom.id, player.id);
+      // Utiliser l'adresse wallet comme ID principal pour leaveRoom (cohérence)
+      const playerIdForLeave = player.walletAddress || player.id;
+      console.log("CONTEXT - leaveRoom using player ID:", playerIdForLeave);
+      console.log("CONTEXT - Player details:", {
+        name: player.name,
+        id: player.id,
+        walletAddress: player.walletAddress
+      });
+      
+      await gameRoomService.leaveRoom(currentRoom.id, playerIdForLeave);
       setCurrentRoom(null);
       localStorage.removeItem('agar3-fun-current-room');
       await refreshRooms(); // Refresh rooms list
@@ -236,7 +245,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
         description: "Vous avez quitté la salle.",
       });
     } catch (error) {
-      console.error("Error leaving room:", error);
+      console.error("CONTEXT - Error leaving room:", error);
       toast({
         title: "Erreur",
         description: "Impossible de quitter la salle. Veuillez réessayer.",
