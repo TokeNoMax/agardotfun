@@ -9,7 +9,7 @@ import ZoneCounter from "./ZoneCounter";
 import QuitButton from "./QuitButton";
 import { Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useUnifiedGameSync } from "@/hooks/useUnifiedGameSync";
+import { useOptimizedSocketGameSync } from "@/hooks/useOptimizedSocketGameSync";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "react-router-dom";
 import { EliminationNotificationService } from "@/services/eliminationNotificationService";
@@ -205,23 +205,68 @@ export default function GameUI({ roomId }: GameUIProps) {
     });
   }, [toast]);
 
-  // UNIFIED: Use the unified sync service
+  // SOCKET.IO: Use the optimized Socket.IO sync service
   const {
     isConnected: syncConnected,
-    broadcastPlayerPosition,
-    broadcastPlayerCollision,
-    broadcastPlayerElimination
-  } = useUnifiedGameSync({
+    networkQuality,
+    diagnostics,
+    sendPlayerInput,
+    leaveRoom,
+    getInterpolatedPosition
+  } = useOptimizedSocketGameSync({
     roomId: roomId || currentRoom?.id,
     playerId: currentPlayer?.id,
     playerName: currentPlayer?.name,
+    playerColor: currentPlayer?.color,
     enabled: !isLocalMode && !!currentPlayer && !!currentRoom,
-    onPlayerPositionUpdate: handlePlayerPositionUpdate,
-    onPlayerCollision: handlePlayerCollision,
-    onPlayerEliminated: handlePlayerEliminated,
+    serverUrl: window.location.protocol === 'https:' 
+      ? 'wss://your-production-domain.com' 
+      : 'ws://localhost:3001',
+    onSnapshot: (snapshot) => {
+      console.log("GameUI: Received optimized snapshot:", snapshot);
+      
+      // Update all players from snapshot
+      if (snapshot.ps) {
+        Object.entries(snapshot.ps).forEach(([playerId, player]) => {
+          handlePlayerPositionUpdate(playerId, {
+            x: player.x,
+            y: player.y,
+            size: player.r,
+            velocityX: 0,
+            velocityY: 0
+          });
+        });
+      }
+      
+      // Handle collisions
+      if (snapshot.cols) {
+        snapshot.cols.forEach(collision => {
+          handlePlayerCollision(
+            collision.e, // eliminated ID
+            collision.r, // eliminator ID (reason/eliminator)
+            0, // Size will be updated via player data
+            0
+          );
+        });
+      }
+    },
     onPlayerJoined: handlePlayerJoined,
     onPlayerLeft: handlePlayerLeft,
-    onGameStart: handleGameStart
+    onRoomJoined: (roomData) => {
+      console.log("GameUI: Successfully joined room:", roomData);
+      toast({
+        title: "Connecté à la partie",
+        description: `Room: ${roomData.roomId}`,
+        duration: 2000
+      });
+    },
+    onConnectionChange: (connected) => {
+      console.log("GameUI: Socket connection changed:", connected);
+      // Connection state is managed by the hook
+    },
+    onPing: (latency) => {
+      console.log("GameUI: Ping:", latency + "ms");
+    }
   });
 
   // Initialize players from current room or set default for local mode
@@ -248,36 +293,37 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   }, [safeZone]);
 
-  // Position sync callback for Canvas
+  // Position sync callback for Canvas - now uses Socket.IO input system
   const handlePlayerPositionSync = useCallback(async (position: { x: number; y: number; size: number }) => {
-    if (!isLocalMode && syncConnected) {
-      await broadcastPlayerPosition(position.x, position.y, position.size);
-    }
-  }, [isLocalMode, syncConnected, broadcastPlayerPosition]);
+    // Socket.IO uses input-based synchronization, not direct position sync
+    // The Canvas will trigger handlePlayerInput instead
+  }, []);
 
-  // Collision callback for Canvas
+  // Player input handler for Canvas - Socket.IO uses input-based sync
+  const handlePlayerInput = useCallback((moveX: number, moveY: number, boost?: boolean) => {
+    if (!isLocalMode && syncConnected) {
+      sendPlayerInput(moveX, moveY, boost || false);
+    }
+  }, [isLocalMode, syncConnected, sendPlayerInput]);
+
+  // Collision and elimination are now handled via server snapshots
   const handlePlayerCollisionBroadcast = useCallback(async (
     eliminatedPlayerId: string, 
     eliminatorPlayerId: string, 
     eliminatedSize: number, 
     eliminatorNewSize: number
   ) => {
-    if (!isLocalMode && syncConnected) {
-      console.log("GameUI: Broadcasting collision:", { eliminatedPlayerId, eliminatorPlayerId, eliminatedSize, eliminatorNewSize });
-      await broadcastPlayerCollision(eliminatedPlayerId, eliminatorPlayerId, eliminatedSize, eliminatorNewSize);
-    }
-  }, [isLocalMode, syncConnected, broadcastPlayerCollision]);
+    // Socket.IO handles collisions via server-authoritative snapshots
+    console.log("GameUI: Collision detected (handled by server):", { eliminatedPlayerId, eliminatorPlayerId });
+  }, []);
 
-  // Elimination callback for Canvas
   const handlePlayerEliminationBroadcast = useCallback(async (
     eliminatedPlayerId: string, 
     eliminatorPlayerId: string
   ) => {
-    if (!isLocalMode && syncConnected) {
-      console.log("GameUI: Broadcasting elimination:", { eliminatedPlayerId, eliminatorPlayerId });
-      await broadcastPlayerElimination(eliminatedPlayerId, eliminatorPlayerId);
-    }
-  }, [isLocalMode, syncConnected, broadcastPlayerElimination]);
+    // Socket.IO handles eliminations via server-authoritative snapshots
+    console.log("GameUI: Elimination detected (handled by server):", { eliminatedPlayerId, eliminatorPlayerId });
+  }, []);
 
   // Game over handler
   const handleGameOver = useCallback((winnerPlayer: Player | null, type: 'absorption' | 'zone' | 'timeout' = 'absorption') => {
@@ -332,9 +378,10 @@ export default function GameUI({ roomId }: GameUIProps) {
         localPlayer={effectivePlayer}
         isZoneMode={isZoneMode}
         onZoneUpdate={handleZoneUpdate}
-        onPlayerPositionSync={handlePlayerPositionSync}
+        onPlayerInput={handlePlayerInput}
         onPlayerCollision={handlePlayerCollisionBroadcast}
         onPlayerElimination={handlePlayerEliminationBroadcast}
+        getInterpolatedPosition={getInterpolatedPosition}
         roomId={roomId || currentRoom?.id}
       />
 
@@ -367,14 +414,19 @@ export default function GameUI({ roomId }: GameUIProps) {
         <TouchControlArea onDirectionChange={handleMobileDirection} />
       )}
 
-      {/* Connection Status Indicator (only in multiplayer) */}
+      {/* Enhanced Connection Status Indicator (only in multiplayer) */}
       {!isLocalMode && (
-        <div className="absolute bottom-4 left-4 z-10">
+        <div className="absolute bottom-4 left-4 z-10 space-y-1">
           <div className={`px-2 py-1 rounded text-xs font-mono ${
             syncConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
           }`}>
-            SYNC: {syncConnected ? 'CONNECTED' : 'DISCONNECTED'}
+            SOCKET: {syncConnected ? 'CONNECTED' : 'DISCONNECTED'}
           </div>
+          {syncConnected && diagnostics && (
+            <div className="px-2 py-1 rounded text-xs font-mono bg-blue-500/20 text-blue-400">
+              RTT: {diagnostics.rtt}ms | {networkQuality.toUpperCase()}
+            </div>
+          )}
         </div>
       )}
 

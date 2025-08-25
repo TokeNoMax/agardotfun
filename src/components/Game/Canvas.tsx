@@ -38,8 +38,10 @@ interface CanvasProps {
   isZoneMode?: boolean;
   onZoneUpdate?: (zone: SafeZone, isPlayerInZone: boolean) => void;
   onPlayerPositionSync?: (position: { x: number; y: number; size: number }) => void;
+  onPlayerInput?: (moveX: number, moveY: number, boost?: boolean) => void;
   onPlayerCollision?: (eliminatedPlayerId: string, eliminatorPlayerId: string, eliminatedSize: number, eliminatorNewSize: number) => Promise<void>;
   onPlayerElimination?: (eliminatedPlayerId: string, eliminatorPlayerId: string) => Promise<void>;
+  getInterpolatedPosition?: (playerId: string) => { x: number; y: number; size: number } | null;
   roomId?: string;
 }
 
@@ -58,8 +60,10 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   isZoneMode = false,
   onZoneUpdate,
   onPlayerPositionSync,
+  onPlayerInput,
   onPlayerCollision,
   onPlayerElimination,
+  getInterpolatedPosition,
   roomId
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -741,14 +745,29 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
           me.y = Math.max(me.size, Math.min(GAME_HEIGHT - me.size, me.y));
         }
         
-        // ENHANCED: 50Hz position sync for better multiplayer experience (20ms)
-        if (!isLocalMode && onPlayerPositionSync && currentTime - lastPositionSync > 20) {
+        // ENHANCED: 50Hz input sync for Socket.IO (20ms)
+        if (!isLocalMode && onPlayerInput && currentTime - lastPositionSync > 20) {
           setLastPositionSync(currentTime);
-          onPlayerPositionSync({
-            x: me.x,
-            y: me.y,
-            size: me.size
-          });
+          
+          // Calculate movement direction based on current movement
+          let moveX = 0, moveY = 0;
+          
+          if (isMobile && mobileDirection) {
+            moveX = mobileDirection.x;
+            moveY = mobileDirection.y;
+          } else if (!isMobile) {
+            const dx = lastTargetPosition.x - me.x;
+            const dy = lastTargetPosition.y - me.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 5) {
+              moveX = dx / distance;
+              moveY = dy / distance;
+            }
+          }
+          
+          // Send input to Socket.IO server
+          onPlayerInput(moveX, moveY, isSoloMode && isBoostActive);
         }
         
         // Food collision with sync
@@ -909,7 +928,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         gameLoopRef.current = null;
       }
     };
-  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerPositionSync, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver, calculateTargetZoom]);
+  }, [gameInitialized, cameraZoom, cameraPosition, mousePosition, isLocalMode, isZoneMode, safeZone, lastDamageTime, onZoneUpdate, isMobile, mobileDirection, handlePlayerElimination, onPlayerInput, lastPositionSync, handleFoodConsumption, isSoloMode, updateSoloBots, gameOverCalled, onGameOver, calculateTargetZoom, lastTargetPosition]);
 
   // Optimized rendering with bot support
   useEffect(() => {
