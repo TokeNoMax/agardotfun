@@ -29,6 +29,16 @@ interface MobileLobbyLayoutProps {
   isCreatingTestGame: boolean;
   formatAddress: (address: string) => string;
   getColorHex: (color: string) => string;
+  currentRoom: any;
+  rooms: any[];
+  countdown: number | null;
+  gameStarting: boolean;
+  handleToggleReady: () => Promise<void>;
+  handleLeaveRoom: () => Promise<void>;
+  handleJoinGame: () => void;
+  handleJoinRoom: (roomId: string) => Promise<void>;
+  isCurrentPlayerReady: () => boolean;
+  isCurrentPlayerInRoom: () => boolean;
 }
 
 export default function MobileLobbyLayout({
@@ -40,45 +50,21 @@ export default function MobileLobbyLayout({
   handleZoneBattle,
   isCreatingTestGame,
   formatAddress,
-  getColorHex
+  getColorHex,
+  currentRoom,
+  rooms,
+  countdown,
+  gameStarting,
+  handleToggleReady,
+  handleLeaveRoom,
+  handleJoinGame: parentHandleJoinGame,
+  handleJoinRoom: parentHandleJoinRoom,
+  isCurrentPlayerReady,
+  isCurrentPlayerInRoom
 }: MobileLobbyLayoutProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const { rooms, currentRoom, joinRoom, joinGame } = useGame();
-
-  const handleJoinRoom = async (roomId: string) => {
-    try {
-      await joinRoom(roomId);
-      toast({
-        title: "SALLE_REJOINTE",
-        description: "Vous avez rejoint la salle avec succès!"
-      });
-    } catch (error) {
-      console.error("Error joining room:", error);
-      toast({
-        title: "ERREUR",
-        description: "Impossible de rejoindre la salle",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleJoinGame = () => {
-    if (currentRoom?.status === 'playing') {
-      if (currentRoom?.id) {
-        navigate(`/game/${currentRoom.id}`);
-      } else {
-        navigate('/game');
-      }
-    } else {
-      toast({
-        title: "PARTIE_NON_DISPONIBLE",
-        description: "La partie n'a pas encore commencé",
-        variant: "destructive"
-      });
-    }
-  };
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -252,20 +238,14 @@ export default function MobileLobbyLayout({
               {currentRoom ? (
                 <MobileCurrentRoom 
                   currentRoom={currentRoom}
-                  countdown={null}
-                  gameStarting={false}
-                  handleToggleReady={async () => {
-                    // This will need to be passed as prop from parent
-                    console.log("Toggle ready not implemented in mobile");
-                  }}
-                  handleLeaveRoom={async () => {
-                    // This will need to be passed as prop from parent
-                    console.log("Leave room not implemented in mobile");
-                  }}
-                  handleJoinGame={handleJoinGame}
-                  handleJoinRoom={handleJoinRoom}
-                  isCurrentPlayerReady={() => false}
-                  isCurrentPlayerInRoom={() => true}
+                  countdown={countdown}
+                  gameStarting={gameStarting}
+                  handleToggleReady={handleToggleReady}
+                  handleLeaveRoom={handleLeaveRoom}
+                  handleJoinGame={parentHandleJoinGame}
+                  handleJoinRoom={parentHandleJoinRoom}
+                  isCurrentPlayerReady={isCurrentPlayerReady}
+                  isCurrentPlayerInRoom={isCurrentPlayerInRoom}
                 />
               ) : (
                 <div className="relative">
@@ -274,8 +254,8 @@ export default function MobileLobbyLayout({
                     <RoomList 
                       rooms={rooms}
                       currentRoomId={currentRoom?.id}
-                      handleJoinRoom={joinRoom}
-                      handleJoinGame={joinGame}
+                      handleJoinRoom={parentHandleJoinRoom}
+                      handleJoinGame={parentHandleJoinGame}
                     />
                   </div>
                 </div>

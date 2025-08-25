@@ -435,6 +435,16 @@ export default function Lobby() {
         isCreatingTestGame={isCreatingTestGame}
         formatAddress={formatAddress}
         getColorHex={getColorHex}
+        currentRoom={currentRoom}
+        rooms={rooms}
+        countdown={countdown}
+        gameStarting={gameStarting}
+        handleToggleReady={handleToggleReady}
+        handleLeaveRoom={handleLeaveRoom}
+        handleJoinGame={joinGame}
+        handleJoinRoom={joinRoom}
+        isCurrentPlayerReady={isCurrentPlayerReady}
+        isCurrentPlayerInRoom={isCurrentPlayerInRoom}
       />
     );
   }
