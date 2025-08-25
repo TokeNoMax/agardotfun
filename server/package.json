@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node start.js",
+    "start:prod": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "watch": "ts-node --watch src/index.ts"
   },

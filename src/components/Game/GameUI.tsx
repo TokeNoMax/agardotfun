@@ -257,7 +257,7 @@ export default function GameUI({ roomId }: GameUIProps) {
     });
   }, [toast]);
 
-  // SOCKET.IO: Use the optimized Socket.IO sync service
+  // SOCKET.IO: Use the optimized Socket.IO sync service ONLY for multiplayer
   const {
     isConnected: syncConnected,
     networkQuality,
@@ -271,9 +271,7 @@ export default function GameUI({ roomId }: GameUIProps) {
     playerName: currentPlayer?.name,
     playerColor: currentPlayer?.color,
     enabled: !isLocalMode && !!currentPlayer && !!currentRoom,
-    serverUrl: window.location.protocol === 'https:' 
-      ? 'wss://your-production-domain.com' 
-      : 'ws://localhost:3001',
+    serverUrl: 'ws://localhost:3001',
     onSnapshot: (snapshot) => {
       console.log("GameUI: Received optimized snapshot:", snapshot);
       
@@ -353,7 +351,14 @@ export default function GameUI({ roomId }: GameUIProps) {
 
   // SECURE: Player input handler with validation
   const handlePlayerInput = useCallback((moveX: number, moveY: number, boost?: boolean) => {
-    if (!isLocalMode && syncConnected && currentPlayer?.id) {
+    // En mode local, l'input est géré directement par le Canvas
+    if (isLocalMode) {
+      // Pas de validation nécessaire en local
+      return;
+    }
+    
+    // En mode multijoueur, vérifier la connexion socket
+    if (syncConnected && currentPlayer?.id) {
       // Client-side input validation
       const inputValidation = serverValidatorService.validatePlayerInput({
         moveX,
@@ -384,6 +389,9 @@ export default function GameUI({ roomId }: GameUIProps) {
       }
 
       sendPlayerInput(moveX, moveY, boost || false);
+    } else if (!isLocalMode) {
+      // Afficher un warning si pas connecté en multijoueur
+      console.warn("Tentative d'envoi d'input sans connexion socket active");
     }
   }, [isLocalMode, syncConnected, sendPlayerInput, currentPlayer?.id]);
 
@@ -439,13 +447,21 @@ export default function GameUI({ roomId }: GameUIProps) {
   // Show loading screen while connecting (only in multiplayer)
   if (!isLocalMode && !effectivePlayer) {
     return (
-      <div className="w-screen h-screen flex items-center justify-center">
+      <div className="w-screen h-screen flex items-center justify-center bg-black text-white">
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-lg font-medium">Connexion à la partie...</p>
           {roomId && (
             <p className="text-sm text-gray-400 mt-1">Room: {roomId}</p>
           )}
+          <div className="mt-4 text-sm text-gray-500">
+            {!syncConnected && (
+              <div className="bg-red-900/30 border border-red-500/30 rounded-lg p-3 mt-2">
+                <p className="text-red-400">❌ Socket déconnecté</p>
+                <p className="text-xs mt-1">Vérifiez que le serveur Node.js est démarré sur localhost:3001</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -532,11 +548,16 @@ export default function GameUI({ roomId }: GameUIProps) {
           }`}>
             SOCKET: {syncConnected ? 'CONNECTED' : 'DISCONNECTED'}
           </div>
-          {syncConnected && diagnostics && (
-            <div className="px-2 py-1 rounded text-xs font-mono bg-blue-500/20 text-blue-400">
-              RTT: {diagnostics.rtt}ms | {networkQuality.toUpperCase()}
-            </div>
-          )}
+           {!syncConnected && (
+             <div className="px-2 py-1 rounded text-xs font-mono bg-red-500/20 text-red-400">
+               Serveur Node.js requis sur port 3001
+             </div>
+           )}
+           {syncConnected && diagnostics && (
+             <div className="px-2 py-1 rounded text-xs font-mono bg-blue-500/20 text-blue-400">
+               RTT: {diagnostics.rtt}ms | {networkQuality.toUpperCase()}
+             </div>
+           )}
           {securityViolations > 0 && (
             <div 
               className="px-2 py-1 rounded text-xs font-mono bg-orange-500/20 text-orange-400 cursor-pointer hover:bg-orange-500/30 transition-colors"
