@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { GameRoom } from "@/types/game";
-import { Zap, Users, LogOut, Crown } from "lucide-react";
+import { Zap, Users, LogOut, Crown, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
 
 interface MobileCurrentRoomProps {
   currentRoom: GameRoom;
@@ -28,6 +29,19 @@ export default function MobileCurrentRoom({
   isCurrentPlayerInRoom
 }: MobileCurrentRoomProps) {
   const { player } = useGame();
+  const [isTogglingReady, setIsTogglingReady] = useState(false);
+  
+  const handleReadyToggleWithFeedback = async () => {
+    if (isTogglingReady) return; // Éviter les clics multiples
+    
+    setIsTogglingReady(true);
+    try {
+      await handleToggleReady();
+    } finally {
+      // Délai pour éviter les clics trop rapides
+      setTimeout(() => setIsTogglingReady(false), 1000);
+    }
+  };
   
   // Game mode display
   const getGameModeDisplay = (gameMode?: string) => {
@@ -138,17 +152,21 @@ export default function MobileCurrentRoom({
           // Player IS in the room
           <>
             <Button 
-              onClick={handleToggleReady}
-              className={`w-full font-mono font-bold h-12 ${
+              onClick={handleReadyToggleWithFeedback}
+              className={`w-full font-mono font-bold h-12 transition-all duration-300 ${
                 playerReady 
                   ? "bg-cyber-yellow/20 text-cyber-yellow border border-cyber-yellow/50 hover:bg-cyber-yellow/30" 
                   : "bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black border border-cyber-green/50"
               }`}
               variant={playerReady ? "outline" : "default"}
-              disabled={gameStarting || currentRoom.status !== 'waiting'}
+              disabled={gameStarting || currentRoom.status !== 'waiting' || isTogglingReady}
             >
-              <Zap className="mr-2 h-5 w-5" />
-              {playerReady ? "ANNULER READY" : "JE SUIS PRÊT"}
+              {isTogglingReady ? (
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                <Zap className="mr-2 h-5 w-5" />
+              )}
+              {isTogglingReady ? "MISE À JOUR..." : playerReady ? "ANNULER READY" : "JE SUIS PRÊT"}
             </Button>
             
             <Button 

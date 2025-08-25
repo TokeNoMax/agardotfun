@@ -190,27 +190,40 @@ export default function Lobby() {
     }
     
     try {
-      const newReadyState = !isCurrentPlayerReady();
-      console.log("LOBBY - Toggling ready state from", isCurrentPlayerReady(), "to", newReadyState);
-      console.log("LOBBY - Player details:", {
-        name: player.name,
-        id: player.id,
-        walletAddress: player.walletAddress
+      const currentReadyState = isCurrentPlayerReady();
+      const newReadyState = !currentReadyState;
+      
+      console.log("LOBBY - Ready toggle attempt:", {
+        currentState: currentReadyState,
+        newState: newReadyState,
+        playerName: player.name,
+        playerId: player.id,
+        walletAddress: player.walletAddress,
+        roomId: currentRoom.id
       });
       
-      // Utiliser l'adresse wallet comme ID principal pour setPlayerReady
-      const playerIdForReady = player.walletAddress || player.id;
-      console.log("LOBBY - Using player ID for ready toggle:", playerIdForReady);
-      
       await setPlayerReady(newReadyState);
+      
+      // Attendre un délai pour permettre à la DB de se synchroniser
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Rafraîchir la salle pour obtenir le statut mis à jour
       await refreshCurrentRoom();
       
-      toast({
-        title: newReadyState ? "READY_ACTIVATED" : "READY_CANCELLED",
-        description: newReadyState ? "Vous êtes prêt à jouer !" : "Vous n'êtes plus prêt.",
-      });
+      // Vérifier que le changement a bien eu lieu
+      const updatedReadyState = isCurrentPlayerReady();
+      console.log("LOBBY - Ready state after update:", updatedReadyState);
+      
+      if (updatedReadyState === newReadyState) {
+        toast({
+          title: newReadyState ? "✅ READY_ACTIVATED" : "⏸️ READY_CANCELLED",
+          description: newReadyState ? "Vous êtes prêt à jouer !" : "Vous n'êtes plus prêt.",
+        });
+      } else {
+        console.warn("LOBBY - Ready state sync failed");
+        // Tenter un second refresh
+        await refreshCurrentRoom();
+      }
     } catch (error) {
       console.error("Error toggling ready state:", error);
       toast({
@@ -285,23 +298,33 @@ export default function Lobby() {
       isReady: p.isReady
     })));
     
-    // Améliorer la recherche du joueur - utiliser wallet address en priorité
+    // Utiliser la wallet address comme clé primaire de correspondance
+    const playerIdToMatch = player.walletAddress || player.id;
+    
     const currentPlayer = currentRoom.players.find(p => {
-      const matchByWallet = player.walletAddress && p.id === player.walletAddress;
-      const matchById = p.id === player.id;
-      const matchByName = p.name === player.name && player.name.trim() !== '';
+      // Priorité 1: Correspondance exacte avec wallet address
+      if (player.walletAddress && p.id === player.walletAddress) {
+        console.log(`LOBBY - ✅ Matched player by wallet: ${p.name} (${p.id})`);
+        return true;
+      }
       
-      console.log(`LOBBY - Checking player ${p.name} (${p.id}):`, {
-        matchByWallet,
-        matchById,
-        matchByName
-      });
+      // Priorité 2: Correspondance par ID direct
+      if (p.id === player.id) {
+        console.log(`LOBBY - ✅ Matched player by ID: ${p.name} (${p.id})`);
+        return true;
+      }
       
-      return matchByWallet || matchById || matchByName;
+      // Priorité 3: Correspondance par nom (si non vide)
+      if (player.name && p.name === player.name && player.name.trim() !== '') {
+        console.log(`LOBBY - ✅ Matched player by name: ${p.name}`);
+        return true;
+      }
+      
+      return false;
     });
     
     const isReady = currentPlayer?.isReady || false;
-    console.log("LOBBY - Player found:", currentPlayer?.name, "isReady:", isReady);
+    console.log("LOBBY - Final result - Player found:", currentPlayer?.name, "isReady:", isReady);
     
     return isReady;
   };
