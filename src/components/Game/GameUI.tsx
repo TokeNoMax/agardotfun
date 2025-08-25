@@ -420,12 +420,21 @@ export default function GameUI({ roomId }: GameUIProps) {
     setIsPlayerInZone(playerInZone);
   }, []);
 
-  // Mobile control handler
+  // Mobile control handlers
   const handleMobileDirection = useCallback((direction: { x: number; y: number } | null) => {
     if (canvasRef.current) {
       canvasRef.current.setMobileDirection(direction);
     }
   }, []);
+
+  const handleMobileBoost = useCallback((isBoostActive: boolean) => {
+    console.log('GameUI: Mobile boost change:', isBoostActive);
+    // In solo mode, boost is handled by Canvas directly
+    // In multiplayer, we would send this to the server via sendPlayerInput
+    if (!isLocalMode && sendPlayerInput) {
+      sendPlayerInput(0, 0, isBoostActive);
+    }
+  }, [isLocalMode, sendPlayerInput]);
 
   // Show loading screen while connecting (only in multiplayer)
   if (!isLocalMode && !effectivePlayer) {
@@ -509,7 +518,10 @@ export default function GameUI({ roomId }: GameUIProps) {
 
       {/* Mobile Touch Controls - Always show on mobile */}
       {isMobile && (
-        <TouchControlArea onDirectionChange={handleMobileDirection} />
+        <TouchControlArea 
+          onDirectionChange={handleMobileDirection}
+          onBoostChange={handleMobileBoost}
+        />
       )}
 
       {/* Enhanced Connection Status with Security Info (only in multiplayer) */}

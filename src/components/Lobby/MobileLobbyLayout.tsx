@@ -6,6 +6,7 @@ import PlayerCustomization from "@/components/Lobby/PlayerCustomization";
 import RoomList from "@/components/Lobby/RoomList";
 import MobileWalletButton from "@/components/Wallet/MobileWalletButton";
 import AdminSheet from "@/components/Admin/AdminSheet";
+import MobileCurrentRoom from "@/components/Lobby/MobileCurrentRoom";
 import { Button } from "@/components/ui/button";
 import { Gamepad2Icon, Users, User, ArrowLeft, Wallet, Zap, Menu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -248,17 +249,37 @@ export default function MobileLobbyLayout({
             </TabsList>
             
             <TabsContent value="multiplayer" className="space-y-4">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
-                <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-4 border border-cyber-cyan/50">
-                  <RoomList 
-                    rooms={rooms}
-                    currentRoomId={currentRoom?.id}
-                    handleJoinRoom={joinRoom}
-                    handleJoinGame={joinGame}
-                  />
+              {currentRoom ? (
+                <MobileCurrentRoom 
+                  currentRoom={currentRoom}
+                  countdown={null}
+                  gameStarting={false}
+                  handleToggleReady={async () => {
+                    // This will need to be passed as prop from parent
+                    console.log("Toggle ready not implemented in mobile");
+                  }}
+                  handleLeaveRoom={async () => {
+                    // This will need to be passed as prop from parent
+                    console.log("Leave room not implemented in mobile");
+                  }}
+                  handleJoinGame={handleJoinGame}
+                  handleJoinRoom={handleJoinRoom}
+                  isCurrentPlayerReady={() => false}
+                  isCurrentPlayerInRoom={() => true}
+                />
+              ) : (
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyber-cyan/20 to-cyber-green/20 rounded-lg blur-xl"></div>
+                  <div className="relative bg-black/80 backdrop-blur-sm rounded-lg p-4 border border-cyber-cyan/50">
+                    <RoomList 
+                      rooms={rooms}
+                      currentRoomId={currentRoom?.id}
+                      handleJoinRoom={joinRoom}
+                      handleJoinGame={joinGame}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </TabsContent>
             
             <TabsContent value="solo" className="space-y-4">
