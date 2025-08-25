@@ -7,12 +7,15 @@ import TouchControlArea from "./TouchControlArea";
 import GameOverModal from "./GameOverModal";
 import ZoneCounter from "./ZoneCounter";
 import QuitButton from "./QuitButton";
+import SecurityDashboard from "./SecurityDashboard";
 import { Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOptimizedSocketGameSync } from "@/hooks/useOptimizedSocketGameSync";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "react-router-dom";
 import { EliminationNotificationService } from "@/services/eliminationNotificationService";
+import { gameplayValidator } from "@/services/security/gameplayValidator";
+import { serverValidator as serverValidatorService } from "@/services/security/serverValidator";
 
 interface GameUIProps {
   roomId?: string;
@@ -48,6 +51,8 @@ export default function GameUI({ roomId }: GameUIProps) {
   const [isPlayerInZone, setIsPlayerInZone] = useState(true);
   const [players, setPlayers] = useState<Player[]>([]);
   const [timeUntilShrink, setTimeUntilShrink] = useState(0);
+  const [securityViolations, setSecurityViolations] = useState(0);
+  const [showSecurityDashboard, setShowSecurityDashboard] = useState(false);
   
   // Check if we're in local mode
   const isLocalMode = !currentRoom && !roomId;
@@ -103,9 +108,27 @@ export default function GameUI({ roomId }: GameUIProps) {
     }
   }, [isLocalMode, currentRoom?.gameMode, roomGameMode, refreshCurrentRoom]);
 
-  // UNIFIED: Callbacks for the unified sync service
+  // SECURE: Callbacks for the optimized sync service with validation
   const handlePlayerPositionUpdate = useCallback((playerId: string, position: { x: number; y: number; size: number; velocityX?: number; velocityY?: number }) => {
     console.log("GameUI: Received position update for player:", playerId, position);
+    
+    // Server-side validation of position update
+    const validation = serverValidatorService.validatePositionUpdate({
+      playerId,
+      x: position.x,
+      y: position.y,
+      size: position.size,
+      timestamp: Date.now()
+    });
+
+    if (!validation.valid) {
+      console.warn("🚨 Invalid position update:", validation.reason);
+      setSecurityViolations(prev => prev + 1);
+      if (serverValidatorService.getValidationStats().config.strictMode) {
+        return; // Reject update in strict mode
+      }
+    }
+
     if (canvasRef.current) {
       canvasRef.current.updatePlayerPosition(playerId, {
         x: position.x,
@@ -114,7 +137,7 @@ export default function GameUI({ roomId }: GameUIProps) {
       });
     }
     
-    // Update players state
+    // Update players state with validated data
     setPlayers(prev => prev.map(p => 
       p.id === playerId 
         ? { ...p, x: position.x, y: position.y, size: position.size }
@@ -124,6 +147,35 @@ export default function GameUI({ roomId }: GameUIProps) {
 
   const handlePlayerCollision = useCallback((eliminatedId: string, eliminatorId: string, eliminatedSize: number, eliminatorNewSize: number) => {
     console.log("GameUI: Received collision event:", { eliminatedId, eliminatorId, eliminatedSize, eliminatorNewSize });
+    
+    // SECURE: Validate collision before processing
+    const eliminatedPlayer = players.find(p => p.id === eliminatedId);
+    const eliminatorPlayer = players.find(p => p.id === eliminatorId);
+    
+    if (eliminatedPlayer && eliminatorPlayer) {
+      const validation = serverValidatorService.validateCollision({
+        eliminatedId,
+        eliminatorId,
+        eliminatedSize: eliminatedPlayer.size,
+        eliminatorNewSize
+      });
+
+      if (!validation.valid) {
+        console.warn("🚨 Invalid collision:", validation.reason);
+        setSecurityViolations(prev => prev + 1);
+        
+        toast({
+          title: "Collision Invalidée",
+          description: "Une collision suspecte a été détectée et ignorée",
+          variant: "destructive",
+          duration: 3000
+        });
+        
+        if (serverValidatorService.getValidationStats().config.strictMode) {
+          return; // Reject collision in strict mode
+        }
+      }
+    }
     
     // Update Canvas with size changes
     if (canvasRef.current) {
@@ -150,7 +202,7 @@ export default function GameUI({ roomId }: GameUIProps) {
       type: 'absorption',
       currentPlayerId: currentPlayer?.id
     });
-  }, [currentPlayer?.id, effectivePlayers]);
+  }, [currentPlayer?.id, effectivePlayers, players, toast]);
 
   const handlePlayerEliminated = useCallback((eliminatedId: string, eliminatorId: string) => {
     console.log("GameUI: Received elimination event:", { eliminatedId, eliminatorId });
@@ -299,12 +351,41 @@ export default function GameUI({ roomId }: GameUIProps) {
     // The Canvas will trigger handlePlayerInput instead
   }, []);
 
-  // Player input handler for Canvas - Socket.IO uses input-based sync
+  // SECURE: Player input handler with validation
   const handlePlayerInput = useCallback((moveX: number, moveY: number, boost?: boolean) => {
-    if (!isLocalMode && syncConnected) {
+    if (!isLocalMode && syncConnected && currentPlayer?.id) {
+      // Client-side input validation
+      const inputValidation = serverValidatorService.validatePlayerInput({
+        moveX,
+        moveY,
+        boost,
+        timestamp: Date.now(),
+        playerId: currentPlayer.id
+      });
+
+      if (!inputValidation.valid) {
+        console.warn("🚨 Invalid input:", inputValidation.reason);
+        setSecurityViolations(prev => prev + 1);
+        
+        // Use corrected values if available
+        if (inputValidation.correctedValue) {
+          sendPlayerInput(
+            inputValidation.correctedValue.moveX || moveX,
+            inputValidation.correctedValue.moveY || moveY,
+            boost || false
+          );
+        }
+        return;
+      }
+
+      // Rate limiting check
+      if (!gameplayValidator.validateInputRate(currentPlayer.id)) {
+        return; // Input rejected due to flooding
+      }
+
       sendPlayerInput(moveX, moveY, boost || false);
     }
-  }, [isLocalMode, syncConnected, sendPlayerInput]);
+  }, [isLocalMode, syncConnected, sendPlayerInput, currentPlayer?.id]);
 
   // Collision and elimination are now handled via server snapshots
   const handlePlayerCollisionBroadcast = useCallback(async (
@@ -361,12 +442,29 @@ export default function GameUI({ roomId }: GameUIProps) {
     );
   }
 
-  // Show connection status for debugging
+  // Security monitoring and cleanup
   useEffect(() => {
     if (!isLocalMode) {
       console.log("GameUI: Sync connection status:", syncConnected);
+      
+      // Periodic security cleanup
+      const securityCleanup = setInterval(() => {
+        gameplayValidator.cleanup();
+        serverValidatorService.cleanup();
+      }, 60000); // Every minute
+
+      return () => clearInterval(securityCleanup);
     }
   }, [syncConnected, isLocalMode]);
+
+  // Reset security state when game starts/ends
+  useEffect(() => {
+    if (gameOver) {
+      gameplayValidator.reset();
+      serverValidatorService.reset();
+      setSecurityViolations(0);
+    }
+  }, [gameOver]);
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
@@ -414,7 +512,7 @@ export default function GameUI({ roomId }: GameUIProps) {
         <TouchControlArea onDirectionChange={handleMobileDirection} />
       )}
 
-      {/* Enhanced Connection Status Indicator (only in multiplayer) */}
+      {/* Enhanced Connection Status with Security Info (only in multiplayer) */}
       {!isLocalMode && (
         <div className="absolute bottom-4 left-4 z-10 space-y-1">
           <div className={`px-2 py-1 rounded text-xs font-mono ${
@@ -425,6 +523,15 @@ export default function GameUI({ roomId }: GameUIProps) {
           {syncConnected && diagnostics && (
             <div className="px-2 py-1 rounded text-xs font-mono bg-blue-500/20 text-blue-400">
               RTT: {diagnostics.rtt}ms | {networkQuality.toUpperCase()}
+            </div>
+          )}
+          {securityViolations > 0 && (
+            <div 
+              className="px-2 py-1 rounded text-xs font-mono bg-orange-500/20 text-orange-400 cursor-pointer hover:bg-orange-500/30 transition-colors"
+              onClick={() => setShowSecurityDashboard(true)}
+              title="Cliquer pour voir les détails de sécurité"
+            >
+              🛡️ SECURITY: {securityViolations} violations
             </div>
           )}
         </div>
@@ -477,6 +584,12 @@ export default function GameUI({ roomId }: GameUIProps) {
           setWinner(null);
           // Navigation handled by the modal itself
         }}
+      />
+
+      {/* Security Dashboard */}
+      <SecurityDashboard 
+        isOpen={showSecurityDashboard}
+        onClose={() => setShowSecurityDashboard(false)}
       />
     </div>
   );
