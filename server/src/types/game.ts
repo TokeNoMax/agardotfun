@@ -1,3 +1,10 @@
+export interface PlayerInput {
+  seq: number;         // séquence client (anti duplication)
+  timestamp: number;   // ms client
+  dx: number;          // [-1..1]
+  dy: number;          // [-1..1]
+  act?: number;        // bitmask (split/shoot plus tard)
+}
 
 export interface Player {
   id: string;
@@ -5,63 +12,25 @@ export interface Player {
   color: string;
   x: number;
   y: number;
-  size: number;
-  velocityX: number;
-  velocityY: number;
-  isAlive: boolean;
-  lastInputSeq: number;
-  inputBuffer: PlayerInput[];
-}
-
-export interface PlayerInput {
-  seq: number;
-  timestamp: number;
-  moveX: number;
-  moveY: number;
-  boost?: boolean;
+  r: number;           // rayon
+  vx: number;
+  vy: number;
+  alive: boolean;
+  lastSeq: number;
 }
 
 export interface Food {
   id: string;
   x: number;
   y: number;
-  size: number;
-  type: 'normal' | 'big';
-}
-
-export interface GameState {
-  tick: number;
-  timestamp: number;
-  players: Record<string, Player>;
-  foods: Record<string, Food>;
-  collisions: Array<{
-    eliminatedId: string;
-    eliminatorId: string;
-    timestamp: number;
-  }>;
-}
-
-export interface GameSnapshot {
-  tick: number;
-  timestamp: number;
-  delta: {
-    players: Record<string, Partial<Player>>;
-    foods: {
-      added: Record<string, Food>;
-      removed: string[];
-    };
-    collisions: Array<{
-      eliminatedId: string;
-      eliminatorId: string;
-    }>;
-  };
+  r: number;
 }
 
 export interface RoomState {
   id: string;
+  status: "waiting" | "playing" | "finished";
+  maxPlayers: number;
   players: Record<string, Player>;
   foods: Record<string, Food>;
-  gameState: GameState;
-  lastSnapshot: GameSnapshot | null;
-  tickCount: number;
+  startedAt: number | null;
 }
