@@ -1,202 +1,108 @@
-
-import { Server, Socket } from 'socket.io';
-import { createServer } from 'http';
-import express from 'express';
-import cors from 'cors';
-import { RoomManager } from './rooms/RoomManager';
-import { PlayerInput } from './types/game';
+import express from "express";
+import http from "http";
+import cors from "cors";
+import { Server } from "socket.io";
+import { RoomManager } from "./rooms/RoomManager";
 
 export class SocketServer {
-  private app: express.Application;
-  private server: any;
+  private app = express();
+  private server = http.createServer(this.app);
   private io: Server;
-  private roomManager: RoomManager;
-  private playerRooms: Map<string, string> = new Map(); // socketId -> roomId
+  public rooms = new RoomManager();
 
-  constructor(port: number = 3001) {
-    this.app = express();
-    this.server = createServer(this.app);
-    this.roomManager = new RoomManager();
+  constructor(private port: number) {
+    const allowed = [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "https://*.glitch.me",
+      "https://*.lovable.app"
+    ];
 
-    // Setup CORS
     this.app.use(cors({
-      origin: ["http://localhost:5173", "http://localhost:3000"],
+      origin: (origin, cb) => {
+        if (!origin) return cb(null, true);
+        if (allowed.some(a => a.includes("*")
+          ? new RegExp("^" + a.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$").test(origin)
+          : a === origin)) return cb(null, true);
+        return cb(new Error("CORS: " + origin));
+      },
       credentials: true
     }));
+    this.app.get("/health", (_req, res) => res.send("ok"));
+    this.app.get("/rooms", (_req, res) => res.json(this.rooms.list()));
 
-    // Setup Socket.IO
     this.io = new Server(this.server, {
-      cors: {
-        origin: ["http://localhost:5173", "http://localhost:3000"],
-        methods: ["GET", "POST"],
-        credentials: true
-      },
-      transports: ['websocket'], // WebSocket only for performance
-      pingTimeout: 60000,
-      pingInterval: 25000
+      cors: { origin: allowed, methods: ["GET","POST"], credentials: true },
+      transports: ["websocket","polling"],
+      pingInterval: 25000,
+      pingTimeout: 60000
     });
 
-    this.setupSocketHandlers();
-    this.setupRoutes();
+    this.bindHandlers();
 
-    // Make this available globally for RoomManager
-    (global as any).socketServer = this;
-
-    this.server.listen(port, () => {
-      console.log(`🚀 Realtime server started on port ${port}`);
-      console.log(`📡 WebSocket endpoint: ws://localhost:${port}`);
+    this.server.listen(this.port, () => {
+      console.log(`✅ Realtime server on :${this.port}`);
     });
   }
 
-  private setupRoutes(): void {
-    this.app.get('/health', (req, res) => {
-      res.json({ 
-        status: 'ok', 
-        timestamp: new Date().toISOString(),
-        rooms: this.roomManager.getRoomList()
-      });
-    });
+  private bindHandlers() {
+    this.io.on("connection", (socket) => {
+      let currentRoom: string | null = null;
+      let currentPlayerId: string | null = null;
 
-    this.app.get('/rooms', (req, res) => {
-      res.json(this.roomManager.getRoomList());
-    });
-  }
-
-  private setupSocketHandlers(): void {
-    this.io.on('connection', (socket: Socket) => {
-      console.log(`🔌 Client connected: ${socket.id}`);
-
-      socket.on('joinRoom', (data: { roomId: string, playerId: string, playerName: string, playerColor: string }) => {
-        this.handleJoinRoom(socket, data);
-      });
-
-      socket.on('leaveRoom', () => {
-        this.handleLeaveRoom(socket);
-      });
-
-      socket.on('playerInput', (input: PlayerInput) => {
-        this.handlePlayerInput(socket, input);
-      });
-
-      socket.on('disconnect', (reason) => {
-        console.log(`🔌 Client disconnected: ${socket.id}, reason: ${reason}`);
-        this.handleLeaveRoom(socket);
-      });
-
-      // Handle ping for RTT measurement
-      socket.on('ping', (data) => {
-        socket.emit('pong', { ...data, serverTimestamp: Date.now() });
-      });
-
-      // Send initial connection confirmation
-      socket.emit('connected', { 
-        socketId: socket.id, 
-        timestamp: Date.now(),
-        serverInfo: {
-          tickRate: 20, // Updated to 20Hz
-          snapshotRate: 15,
-          version: '2.0.0-optimized',
-          features: ['aoi', 'compactSnapshots', 'clientPrediction']
+      socket.on("lobby:create", ({ roomId, max = 8, name, color }) => {
+        const room = this.rooms.create(roomId, max);
+        const { player } = this.rooms.addPlayer(room.id, name || "Player", color || "#00AEEF");
+        currentRoom = room.id;
+        currentPlayerId = player.id;
+        socket.join(room.id);
+        this.io.to(room.id).emit("lobby:update", { roomId: room.id, players: this.rooms.snapshot(room.id)?.players });
+        if (Object.keys(room.players).length === room.maxPlayers) {
+          this.io.to(room.id).emit("game:start", { roomId: room.id, t: Date.now() });
         }
       });
-    });
-  }
 
-  private handleJoinRoom(socket: Socket, data: { roomId: string, playerId: string, playerName: string, playerColor: string }): void {
-    const { roomId, playerId, playerName, playerColor } = data;
-    
-    console.log(`🏠 Player ${playerId} joining room ${roomId}`);
-
-    // Leave current room if any
-    this.handleLeaveRoom(socket);
-
-    // Get or create room
-    let room = this.roomManager.getRoom(roomId);
-    if (!room) {
-      room = this.roomManager.createRoom(roomId);
-    }
-
-    // Add player to room
-    const player = this.roomManager.addPlayerToRoom(roomId, playerId, playerName, playerColor);
-    
-    if (player) {
-      // Join socket room
-      socket.join(roomId);
-      this.playerRooms.set(socket.id, roomId);
-
-      // Send room state to player
-      socket.emit('roomJoined', {
-        roomId,
-        player,
-        roomState: room,
-        timestamp: Date.now()
+      socket.on("lobby:join", ({ roomId, name, color }) => {
+        const room = this.rooms.ensure(roomId);
+        const { player } = this.rooms.addPlayer(room.id, name || "Player", color || "#00AEEF");
+        currentRoom = room.id;
+        currentPlayerId = player.id;
+        socket.join(room.id);
+        this.io.to(room.id).emit("lobby:update", { roomId: room.id, players: this.rooms.snapshot(room.id)?.players });
       });
 
-      // Notify other players
-      socket.to(roomId).emit('playerJoined', {
-        player,
-        timestamp: Date.now()
+      socket.on("player:input", ({ roomId, input }) => {
+        if (!roomId || roomId !== currentRoom || !currentPlayerId) return;
+        this.rooms.applyInput(roomId, currentPlayerId, input);
       });
 
-      console.log(`✅ Player ${playerId} successfully joined room ${roomId}`);
-    } else {
-      socket.emit('joinError', { message: 'Failed to join room' });
-    }
-  }
+      socket.on("leave", () => {
+        if (!currentRoom || !currentPlayerId) return;
+        this.rooms.removePlayer(currentRoom, currentPlayerId);
+        socket.leave(currentRoom);
+        this.io.to(currentRoom).emit("player:left", { id: currentPlayerId });
+        currentRoom = null;
+        currentPlayerId = null;
+      });
 
-  private handleLeaveRoom(socket: Socket): void {
-    const roomId = this.playerRooms.get(socket.id);
-    if (!roomId) return;
-
-    const playerId = socket.id; // Using socket.id as player identifier
-    
-    console.log(`🚪 Player ${playerId} leaving room ${roomId}`);
-
-    // Remove from room manager
-    this.roomManager.removePlayerFromRoom(roomId, playerId);
-
-    // Leave socket room
-    socket.leave(roomId);
-    this.playerRooms.delete(socket.id);
-
-    // Notify other players
-    socket.to(roomId).emit('playerLeft', {
-      playerId,
-      timestamp: Date.now()
+      socket.on("disconnect", () => {
+        if (!currentRoom || !currentPlayerId) return;
+        this.rooms.removePlayer(currentRoom, currentPlayerId);
+        this.io.to(currentRoom).emit("player:left", { id: currentPlayerId });
+      });
     });
-  }
 
-  private handlePlayerInput(socket: Socket, input: PlayerInput): void {
-    const roomId = this.playerRooms.get(socket.id);
-    if (!roomId) return;
-
-    const playerId = socket.id; // Using socket.id as player identifier
-    this.roomManager.processPlayerInput(roomId, playerId, input);
-  }
-
-  public emitToRoom(roomId: string, event: string, data: any): void {
-    this.io.to(roomId).emit(event, data);
-  }
-
-  public emitToPlayer(roomId: string, playerId: string, event: string, data: any): void {
-    // Find socket by player ID and emit directly
-    for (const [socketId, mappedRoomId] of this.playerRooms.entries()) {
-      if (mappedRoomId === roomId && socketId === playerId) {
-        const socket = this.io.sockets.sockets.get(socketId);
-        if (socket) {
-          socket.emit(event, data);
-        }
-        break;
+    // boucle d'émission snapshots (20 Hz)
+    setInterval(() => {
+      for (const { id } of this.rooms.list()) {
+        const snap = this.rooms.snapshot(id);
+        if (snap) this.io.to(id).emit("state", snap);
       }
-    }
+    }, 50);
   }
 
-  public getConnectedClients(): number {
-    return this.io.engine.clientsCount;
-  }
-
-  public getRoomClients(roomId: string): number {
-    const room = this.io.sockets.adapter.rooms.get(roomId);
-    return room ? room.size : 0;
+  /** tick de simu à appeler depuis index.ts */
+  public tick(dt: number) {
+    this.rooms.tick(dt);
   }
 }
