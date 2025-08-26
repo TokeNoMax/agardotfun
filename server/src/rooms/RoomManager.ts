@@ -1,132 +1,156 @@
-
-import { RoomState, Player } from '../types/game';
-import { OptimizedGameEngine } from '../game/OptimizedGameEngine';
-import { OptimizedSnapshotManager } from '../game/OptimizedSnapshotManager';
+import { v4 as uuidv4 } from "uuid";
+import type { Player, PlayerInput, RoomState, Food } from "../types/game";
 
 export class RoomManager {
-  private rooms: Map<string, RoomState> = new Map();
-  private roomEngines: Map<string, OptimizedGameEngine> = new Map();
-  private roomSnapshots: Map<string, OptimizedSnapshotManager> = new Map();
-  private roomIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private rooms = new Map<string, RoomState>();
 
-  private readonly TICK_RATE = 20; // 50ms - Optimized to 20Hz
-  private readonly TICK_INTERVAL = 1000 / this.TICK_RATE;
-
-  createRoom(roomId: string): RoomState {
-    console.log(`Creating room: ${roomId}`);
-    
-    const engine = new OptimizedGameEngine();
-    const snapshotManager = new OptimizedSnapshotManager();
-    const roomState = engine.initializeRoom(roomId);
-
-    this.rooms.set(roomId, roomState);
-    this.roomEngines.set(roomId, engine);
-    this.roomSnapshots.set(roomId, snapshotManager);
-
-    // Start game loop for this room
-    this.startGameLoop(roomId);
-
-    return roomState;
+  list() {
+    return [...this.rooms.values()].map(r => ({
+      id: r.id, status: r.status, maxPlayers: r.maxPlayers, players: Object.keys(r.players).length
+    }));
   }
 
-  getRoom(roomId: string): RoomState | undefined {
+  get(roomId: string) {
     return this.rooms.get(roomId);
   }
 
-  addPlayerToRoom(roomId: string, playerId: string, name: string, color: string): Player | null {
-    const roomState = this.rooms.get(roomId);
-    const engine = this.roomEngines.get(roomId);
-
-    if (!roomState || !engine) {
-      console.log(`Room ${roomId} not found`);
-      return null;
+  ensure(roomId: string, maxPlayers = 8): RoomState {
+    let room = this.rooms.get(roomId);
+    if (!room) {
+      room = {
+        id: roomId,
+        status: "waiting",
+        maxPlayers,
+        players: {},
+        foods: this.spawnFoods(200),
+        startedAt: null
+      };
+      this.rooms.set(roomId, room);
     }
-
-    console.log(`Adding player ${playerId} to room ${roomId}`);
-    return engine.addPlayer(roomState, playerId, name, color);
+    return room;
   }
 
-  removePlayerFromRoom(roomId: string, playerId: string): void {
-    const roomState = this.rooms.get(roomId);
-    const engine = this.roomEngines.get(roomId);
+  create(roomId?: string, maxPlayers = 8) {
+    const id = roomId || uuidv4().slice(0, 6);
+    return this.ensure(id, maxPlayers);
+  }
 
-    if (!roomState || !engine) return;
+  addPlayer(roomId: string, name: string, color: string) {
+    const room = this.ensure(roomId);
+    if (Object.keys(room.players).length >= room.maxPlayers) {
+      throw new Error("Room pleine");
+    }
+    const id = uuidv4();
+    const p: Player = {
+      id, name, color,
+      x: Math.random() * 800 - 400,
+      y: Math.random() * 800 - 400,
+      r: 20,
+      vx: 0, vy: 0,
+      alive: true,
+      lastSeq: 0
+    };
+    room.players[id] = p;
+    if (room.status === "waiting" && Object.keys(room.players).length >= 2) {
+      room.status = "playing";
+      room.startedAt = Date.now();
+    }
+    return { room, player: p };
+  }
 
-    console.log(`Removing player ${playerId} from room ${roomId}`);
-    engine.removePlayer(roomState, playerId);
-
-    // If room is empty, clean it up
-    if (Object.keys(roomState.players).length === 0) {
-      this.destroyRoom(roomId);
+  removePlayer(roomId: string, playerId: string) {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+    delete room.players[playerId];
+    if (Object.keys(room.players).length === 0) {
+      this.rooms.delete(roomId);
     }
   }
 
-  processPlayerInput(roomId: string, playerId: string, input: any): void {
-    const roomState = this.rooms.get(roomId);
-    const engine = this.roomEngines.get(roomId);
+  applyInput(roomId: string, playerId: string, input: PlayerInput) {
+    const room = this.rooms.get(roomId);
+    if (!room || room.status !== "playing") return;
+    const p = room.players[playerId];
+    if (!p || !p.alive) return;
+    if (input.seq <= p.lastSeq) return; // anti reorder
+    p.lastSeq = input.seq;
 
-    if (!roomState || !engine) return;
+    const speed = Math.max(60 - (p.r - 20) * 0.6, 15); // plus gros => plus lent
+    // clamp
+    const dx = Math.max(-1, Math.min(1, input.dx || 0));
+    const dy = Math.max(-1, Math.min(1, input.dy || 0));
 
-    engine.processPlayerInput(roomState, playerId, input);
+    p.vx = dx * speed;
+    p.vy = dy * speed;
   }
 
-  private startGameLoop(roomId: string): void {
-    let lastTime = Date.now();
+  /** avance la simu et renvoie un snapshot compact */
+  tick(dt: number) {
+    for (const room of this.rooms.values()) {
+      if (room.status !== "playing") continue;
 
-    const gameLoop = () => {
-      const currentTime = Date.now();
-      const deltaTime = (currentTime - lastTime) / 1000; // Convert to seconds
-      lastTime = currentTime;
-
-      const roomState = this.rooms.get(roomId);
-      const engine = this.roomEngines.get(roomId);
-      const snapshotManager = this.roomSnapshots.get(roomId);
-
-      if (!roomState || !engine || !snapshotManager) {
-        console.log(`Stopping game loop for room ${roomId} - missing components`);
-        return;
+      // positions
+      for (const p of Object.values(room.players)) {
+        if (!p.alive) continue;
+        p.x += p.vx * (dt / 1000);
+        p.y += p.vy * (dt / 1000);
       }
 
-      // Update game state
-      engine.update(roomState, deltaTime);
+      // collisions player-food (simple)
+      const eaten: string[] = [];
+      for (const f of Object.values(room.foods)) {
+        for (const p of Object.values(room.players)) {
+          if (!p.alive) continue;
+          const dx = f.x - p.x, dy = f.y - p.y;
+          const d2 = dx*dx + dy*dy;
+          if (d2 <= (p.r * p.r)) {
+            eaten.push(f.id);
+            p.r = Math.min(120, p.r + 0.4); // grossit un peu
+            break;
+          }
+        }
+      }
+      // regenerate foods
+      if (eaten.length) {
+        for (const id of eaten) delete room.foods[id];
+        const toAdd = eaten.length;
+        const newFoods = this.spawnFoods(toAdd);
+        Object.assign(room.foods, newFoods);
+      }
 
-      // Create and emit snapshot
-      const gameState = engine.getGameState(roomState);
-      const snapshot = snapshotManager.createSnapshot(gameState);
-
-      // Emit to all players in room (will be handled by SocketServer)
-      this.emitToRoom(roomId, 'gameSnapshot', snapshot);
-    };
-
-    const interval = setInterval(gameLoop, this.TICK_INTERVAL);
-    this.roomIntervals.set(roomId, interval);
-
-    console.log(`Started game loop for room ${roomId} at ${this.TICK_RATE}Hz`);
-  }
-
-  private destroyRoom(roomId: string): void {
-    console.log(`Destroying room: ${roomId}`);
-    
-    const interval = this.roomIntervals.get(roomId);
-    if (interval) {
-      clearInterval(interval);
-      this.roomIntervals.delete(roomId);
+      // win condition (dernier vivant)
+      const alive = Object.values(room.players).filter(p => p.alive);
+      if (alive.length <= 1) {
+        room.status = "finished";
+      }
     }
-
-    this.rooms.delete(roomId);
-    this.roomEngines.delete(roomId);
-    this.roomSnapshots.delete(roomId);
   }
 
-  private emitToRoom(roomId: string, event: string, data: any): void {
-    // This will be connected to SocketServer
-    global.socketServer?.emitToRoom(roomId, event, data);
+  /** snapshot minimal pour broadcast */
+  snapshot(roomId: string) {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+    return {
+      roomId: room.id,
+      status: room.status,
+      players: Object.values(room.players).map(p => ({
+        id: p.id, x: p.x, y: p.y, r: p.r, c: p.color, n: p.name, alive: p.alive
+      })),
+      foods: Object.values(room.foods) // compactable plus tard
+    };
   }
 
-  getRoomList(): Array<{id: string, playerCount: number}> {
-    return Array.from(this.rooms.entries()).map(([id, room]) => ({
-      id,
-      playerCount: Object.keys(room.players).length
-    }));
+  private spawnFoods(n: number) {
+    const foods: Record<string, Food> = {};
+    for (let i = 0; i < n; i++) {
+      const id = uuidv4();
+      foods[id] = {
+        id,
+        x: Math.random() * 4000 - 2000,
+        y: Math.random() * 4000 - 2000,
+        r: 4 + Math.random() * 3
+      };
+    }
+    return foods;
   }
 }
