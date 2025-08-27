@@ -1,284 +1,336 @@
-// src/index.ts
-import path from "path";
-import http from "http";
-import express from "express";
-import { Server as IOServer, Socket } from "socket.io";
-import crypto from "node:crypto";
 
-/* =================== Config =================== */
-const PORT = Number(process.env.PORT) || 3000;
-const TICK_HZ = 15; // 15 FPS côté serveur
+import { useNavigate } from "react-router-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { Button } from "@/components/ui/button";
+import { useGame, defaultPhrases } from "@/context/GameContext";
+import { PlayIcon, Settings, Plus, Save, Trash2, Wallet } from "lucide-react";
+import { useState } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose
+} from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+import { LandingHero } from "@/components/Landing/LandingHero";
+import WalletButton from "@/components/Wallet/WalletButton";
 
-const MAP_W = 3000, MAP_H = 3000;
-const PELLETS = 400;
-const RUGS = 12;
-const EAT_RATIO = 1.15; // ratio pour qu’un joueur puisse en manger un autre
-const SPEED_BASE = 3.2; // vitesse de base
-
-/* ================ App + Static ================= */
-const app = express();
-
-// Sert le front buildé depuis /public (tu y as mis le contenu de dist/)
-app.use(express.static(path.join(__dirname, "../public")));
-app.get("*", (_, res) =>
-  res.sendFile(path.join(__dirname, "../public/index.html"))
-);
-
-const server = http.createServer(app);
-export const io = new IOServer(server, {
-  // même domaine → pas besoin de CORS strict ; ajuste si tu sers le front ailleurs
-  cors: { origin: "*" },
-  transports: ["websocket"], // évite le polling
-});
-
-/* ================== Types ===================== */
-type Player = {
-  id: string;
-  name: string;
-  color: string;
-  x: number; y: number;
-  vx: number; vy: number;
-  mass: number;    // “aire” (pas le rayon)
-  alive: boolean;
-  lastInputAt: number;
-};
-
-type Pellet = { id: string; x: number; y: number; r: number };
-type Rug    = { id: string; x: number; y: number; r: number };
-
-type Room = {
-  id: string;
-  status: "waiting" | "running";
-  minPlayers: number;
-  players: Record<string, Player>;
-  pellets: Pellet[];
-  rugs: Rug[];
-  loop: NodeJS.Timeout | null;
-  seed: string;
-};
-
-const rooms: Record<string, Room> = Object.create(null);
-
-/* ================= Utils Jeu ================== */
-const rnd = (a: number, b: number) => a + Math.random() * (b - a);
-const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-const radiusFromMass = (m: number) => Math.sqrt(m / Math.PI);
-const speedFor = (m: number) => SPEED_BASE / (1 + Math.sqrt(m) / 35);
-
-const makePellet = (): Pellet => ({
-  id: crypto.randomUUID().slice(0, 8),
-  x: rnd(20, MAP_W - 20),
-  y: rnd(20, MAP_H - 20),
-  r: 3,
-});
-const makeRug = (): Rug => ({
-  id: crypto.randomUUID().slice(0, 8),
-  x: rnd(100, MAP_W - 100),
-  y: rnd(100, MAP_H - 100),
-  r: rnd(40, 80),
-});
-
-function spawnWorld(r: Room) {
-  r.pellets = Array.from({ length: PELLETS }, makePellet);
-  r.rugs = Array.from({ length: RUGS }, makeRug);
-  r.seed = crypto.randomUUID().slice(0, 8);
-}
-
-function ensureRoom(roomId: string, minPlayers: number): Room {
-  if (rooms[roomId]) return rooms[roomId];
-  const room: Room = {
-    id: roomId,
-    status: "waiting",
-    minPlayers,
-    players: {},
-    pellets: [],
-    rugs: [],
-    loop: null,
-    seed: "",
-  };
-  spawnWorld(room);
-  rooms[roomId] = room;
-  return room;
-}
-
-function lobbySnapshot(roomId: string) {
-  const r = rooms[roomId];
-  return Object.values(r.players).map(p => ({
-    id: p.id, name: p.name, color: p.color, alive: p.alive, score: Math.round(p.mass),
-  }));
-}
-
-function broadcast(roomId: string, event: string, data: any) {
-  io.to(roomId).emit(event, data);
-}
-
-function startIfReady(roomId: string) {
-  const r = rooms[roomId];
-  if (!r || r.status !== "waiting") return;
-  const alive = Object.values(r.players).filter(p => p.alive).length;
-  if (alive >= r.minPlayers) {
-    r.status = "running";
-    broadcast(roomId, "start", {
-      map: { w: MAP_W, h: MAP_H },
-      pellets: r.pellets,
-      rugs: r.rugs,
-      seed: r.seed,
+export default function Index() {
+  const navigate = useNavigate();
+  const { connected } = useWallet();
+  const { customPhrases, setCustomPhrases } = useGame();
+  const [editedPhrases, setEditedPhrases] = useState<string[]>([...customPhrases]);
+  const [newPhrase, setNewPhrase] = useState("");
+  const { toast } = useToast();
+  
+  const handleSavePhrases = () => {
+    setCustomPhrases(editedPhrases);
+    toast({
+      title: "Modifications enregistrées",
+      description: "Vos phrases personnalisées ont été sauvegardées",
+      duration: 2000,
     });
-    r.loop = setInterval(() => tick(roomId), Math.round(1000 / TICK_HZ));
-  }
+  };
+
+  const handleAddPhrase = () => {
+    if (newPhrase.trim()) {
+      setEditedPhrases(prev => [...prev, newPhrase]);
+      setNewPhrase("");
+    }
+  };
+
+  const handleDeletePhrase = (index: number) => {
+    setEditedPhrases(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleResetToDefault = () => {
+    setEditedPhrases([...defaultPhrases]);
+    toast({
+      title: "Phrases réinitialisées",
+      description: "Les phrases ont été restaurées aux valeurs par défaut",
+      duration: 2000,
+    });
+  };
+  
+  const handleBulkEdit = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const phrases = e.target.value.split('\n').filter(line => line.trim() !== '');
+    setEditedPhrases(phrases);
+  };
+
+  const handleEnterMainnet = () => {
+    if (!connected) {
+      toast({
+        title: "WALLET_CONNECTION_REQUIRED",
+        description: "Connectez votre wallet Solana pour accéder au lobby",
+        variant: "destructive"
+      });
+      return;
+    }
+    navigate("/lobby");
+  };
+  
+  return (
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Tron Grid Background */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 opacity-20">
+          <div className="grid-background"></div>
+        </div>
+        {/* Animated scan lines */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="scan-line"></div>
+        </div>
+        {/* Floating particles */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {[...Array(20)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-cyber-cyan rounded-full animate-float"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 6}s`,
+                animationDuration: `${4 + Math.random() * 4}s`
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 container mx-auto py-10">
+        {/* Top bar with settings and wallet button */}
+        <div className="flex justify-between items-center mb-4">
+          {/* Settings button */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-cyber-cyan hover:text-cyber-magenta hover:bg-cyber-cyan/10 border border-cyber-cyan/30 hover:border-cyber-magenta/50 transition-all duration-300"
+              >
+                <Settings className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-[80%] sm:w-[500px] max-w-full overflow-y-auto bg-black border-cyber-cyan/30">
+              
+              <SheetHeader>
+                <SheetTitle className="text-cyber-cyan font-mono">Messages personnalisés</SheetTitle>
+                <SheetDescription className="text-gray-400">
+                  Personnalisez les messages qui apparaissent quand un joueur est mangé. Utilisez {"{playerName}"} pour insérer le nom du joueur.
+                </SheetDescription>
+              </SheetHeader>
+              
+              <div className="py-6 space-y-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium text-cyber-green font-mono">Personnaliser les messages</h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleResetToDefault}
+                      className="border-cyber-cyan/30 text-cyber-cyan hover:bg-cyber-cyan/10"
+                    >
+                      Réinitialiser
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {editedPhrases.map((phrase, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-900/50 p-2 rounded border border-cyber-cyan/20">
+                        <span className="flex-1 mr-2 text-gray-300 font-mono text-sm">{phrase}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDeletePhrase(index)}
+                          className="text-cyber-magenta hover:bg-cyber-magenta/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Nouveau message avec {playerName}"
+                      value={newPhrase}
+                      onChange={(e) => setNewPhrase(e.target.value)}
+                      className="flex-1 bg-gray-900/50 border-cyber-cyan/30 text-gray-300 font-mono"
+                    />
+                    <Button 
+                      onClick={handleAddPhrase} 
+                      className="shrink-0 bg-cyber-green hover:bg-cyber-green/80 text-black"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium text-cyber-green font-mono">Édition en bloc</h3>
+                  <p className="text-sm text-gray-400 font-mono">
+                    Vous pouvez aussi éditer toutes les phrases en bloc, une phrase par ligne.
+                  </p>
+                  <Textarea 
+                    value={editedPhrases.join('\n')}
+                    onChange={handleBulkEdit}
+                    rows={10}
+                    className="font-mono text-sm bg-gray-900/50 border-cyber-cyan/30 text-gray-300"
+                    placeholder="Une phrase par ligne. Utilisez {playerName} pour le nom du joueur."
+                  />
+                </div>
+                
+                <Button 
+                  className="w-full bg-cyber-green hover:bg-cyber-green/80 text-black font-mono" 
+                  onClick={handleSavePhrases}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Enregistrer les modifications
+                </Button>
+              </div>
+              
+              <SheetFooter>
+                <SheetClose asChild>
+                  <Button className="w-full bg-cyber-magenta hover:bg-cyber-magenta/80 text-white font-mono">Fermer</Button>
+                </SheetClose>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+
+          {/* Wallet button */}
+          <div className="flex items-center gap-2">
+            {connected ? (
+              <div className="flex items-center gap-2 text-cyber-green font-mono text-sm">
+                <Wallet className="h-4 w-4" />
+                <span>WALLET_CONNECTED</span>
+              </div>
+            ) : null}
+            <WalletButton />
+          </div>
+        </div>
+
+        {/* Hero section with new LandingHero component */}
+        <LandingHero />
+        
+        {/* Enhanced Tutorial Section - increased top margin from mt-16 to mt-32 */}
+        <div className="bg-black/90 backdrop-blur-sm rounded-lg p-8 border-2 border-cyber-green/30 shadow-[0_0_20px_rgba(0,255,0,0.2)] mb-20 mt-32 relative overflow-hidden">
+          {/* Background effects */}
+          <div className="absolute inset-0 bg-gradient-to-br from-cyber-green/5 via-transparent to-cyber-cyan/5"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyber-green to-transparent opacity-50"></div>
+          
+          {/* Terminal header */}
+          <div className="flex items-center mb-8 relative z-10">
+            <div className="w-3 h-3 bg-cyber-magenta rounded-full mr-2 animate-pulse"></div>
+            <div className="w-3 h-3 bg-cyber-yellow rounded-full mr-2 animate-pulse" style={{animationDelay: '0.2s'}}></div>
+            <div className="w-3 h-3 bg-cyber-green rounded-full mr-4 animate-pulse" style={{animationDelay: '0.4s'}}></div>
+            <h2 className="text-3xl font-bold text-cyber-green font-mono relative">
+              TUTORIAL.md
+              <div className="absolute -inset-1 bg-cyber-green/20 blur-md -z-10 animate-pulse"></div>
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+            {/* Step 1 */}
+            <div className="group hover:bg-cyber-yellow/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-yellow/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-yellow/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-yellow text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(255,255,0,0.5)] group-hover:shadow-[0_0_20px_rgba(255,255,0,0.8)] transition-all duration-300 text-lg">
+                  0x1
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
+                    Déplacez votre blob avec la souris pour absorber la <span className="text-cyber-cyan font-bold animate-pulse">FOOD</span> et grossir 🍰
+                  </p>
+                  <div className="mt-4 h-1 bg-cyber-yellow/20 rounded group-hover:bg-cyber-yellow/40 transition-all duration-300"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Step 2 */}
+            <div className="group hover:bg-cyber-cyan/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-cyan/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-cyan/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-cyan text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,255,0.5)] group-hover:shadow-[0_0_20px_rgba(0,255,255,0.8)] transition-all duration-300 text-lg">
+                  0x2
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
+                    Mangez les joueurs plus petits que vous (au moins <span className="text-cyber-magenta font-bold animate-pulse">10%</span> plus petits) 🥵
+                  </p>
+                  <div className="mt-4 h-1 bg-cyber-cyan/20 rounded group-hover:bg-cyber-cyan/40 transition-all duration-300"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Step 3 */}
+            <div className="group hover:bg-cyber-magenta/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-magenta/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-magenta/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-magenta text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.5)] group-hover:shadow-[0_0_20px_rgba(255,0,255,0.8)] transition-all duration-300 text-lg">
+                  0x3
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
+                    Évitez les <span className="text-cyber-purple font-bold animate-pulse">RUG_CARPETS</span> violets qui vous feront rétrécir 📉
+                  </p>
+                  <div className="mt-4 h-1 bg-cyber-magenta/20 rounded group-hover:bg-cyber-magenta/40 transition-all duration-300"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Step 4 */}
+            <div className="group hover:bg-cyber-green/5 p-6 rounded-lg transition-all duration-300 border border-transparent hover:border-cyber-green/30 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyber-green/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="flex items-start relative z-10">
+                <div className="bg-cyber-green text-black font-bold font-mono rounded-lg w-12 h-12 flex items-center justify-center mr-4 flex-shrink-0 shadow-[0_0_10px_rgba(0,255,0,0.5)] group-hover:shadow-[0_0_20px_rgba(0,255,0,0.8)] transition-all duration-300 text-lg">
+                  0x4
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-300 font-mono group-hover:text-white transition-colors duration-300 text-lg leading-relaxed">
+                    Le dernier blob en vie devient le <span className="text-cyber-yellow font-bold animate-pulse">ULTIMATE_CHAD</span> ! 👑
+                  </p>
+                  <div className="mt-4 h-1 bg-cyber-green/20 rounded group-hover:bg-cyber-green/40 transition-all duration-300"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Bottom scan line */}
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyber-cyan to-transparent opacity-50 animate-pulse"></div>
+        </div>
+        
+        <div className="text-center" id="mainnet">
+          <Button 
+            onClick={handleEnterMainnet} 
+            className="bg-gradient-to-r from-cyber-green to-cyber-cyan hover:from-cyber-cyan hover:to-cyber-green text-black font-mono font-bold text-lg px-8 py-6 rounded-none border-2 border-cyber-green shadow-[0_0_20px_rgba(0,255,0,0.5)] hover:shadow-[0_0_30px_rgba(0,255,255,0.7)] transition-all duration-300 transform hover:scale-105"
+          >
+            <PlayIcon className="mr-2" />
+            &gt; ENTER_THE_MAINNET
+          </Button>
+          
+          {!connected && (
+            <p className="text-cyber-cyan font-mono text-sm mt-4 animate-terminal-blink">
+              📱 Connectez votre wallet Solana pour commencer
+            </p>
+          )}
+        </div>
+      </div>
+      
+      <footer className="relative z-10 mt-20 text-center">
+        <p className="text-gray-500 text-sm font-mono">
+          © 2025 agar3.fun - <span className="text-cyber-cyan">HODLING</span> since genesis block 🚀
+        </p>
+        <p className="text-gray-600 text-xs font-mono mt-1">
+          Not financial advice | DYOR | Diamond hands only 💎🙌
+        </p>
+      </footer>
+    </div>
+  );
 }
-
-/* ================== Tick ====================== */
-function tick(roomId: string) {
-  const r = rooms[roomId];
-  if (!r) return;
-
-  // 1) déplacer les joueurs selon leur direction normalisée
-  for (const p of Object.values(r.players)) {
-    if (!p.alive) continue;
-    const sp = speedFor(p.mass);
-    const rad = radiusFromMass(p.mass);
-    p.x = clamp(p.x + p.vx * sp, rad, MAP_W - rad);
-    p.y = clamp(p.y + p.vy * sp, rad, MAP_H - rad);
-  }
-
-  // 2) manger pellets
-  for (const p of Object.values(r.players)) {
-    if (!p.alive) continue;
-    const pr = radiusFromMass(p.mass);
-    for (let i = r.pellets.length - 1; i >= 0; i--) {
-      const pe = r.pellets[i];
-      const dx = p.x - pe.x, dy = p.y - pe.y;
-      if (dx * dx + dy * dy <= (pr + pe.r) * (pr + pe.r)) {
-        p.mass += Math.PI * pe.r * pe.r;
-        r.pellets.splice(i, 1);
-      }
-    }
-  }
-  while (r.pellets.length < PELLETS) r.pellets.push(makePellet());
-
-  // 3) rugs rétrécissent
-  for (const p of Object.values(r.players)) {
-    if (!p.alive) continue;
-    const pr = radiusFromMass(p.mass);
-    for (const rug of r.rugs) {
-      const dx = p.x - rug.x, dy = p.y - rug.y;
-      if (dx * dx + dy * dy <= (pr + rug.r) * (pr + rug.r)) {
-        p.mass = Math.max(80, p.mass * 0.995); // ~0.5%/tick
-      }
-    }
-  }
-
-  // 4) joueurs mangent joueurs
-  const alive = Object.values(r.players).filter(p => p.alive);
-  for (let i = 0; i < alive.length; i++) {
-    for (let j = i + 1; j < alive.length; j++) {
-      const A = alive[i], B = alive[j];
-      const rA = radiusFromMass(A.mass), rB = radiusFromMass(B.mass);
-      const dx = A.x - B.x, dy = A.y - B.y;
-      if (dx * dx + dy * dy > (rA + rB) * (rA + rB)) continue;
-      if (rA >= EAT_RATIO * rB) { A.mass += B.mass; B.alive = false; }
-      else if (rB >= EAT_RATIO * rA) { B.mass += A.mass; A.alive = false; }
-    }
-  }
-
-  // 5) fin de partie
-  const still = Object.values(r.players).filter(p => p.alive);
-  if (r.status === "running" && still.length <= 1) {
-    const winner = still[0]?.name || null;
-    broadcast(roomId, "over", { winner });
-    clearInterval(r.loop!);
-    r.loop = null;
-    r.status = "waiting";
-    spawnWorld(r);
-    // soft reset des joueurs
-    for (const p of Object.values(r.players)) {
-      p.alive = true; p.mass = 100;
-      p.x = rnd(200, MAP_W - 200); p.y = rnd(200, MAP_H - 200);
-      p.vx = 0; p.vy = 0;
-    }
-    broadcast(roomId, "lobby", { status: r.status, players: lobbySnapshot(roomId) });
-    return;
-  }
-
-  // 6) snapshot pour rendu client
-  const snapshot = Object.values(r.players).map(p => ({
-    id: p.id, x: p.x, y: p.y, r: radiusFromMass(p.mass),
-    c: p.color, n: p.name, a: p.alive
-  }));
-  broadcast(roomId, "state", snapshot);
-}
-
-/* =============== Connexion IO ================= */
-io.on("connection", (socket: Socket) => {
-  socket.on("join", (payload: { roomId?: string; name?: string; color?: string; minPlayers?: number }) => {
-    const roomId = payload.roomId || "default";
-    const minPlayers = payload.minPlayers ?? 2;
-    const r = ensureRoom(roomId, minPlayers);
-
-    const id = crypto.randomUUID().slice(0, 6);
-    const p: Player = {
-      id,
-      name: (payload.name || "anon").slice(0, 16),
-      color: payload.color || "#33aaff",
-      x: rnd(200, MAP_W - 200), y: rnd(200, MAP_H - 200),
-      vx: 0, vy: 0,
-      mass: 100,
-      alive: true,
-      lastInputAt: 0,
-    };
-
-    // attachements
-    (socket.data as any).roomId = roomId;
-    (socket.data as any).playerId = id;
-
-    r.players[id] = p;
-    socket.join(roomId);
-
-    socket.emit("joined", { id, roomId, map: { w: MAP_W, h: MAP_H } });
-    broadcast(roomId, "lobby", { status: r.status, players: lobbySnapshot(roomId) });
-    startIfReady(roomId);
-  });
-
-  // input directionnel (dx,dy normalisés) – 20 Hz côté client recommandé
-  socket.on("input", ({ dx, dy }: { dx: number; dy: number }) => {
-    const rid = (socket.data as any).roomId;
-    const pid = (socket.data as any).playerId;
-    const r = rooms[rid]; if (!r) return;
-    const p = r.players[pid]; if (!p || !p.alive) return;
-
-    const now = Date.now();
-    if (now - p.lastInputAt < 33) return; // throttle ~30Hz
-    p.lastInputAt = now;
-
-    const n = Math.hypot(dx, dy) || 1;
-    p.vx = dx / n; p.vy = dy / n;
-  });
-
-  // fallback si ton client envoie encore "update" avec x/y (on le supporte)
-  socket.on("update", (msg: { id?: string; player?: { x?: number; y?: number } }) => {
-    const rid = (socket.data as any).roomId;
-    const pid = (socket.data as any).playerId;
-    const r = rooms[rid]; if (!r) return;
-    const p = r.players[pid]; if (!p || !p.alive) return;
-    if (msg?.player?.x != null) p.x = msg.player.x!;
-    if (msg?.player?.y != null) p.y = msg.player.y!;
-  });
-
-  socket.on("disconnect", () => {
-    const rid = (socket.data as any).roomId;
-    const pid = (socket.data as any).playerId;
-    if (!rid || !rooms[rid]) return;
-    delete rooms[rid].players[pid];
-    broadcast(rid, "lobby", { status: rooms[rid].status, players: lobbySnapshot(rid) });
-    if (Object.keys(rooms[rid].players).length === 0) {
-      clearInterval(rooms[rid].loop!);
-      delete rooms[rid];
-    }
-  });
-});
-
-/* ================ Listen ====================== */
-server.listen(PORT, () => {
-  console.log(`✅ Server on :${PORT}  |  tick ${TICK_HZ} Hz  |  path /socket.io`);
-});
