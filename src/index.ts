@@ -15,14 +15,17 @@ const io = new IOServer(server, {
   cors: { origin: true, methods: ["GET","POST"] }
 });
 
+// (optionnel) force HTTPS derrière Railway
 app.use((req, res, next) => {
   const proto = req.headers["x-forwarded-proto"];
   if (proto && proto !== "https") return res.redirect("https://" + req.headers.host + req.url);
   next();
 });
 
+// Santé
 app.get("/health", (_, res) => res.send("ok"));
 
+// Sert le front buildé
 const publicDir = path.join(__dirname, "../public");
 app.use(express.static(publicDir));
 app.get("*", (_, res) => res.sendFile(path.join(publicDir, "index.html")));
