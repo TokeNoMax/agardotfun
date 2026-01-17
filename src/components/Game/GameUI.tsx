@@ -38,7 +38,7 @@ const createDefaultLocalPlayer = (playerName?: string, playerColor?: string): Pl
 });
 
 export default function GameUI({ roomId }: GameUIProps) {
-  const { currentRoom, player: currentPlayer, refreshCurrentRoom } = useGame();
+  const { currentRoom, player: currentPlayer, refreshCurrentRoom, debugMode, setDebugMode } = useGame();
   const { toast } = useToast();
   const location = useLocation();
   const canvasRef = useRef<CanvasRef>(null);
@@ -55,8 +55,7 @@ export default function GameUI({ roomId }: GameUIProps) {
   const [securityViolations, setSecurityViolations] = useState(0);
   const [showSecurityDashboard, setShowSecurityDashboard] = useState(false);
   
-  // Debug mode state
-  const [debugMode, setDebugMode] = useState(false);
+  // Debug mode state (from context)
   const [currentFps, setCurrentFps] = useState(0);
   const networkPositionsRef = useRef<Map<string, NetworkPosition>>(new Map());
   
