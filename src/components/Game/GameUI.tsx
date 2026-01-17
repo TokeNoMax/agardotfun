@@ -1,13 +1,14 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useGame } from "@/context/GameContext";
-import Canvas, { CanvasRef } from "./Canvas";
+import Canvas, { CanvasRef, NetworkPosition } from "./Canvas";
 import Leaderboard from "./Leaderboard";
 import TouchControlArea from "./TouchControlArea";
 import GameOverModal from "./GameOverModal";
 import ZoneCounter from "./ZoneCounter";
 import QuitButton from "./QuitButton";
 import SecurityDashboard from "./SecurityDashboard";
+import DebugOverlay, { DebugDiagnostics } from "./DebugOverlay";
 import { Player, SafeZone } from "@/types/game";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOptimizedSocketGameSync } from "@/hooks/useOptimizedSocketGameSync";
@@ -53,6 +54,11 @@ export default function GameUI({ roomId }: GameUIProps) {
   const [timeUntilShrink, setTimeUntilShrink] = useState(0);
   const [securityViolations, setSecurityViolations] = useState(0);
   const [showSecurityDashboard, setShowSecurityDashboard] = useState(false);
+  
+  // Debug mode state
+  const [debugMode, setDebugMode] = useState(false);
+  const [currentFps, setCurrentFps] = useState(0);
+  const networkPositionsRef = useRef<Map<string, NetworkPosition>>(new Map());
   
   // Check if we're in local mode
   const isLocalMode = !currentRoom && !roomId;
@@ -278,6 +284,14 @@ export default function GameUI({ roomId }: GameUIProps) {
       // Update all players from snapshot
       if (snapshot.ps) {
         Object.entries(snapshot.ps).forEach(([playerId, player]) => {
+          // Store raw network positions for debug visualization
+          networkPositionsRef.current.set(playerId, {
+            x: player.x,
+            y: player.y,
+            size: player.r,
+            timestamp: Date.now()
+          });
+          
           handlePlayerPositionUpdate(playerId, {
             x: player.x,
             y: player.y,
@@ -493,6 +507,23 @@ export default function GameUI({ roomId }: GameUIProps) {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
+      {/* Debug Overlay */}
+      <DebugOverlay
+        enabled={debugMode}
+        onToggle={setDebugMode}
+        fps={currentFps}
+        connectionStatus={syncConnected ? 'connected' : isLocalMode ? 'connected' : 'disconnected'}
+        playerCount={effectivePlayers.length}
+        diagnostics={diagnostics ? {
+          rtt: diagnostics.rtt,
+          packetsSent: diagnostics.packetsSent || 0,
+          packetsReceived: diagnostics.packetsReceived || 0,
+          snapshotsReceived: diagnostics.snapshotRate,
+          inputsBuffered: diagnostics.inputRate
+        } : null}
+        networkQuality={networkQuality}
+      />
+
       {/* Main Canvas */}
       <Canvas
         ref={canvasRef}
@@ -506,6 +537,9 @@ export default function GameUI({ roomId }: GameUIProps) {
         onPlayerElimination={handlePlayerEliminationBroadcast}
         getInterpolatedPosition={getInterpolatedPosition}
         roomId={roomId || currentRoom?.id}
+        debugMode={debugMode}
+        networkPositions={networkPositionsRef.current}
+        onFpsUpdate={setCurrentFps}
       />
 
       {/* Leaderboard - Always show with effective players */}
