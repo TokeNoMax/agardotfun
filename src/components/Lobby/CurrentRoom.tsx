@@ -73,16 +73,30 @@ export default function CurrentRoom({
   const playerInRoom = isCurrentPlayerInRoom();
   const playerReady = isCurrentPlayerReady();
   
-  // Debug logging
-  console.log("CurrentRoom - Debug info:");
-  console.log("CurrentRoom - Player:", player?.name, player?.id);
-  console.log("CurrentRoom - Room players:", currentRoom.players?.map(p => ({ id: p.id, name: p.name })));
+  // Enhanced Debug logging
+  console.log("=== CurrentRoom RENDER ===");
+  console.log("CurrentRoom - Player ID:", player?.id);
+  console.log("CurrentRoom - Player Wallet:", player?.walletAddress);
+  console.log("CurrentRoom - Player Name:", player?.name);
+  console.log("CurrentRoom - Room Players:", currentRoom.players?.map(p => ({ 
+    id: p.id, 
+    name: p.name, 
+    walletAddress: p.walletAddress,
+    isReady: p.isReady 
+  })));
   console.log("CurrentRoom - playerInRoom:", playerInRoom);
   console.log("CurrentRoom - playerReady:", playerReady);
   console.log("CurrentRoom - Room status:", currentRoom.status);
   console.log("CurrentRoom - Game starting:", gameStarting);
   console.log("CurrentRoom - All players ready:", areAllPlayersReady());
   console.log("CurrentRoom - Room is full:", isRoomFull());
+  console.log("CurrentRoom - Button decision:", {
+    showReadyButton: playerInRoom && currentRoom.status === 'waiting' && !gameStarting,
+    playerInRoom,
+    roomStatus: currentRoom.status,
+    gameStarting
+  });
+  console.log("=== END CurrentRoom RENDER ===");
   
   return (
     <>
@@ -221,6 +235,18 @@ export default function CurrentRoom({
                   JOIN_GAME
                 </Button>
               )}
+            </div>
+
+            {/* Debug Panel - À RETIRER EN PRODUCTION */}
+            <div className="mt-4 p-3 bg-black/80 border border-red-500/50 rounded text-xs font-mono text-red-400">
+              <p className="text-red-500 font-bold mb-2">🔧 DEBUG PANEL</p>
+              <p>Player ID: {player?.id?.substring(0, 12)}...</p>
+              <p>Player Wallet: {player?.walletAddress?.substring(0, 12)}...</p>
+              <p>playerInRoom: <span className={playerInRoom ? "text-green-400" : "text-red-400"}>{String(playerInRoom)}</span></p>
+              <p>playerReady: <span className={playerReady ? "text-green-400" : "text-red-400"}>{String(playerReady)}</span></p>
+              <p>Room Status: {currentRoom.status}</p>
+              <p>Players Count: {currentRoom.players?.length}/{currentRoom.maxPlayers}</p>
+              <p>Room Players IDs: {currentRoom.players?.map(p => p.id.substring(0, 8)).join(', ')}</p>
             </div>
           </div>
         </div>
