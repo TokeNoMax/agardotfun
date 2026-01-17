@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { useAutoCleanup } from "@/hooks/useAutoCleanup";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useEffectiveUserId } from "@/hooks/useEffectiveUserId";
 
 export default function Lobby() {
   const { 
@@ -280,23 +281,19 @@ export default function Lobby() {
     }
   };
 
+  // Utiliser l'effectiveUserId centralisé
+  const { effectiveUserId, source: userIdSource } = useEffectiveUserId();
+
   const isCurrentPlayerReady = (): boolean => {
-    if (!player || !currentRoom?.players) {
-      console.log("LOBBY - isCurrentPlayerReady: No player or no room players");
+    if (!effectiveUserId || !currentRoom?.players) {
+      console.log("LOBBY - isCurrentPlayerReady: No effectiveUserId or no room players");
       return false;
     }
     
-    // Collecter tous les identifiants possibles du joueur courant
-    const possibleIds = [
-      player.walletAddress,
-      player.id,
-      publicKey?.toBase58()
-    ].filter(Boolean);
-    
-    console.log("LOBBY - Checking ready with possible IDs:", possibleIds);
+    console.log(`LOBBY - Checking ready with effectiveUserId: ${effectiveUserId} (source: ${userIdSource})`);
     
     const matchingPlayer = currentRoom.players.find(p => 
-      possibleIds.some(myId => p.id === myId || p.walletAddress === myId)
+      p.id === effectiveUserId || p.walletAddress === effectiveUserId
     );
     
     const isReady = matchingPlayer?.isReady || false;
@@ -306,35 +303,24 @@ export default function Lobby() {
   };
 
   const isCurrentPlayerInRoom = (): boolean => {
-    if (!player || !currentRoom?.players) {
-      console.log("LOBBY - isCurrentPlayerInRoom: No player or no room players");
+    if (!effectiveUserId || !currentRoom?.players) {
+      console.log("LOBBY - isCurrentPlayerInRoom: No effectiveUserId or no room players");
       return false;
     }
     
-    // Collecter tous les identifiants possibles du joueur courant
-    const possibleIds = [
-      player.walletAddress,
-      player.id,
-      publicKey?.toBase58()  // Wallet connecté actuellement
-    ].filter(Boolean);
-    
-    console.log("LOBBY - Checking player in room with possible IDs:", possibleIds);
+    console.log(`LOBBY - Checking with effectiveUserId: ${effectiveUserId} (source: ${userIdSource})`);
     console.log("LOBBY - Room players:", currentRoom.players.map(p => ({
       id: p.id,
       walletAddress: p.walletAddress,
       name: p.name
     })));
     
-    // Vérifier si UN des identifiants correspond
     const playerInRoom = currentRoom.players.some(p => {
-      const matchesAnyId = possibleIds.some(myId => 
-        p.id === myId || p.walletAddress === myId
-      );
-      
-      if (matchesAnyId) {
+      const matches = p.id === effectiveUserId || p.walletAddress === effectiveUserId;
+      if (matches) {
         console.log(`LOBBY - ✅ Player FOUND in room: ${p.name} (ID: ${p.id})`);
       }
-      return matchesAnyId;
+      return matches;
     });
     
     console.log("LOBBY - Final result: playerInRoom =", playerInRoom);
