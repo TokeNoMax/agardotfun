@@ -1,6 +1,8 @@
 
+
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { GameRoom } from "@/types/game";
 import { Zap, Users, LogOut } from "lucide-react";
 import GhostRoomDetector from "./GhostRoomDetector";
@@ -30,6 +32,7 @@ export default function CurrentRoom({
   isCurrentPlayerInRoom
 }: CurrentRoomProps) {
   const { player } = useGame();
+  const { publicKey } = useWallet();
   
   // Game mode display
   const getGameModeDisplay = (gameMode?: string) => {
@@ -240,13 +243,17 @@ export default function CurrentRoom({
             {/* Debug Panel - À RETIRER EN PRODUCTION */}
             <div className="mt-4 p-3 bg-black/80 border border-red-500/50 rounded text-xs font-mono text-red-400">
               <p className="text-red-500 font-bold mb-2">🔧 DEBUG PANEL</p>
-              <p>Player ID: {player?.id?.substring(0, 12)}...</p>
-              <p>Player Wallet: {player?.walletAddress?.substring(0, 12)}...</p>
+              <p>Player ID (local): {player?.id?.substring(0, 12)}...</p>
+              <p>Player Wallet (context): {player?.walletAddress?.substring(0, 12)}...</p>
+              <p>Connected Wallet: {publicKey?.toBase58()?.substring(0, 12)}...</p>
               <p>playerInRoom: <span className={playerInRoom ? "text-green-400" : "text-red-400"}>{String(playerInRoom)}</span></p>
               <p>playerReady: <span className={playerReady ? "text-green-400" : "text-red-400"}>{String(playerReady)}</span></p>
               <p>Room Status: {currentRoom.status}</p>
               <p>Players Count: {currentRoom.players?.length}/{currentRoom.maxPlayers}</p>
-              <p>Room Players IDs: {currentRoom.players?.map(p => p.id.substring(0, 8)).join(', ')}</p>
+              <p>Room Players:</p>
+              {currentRoom.players?.map(p => (
+                <p key={p.id} className="ml-2">- {p.name}: id={p.id.substring(0,8)}, wallet={p.walletAddress?.substring(0,8) || 'N/A'}</p>
+              ))}
             </div>
           </div>
         </div>

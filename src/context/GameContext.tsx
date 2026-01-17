@@ -130,6 +130,17 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
     }
   }, [currentRoom]);
 
+  // Synchroniser le player.walletAddress avec le wallet connecté
+  useEffect(() => {
+    if (player && publicKey) {
+      const currentWallet = publicKey.toBase58();
+      if (player.walletAddress !== currentWallet) {
+        console.log("CONTEXT - Syncing player walletAddress:", currentWallet);
+        setPlayer(prev => prev ? { ...prev, walletAddress: currentWallet } : prev);
+      }
+    }
+  }, [player, publicKey]);
+
   // Realtime subscription for current room updates
   useEffect(() => {
     if (!currentRoom?.id) return;

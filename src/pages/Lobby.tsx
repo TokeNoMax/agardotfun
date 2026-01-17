@@ -286,40 +286,21 @@ export default function Lobby() {
       return false;
     }
     
-    console.log("LOBBY - Checking if current player is ready:");
-    console.log("LOBBY - Current player:", {
-      name: player.name,
-      id: player.id,
-      walletAddress: player.walletAddress
-    });
-    console.log("LOBBY - Room players:", currentRoom.players.map(p => ({
-      id: p.id,
-      name: p.name,
-      walletAddress: p.walletAddress,
-      isReady: p.isReady
-    })));
+    // Collecter tous les identifiants possibles du joueur courant
+    const possibleIds = [
+      player.walletAddress,
+      player.id,
+      publicKey?.toBase58()
+    ].filter(Boolean);
     
-    // Simplifier: utiliser uniquement walletAddress comme critère principal
-    const matchingPlayer = currentRoom.players.find(p => {
-      // Si le joueur a une wallet address, l'utiliser comme référence unique
-      if (player.walletAddress) {
-        const matches = p.id === player.walletAddress || p.walletAddress === player.walletAddress;
-        if (matches) {
-          console.log(`LOBBY - ✅ Player matched by wallet: ${p.name} (ID: ${p.id})`);
-        }
-        return matches;
-      }
-      
-      // Fallback: correspondance par ID si pas de wallet
-      const matches = p.id === player.id;
-      if (matches) {
-        console.log(`LOBBY - ✅ Player matched by ID: ${p.name} (ID: ${p.id})`);
-      }
-      return matches;
-    });
+    console.log("LOBBY - Checking ready with possible IDs:", possibleIds);
+    
+    const matchingPlayer = currentRoom.players.find(p => 
+      possibleIds.some(myId => p.id === myId || p.walletAddress === myId)
+    );
     
     const isReady = matchingPlayer?.isReady || false;
-    console.log("LOBBY - Final ready state:", isReady, "for player:", matchingPlayer?.name);
+    console.log("LOBBY - Ready state:", isReady, "for player:", matchingPlayer?.name);
     
     return isReady;
   };
@@ -330,33 +311,33 @@ export default function Lobby() {
       return false;
     }
     
-    console.log("LOBBY - Checking if current player is in room:");
-    console.log("LOBBY - Current player:", {
-      name: player.name,
-      id: player.id,
-      walletAddress: player.walletAddress
-    });
+    // Collecter tous les identifiants possibles du joueur courant
+    const possibleIds = [
+      player.walletAddress,
+      player.id,
+      publicKey?.toBase58()  // Wallet connecté actuellement
+    ].filter(Boolean);
     
-    // Simplifier: utiliser uniquement walletAddress comme critère principal
+    console.log("LOBBY - Checking player in room with possible IDs:", possibleIds);
+    console.log("LOBBY - Room players:", currentRoom.players.map(p => ({
+      id: p.id,
+      walletAddress: p.walletAddress,
+      name: p.name
+    })));
+    
+    // Vérifier si UN des identifiants correspond
     const playerInRoom = currentRoom.players.some(p => {
-      // Si le joueur a une wallet address, l'utiliser comme référence unique
-      if (player.walletAddress) {
-        const matches = p.id === player.walletAddress || p.walletAddress === player.walletAddress;
-        if (matches) {
-          console.log(`LOBBY - ✅ Player found in room by wallet: ${p.name} (ID: ${p.id})`);
-        }
-        return matches;
-      }
+      const matchesAnyId = possibleIds.some(myId => 
+        p.id === myId || p.walletAddress === myId
+      );
       
-      // Fallback: correspondance par ID si pas de wallet
-      const matches = p.id === player.id;
-      if (matches) {
-        console.log(`LOBBY - ✅ Player found in room by ID: ${p.name} (ID: ${p.id})`);
+      if (matchesAnyId) {
+        console.log(`LOBBY - ✅ Player FOUND in room: ${p.name} (ID: ${p.id})`);
       }
-      return matches;
+      return matchesAnyId;
     });
     
-    console.log("LOBBY - Player in room final result:", playerInRoom);
+    console.log("LOBBY - Final result: playerInRoom =", playerInRoom);
     return playerInRoom;
   };
   
