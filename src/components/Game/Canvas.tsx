@@ -31,6 +31,14 @@ const MIN_ZOOM = 0.25;  // Reduced from 0.3 for wider view with larger blobs
 const MAX_ZOOM = 2.5;   // Increased from 2.0 for closer view with smaller blobs
 const ZOOM_SMOOTH_FACTOR = 0.12;  // Increased from 0.08 for more responsive zoom
 
+// Network position for debug visualization
+export interface NetworkPosition {
+  x: number;
+  y: number;
+  size: number;
+  timestamp: number;
+}
+
 interface CanvasProps {
   onGameOver: (winner: Player | null, eliminationType?: 'absorption' | 'zone' | 'timeout') => void;
   isLocalMode?: boolean;
@@ -43,6 +51,9 @@ interface CanvasProps {
   onPlayerElimination?: (eliminatedPlayerId: string, eliminatorPlayerId: string) => Promise<void>;
   getInterpolatedPosition?: (playerId: string) => { x: number; y: number; size: number } | null;
   roomId?: string;
+  debugMode?: boolean;
+  networkPositions?: Map<string, NetworkPosition>;
+  onFpsUpdate?: (fps: number) => void;
 }
 
 export interface CanvasRef {
@@ -64,7 +75,10 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
   onPlayerCollision,
   onPlayerElimination,
   getInterpolatedPosition,
-  roomId
+  roomId,
+  debugMode = false,
+  networkPositions,
+  onFpsUpdate
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { currentRoom, player: currentPlayer } = useGame();
@@ -100,6 +114,13 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
 
   // NFT Image cache
   const [imageCache, setImageCache] = useState<Map<string, HTMLImageElement>>(new Map());
+
+  // FPS counter for debug mode
+  const fpsRef = useRef<{ frames: number; lastTime: number; fps: number }>({
+    frames: 0,
+    lastTime: performance.now(),
+    fps: 0
+  });
 
   const playerRef = useRef<Player | null>(null);
   const gameLoopRef = useRef<number | null>(null);
@@ -949,6 +970,16 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
       const context = canvas.getContext('2d');
       if (!context) return;
       
+      // FPS counter for debug mode
+      fpsRef.current.frames++;
+      const now = performance.now();
+      if (now - fpsRef.current.lastTime >= 1000) {
+        fpsRef.current.fps = fpsRef.current.frames;
+        fpsRef.current.frames = 0;
+        fpsRef.current.lastTime = now;
+        onFpsUpdate?.(fpsRef.current.fps);
+      }
+      
       // Clear canvas with black background
       context.fillStyle = "#000000";
       context.fillRect(0, 0, canvas.width, canvas.height);
@@ -1096,6 +1127,54 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         context.strokeText(playerLabel, player.x, player.y);
         context.fillText(playerLabel, player.x, player.y);
         
+        // DEBUG MODE: Display player ID above the ball
+        if (debugMode) {
+          context.font = `${10 / cameraZoom}px monospace`;
+          context.fillStyle = '#00ff00';
+          context.textAlign = 'center';
+          const shortId = player.id.substring(0, 8);
+          context.strokeStyle = '#000';
+          context.lineWidth = 2 / cameraZoom;
+          context.strokeText(shortId, player.x, player.y - player.size - 20);
+          context.fillText(shortId, player.x, player.y - player.size - 20);
+          
+          // DEBUG MODE: Draw network ghost for enemy players (ghosting visualization)
+          const networkPos = networkPositions?.get(player.id);
+          if (networkPos && player.id !== playerRef.current?.id) {
+            // Draw red dashed circle at network position (target)
+            context.beginPath();
+            context.strokeStyle = '#ff0000';
+            context.lineWidth = 2 / cameraZoom;
+            context.setLineDash([5 / cameraZoom, 5 / cameraZoom]);
+            context.arc(networkPos.x, networkPos.y, networkPos.size, 0, Math.PI * 2);
+            context.stroke();
+            context.setLineDash([]);
+            
+            // Draw line from network position to interpolated position
+            context.beginPath();
+            context.strokeStyle = '#ff0000';
+            context.lineWidth = 1 / cameraZoom;
+            context.moveTo(networkPos.x, networkPos.y);
+            context.lineTo(player.x, player.y);
+            context.stroke();
+            
+            // Display distance offset in pixels
+            const distance = Math.sqrt(
+              Math.pow(player.x - networkPos.x, 2) + 
+              Math.pow(player.y - networkPos.y, 2)
+            );
+            if (distance > 1) {
+              context.fillStyle = '#ff6666';
+              context.font = `${8 / cameraZoom}px monospace`;
+              context.fillText(
+                `${distance.toFixed(1)}px`, 
+                (player.x + networkPos.x) / 2, 
+                (player.y + networkPos.y) / 2 - 10
+              );
+            }
+          }
+        }
+        
         context.restore();
       });
       
@@ -1148,7 +1227,7 @@ const Canvas = forwardRef<CanvasRef, CanvasProps>(({
         animationFrameRef.current = null;
       }
     };
-  }, [players, bots, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone, imageCache, isSoloMode]);
+  }, [players, bots, foods, rugs, cameraPosition, cameraZoom, isZoneMode, safeZone, imageCache, isSoloMode, debugMode, networkPositions, onFpsUpdate]);
 
   const getColorHex = (color: string): string => {
     const colorMap: Record<string, string> = {
