@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Player, GameRoom, PlayerColor, GameMode } from '@/types/game';
 import { generateName } from '@/utils/nameGenerator';
@@ -6,6 +6,7 @@ import { generateColor } from '@/utils/colorGenerator';
 import { gameRoomService } from '@/services/gameRoomService';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 interface GameContextType {
   player: Player | null;
@@ -128,6 +129,67 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
       localStorage.removeItem('agar3-fun-current-room');
     }
   }, [currentRoom]);
+
+  // Realtime subscription for current room updates
+  useEffect(() => {
+    if (!currentRoom?.id) return;
+
+    console.log("CONTEXT - Setting up realtime subscription for room:", currentRoom.id);
+    
+    const channel = supabase
+      .channel(`room_context_${currentRoom.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_room_players',
+          filter: `room_id=eq.${currentRoom.id}`
+        },
+        async (payload) => {
+          console.log("CONTEXT - Room players changed:", payload.eventType, payload);
+          // Rafraîchir immédiatement la room
+          try {
+            const refreshedRoom = await gameRoomService.getRoom(currentRoom.id);
+            if (refreshedRoom) {
+              console.log("CONTEXT - Room refreshed after player change:", refreshedRoom.players?.length, "players");
+              setCurrentRoom(refreshedRoom);
+            }
+          } catch (error) {
+            console.error("CONTEXT - Error refreshing room after player change:", error);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_rooms',
+          filter: `id=eq.${currentRoom.id}`
+        },
+        async (payload) => {
+          console.log("CONTEXT - Room changed:", payload.eventType, payload);
+          try {
+            const refreshedRoom = await gameRoomService.getRoom(currentRoom.id);
+            if (refreshedRoom) {
+              console.log("CONTEXT - Room refreshed after room change:", refreshedRoom.status);
+              setCurrentRoom(refreshedRoom);
+            }
+          } catch (error) {
+            console.error("CONTEXT - Error refreshing room:", error);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("CONTEXT - Realtime subscription status:", status);
+      });
+
+    return () => {
+      console.log("CONTEXT - Cleaning up subscription for room:", currentRoom.id);
+      supabase.removeChannel(channel);
+    };
+  }, [currentRoom?.id]);
 
   const setPlayerDetails = (name: string, color: PlayerColor) => {
     const walletAddress = publicKey?.toBase58() || '';
