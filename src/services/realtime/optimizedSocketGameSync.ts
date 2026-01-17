@@ -88,7 +88,7 @@ export class OptimizedSocketGameSyncService {
     this.callbacks = callbacks;
   }
 
-  async connect(serverUrl: string = 'http://localhost:3001'): Promise<boolean> {
+  async connect(serverUrl: string = import.meta.env.VITE_WS_URL || 'http://localhost:3001'): Promise<boolean> {
     console.log(`[OptimizedSocketGameSync] Connecting to ${serverUrl}...`);
 
     try {

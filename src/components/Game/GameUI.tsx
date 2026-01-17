@@ -271,7 +271,7 @@ export default function GameUI({ roomId }: GameUIProps) {
     playerName: currentPlayer?.name,
     playerColor: currentPlayer?.color,
     enabled: !isLocalMode && !!currentPlayer && !!currentRoom,
-    serverUrl: 'ws://localhost:3001',
+    serverUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:3001',
     onSnapshot: (snapshot) => {
       console.log("GameUI: Received optimized snapshot:", snapshot);
       

@@ -33,7 +33,7 @@ export const useOptimizedSocketGameSync = ({
   playerName,
   playerColor,
   enabled,
-  serverUrl = 'http://localhost:3001',
+  serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:3001',
   onSnapshot,
   onPlayerJoined,
   onPlayerLeft,
