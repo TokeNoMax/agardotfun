@@ -12,7 +12,9 @@ interface GameContextType {
   currentRoom: GameRoom | null;
   rooms: GameRoom[];
   customPhrases: string[];
+  debugMode: boolean;
   setCustomPhrases: (phrases: string[]) => void;
+  setDebugMode: (enabled: boolean) => void;
   setPlayerDetails: (name: string, color: PlayerColor) => void;
   createRoom: (name: string, maxPlayers: number, gameMode?: GameMode) => Promise<void>;
   joinRoom: (roomId: string) => Promise<void>;
@@ -48,6 +50,7 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [customPhrases, setCustomPhrases] = useState<string[]>([...defaultPhrases]);
+  const [debugMode, setDebugMode] = useState<boolean>(false);
   const { toast } = useToast();
   const { publicKey } = useWallet();
 
@@ -71,6 +74,15 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
         setCustomPhrases(parsedPhrases);
       } catch (error) {
         console.error('Error parsing saved phrases:', error);
+      }
+    }
+
+    const savedDebugMode = localStorage.getItem('agar3-fun-debug-mode');
+    if (savedDebugMode) {
+      try {
+        setDebugMode(JSON.parse(savedDebugMode));
+      } catch (error) {
+        console.error('Error parsing saved debug mode:', error);
       }
     }
 
@@ -102,6 +114,11 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('agar3-fun-custom-phrases', JSON.stringify(customPhrases));
   }, [customPhrases]);
+
+  // Save debug mode to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('agar3-fun-debug-mode', JSON.stringify(debugMode));
+  }, [debugMode]);
 
   // Save current room to localStorage whenever it changes
   useEffect(() => {
@@ -360,7 +377,9 @@ export const GameProvider: React.FC<GameContextProps> = ({ children }) => {
     currentRoom,
     rooms,
     customPhrases,
+    debugMode,
     setCustomPhrases,
+    setDebugMode,
     setPlayerDetails,
     createRoom,
     joinRoom,

@@ -20,11 +20,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { LandingHero } from "@/components/Landing/LandingHero";
 import WalletButton from "@/components/Wallet/WalletButton";
+import { Switch } from "@/components/ui/switch";
 
 export default function Index() {
   const navigate = useNavigate();
   const { connected } = useWallet();
-  const { customPhrases, setCustomPhrases } = useGame();
+  const { customPhrases, setCustomPhrases, debugMode, setDebugMode } = useGame();
   const [editedPhrases, setEditedPhrases] = useState<string[]>([...customPhrases]);
   const [newPhrase, setNewPhrase] = useState("");
   const { toast } = useToast();
@@ -194,6 +195,32 @@ export default function Index() {
                   <Save className="h-4 w-4 mr-2" />
                   Enregistrer les modifications
                 </Button>
+                
+                {/* Mode Développeur Section */}
+                <div className="border-t border-cyber-cyan/20 pt-6 space-y-4 mt-6">
+                  <h3 className="text-lg font-medium text-cyber-magenta font-mono flex items-center gap-2">
+                    <span>🛠️</span> Mode Développeur
+                  </h3>
+                  <p className="text-sm text-gray-400 font-mono">
+                    Active les outils de diagnostic pour analyser les performances multijoueur.
+                  </p>
+                  
+                  <div className="flex items-center justify-between bg-gray-900/50 p-4 rounded border border-cyber-magenta/20">
+                    <div className="flex items-center gap-3">
+                      <span className="text-cyber-magenta">🐛</span>
+                      <span className="text-gray-300 font-mono">Mode Debug</span>
+                    </div>
+                    <Switch 
+                      checked={debugMode} 
+                      onCheckedChange={setDebugMode}
+                      className="data-[state=checked]:bg-cyber-magenta"
+                    />
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 font-mono">
+                    Affiche : FPS, statut connexion, IDs joueurs, positions réseau (ghosting)
+                  </p>
+                </div>
               </div>
               
               <SheetFooter>
