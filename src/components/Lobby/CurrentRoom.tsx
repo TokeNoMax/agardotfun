@@ -1,5 +1,3 @@
-
-
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/context/GameContext";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -7,6 +5,7 @@ import { GameRoom } from "@/types/game";
 import { Zap, Users, LogOut } from "lucide-react";
 import GhostRoomDetector from "./GhostRoomDetector";
 import GameStartCountdown from "./GameStartCountdown";
+import { useEffectiveUserId } from "@/hooks/useEffectiveUserId";
 
 interface CurrentRoomProps {
   currentRoom: GameRoom;
@@ -33,7 +32,7 @@ export default function CurrentRoom({
 }: CurrentRoomProps) {
   const { player } = useGame();
   const { publicKey } = useWallet();
-  
+  const { effectiveUserId, source: userIdSource } = useEffectiveUserId();
   // Game mode display
   const getGameModeDisplay = (gameMode?: string) => {
     console.log("CurrentRoom - Game mode:", gameMode);
@@ -243,6 +242,9 @@ export default function CurrentRoom({
             {/* Debug Panel - À RETIRER EN PRODUCTION */}
             <div className="mt-4 p-3 bg-black/80 border border-red-500/50 rounded text-xs font-mono text-red-400">
               <p className="text-red-500 font-bold mb-2">🔧 DEBUG PANEL</p>
+              <p className="text-yellow-400 font-bold">
+                effectiveUserId: {effectiveUserId?.substring(0, 12)}... (source: {userIdSource})
+              </p>
               <p>Player ID (local): {player?.id?.substring(0, 12)}...</p>
               <p>Player Wallet (context): {player?.walletAddress?.substring(0, 12)}...</p>
               <p>Connected Wallet: {publicKey?.toBase58()?.substring(0, 12)}...</p>
